@@ -256,6 +256,7 @@
   .cat-name { font-size: 12px; color: #666; font-weight: 500; width: 110px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cat-bar-bg { flex: 1; height: 6px; border-radius: 3px; background: #f2f2ee; overflow: hidden; }
   .cat-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+  .cat-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
   .cat-amt { font-size: 12px; font-weight: 600; width: 72px; text-align: right; flex-shrink: 0; }
 
   /* Chronological Timeline Presentation */
@@ -332,47 +333,58 @@
   .spinner { width: 28px; height: 28px; border: 3px solid #e8e8e4; border-top-color: #1D9E75; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Edit / Add Transaction Modal — Material 3 Transition Layout Framework */
+  /* Edit / Add Transaction Modal — Material 3 Expressive Focal Expand */
   .modal-overlay {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.32); 
-    -webkit-backdrop-filter: blur(4px);
-    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(0px);
+    backdrop-filter: blur(0px);
     display: flex;
-    align-items: flex-end;
+    align-items: center;      
     justify-content: center;
+    padding: 1rem;
     z-index: 200;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 400ms cubic-bezier(0.2, 0, 0, 1); 
+    transition: opacity 500ms cubic-bezier(0.34, 0.8, 0.34, 1),
+                backdrop-filter 500ms cubic-bezier(0.34, 0.8, 0.34, 1),
+                -webkit-backdrop-filter 500ms cubic-bezier(0.34, 0.8, 0.34, 1);
   }
-  .modal-overlay.open { opacity: 1; pointer-events: auto; }
+  .modal-overlay.open { 
+    opacity: 1; 
+    pointer-events: auto;
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+  }
   
   .modal-sheet {
     background: rgba(255, 255, 255, 0.75);
     -webkit-backdrop-filter: blur(28px) saturate(180%);
     backdrop-filter: blur(28px) saturate(180%);
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    border-bottom: none;
+    border: 1px solid rgba(0, 0, 0, 0.15);
     width: 100%;
-    max-width: 480px;
-    border-radius: 28px 28px 0 0; 
-    padding: 1.5rem 1.25rem 1.75rem 1.25rem;
-    
-    /* M3 Easing Configuration Profiles */
-    transform: translateY(100%);
-    transition: transform 400ms cubic-bezier(0.2, 0, 0, 1);
-    box-shadow: 0 -8px 32px rgba(0,0,0,0.08);
-    max-height: 88vh;
+    max-width: 420px;
+    border-radius: 28px; 
+    padding: 1.75rem 1.5rem;
+    box-shadow: 0 24px 48px rgba(0,0,0,0.16);
+    max-height: 90vh;
     overflow-y: auto;
+    
+    /* M3 Expressive Scale/Overshoot Departure States */
+    transform: scale(0.85) translateY(20px);
+    opacity: 0;
+    transition: transform 400ms cubic-bezier(0.38, 1.21, 0.22, 1),
+                opacity 300ms ease;
   }
-  /* Material 3 Standard Decelerated Entry Profile */
+  /* Material 3 Expressive Entry Profile */
   .modal-overlay.open .modal-sheet { 
-    transform: translateY(0); 
-    transition: transform 500ms cubic-bezier(0, 0, 0, 1);
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    transition: transform 500ms cubic-bezier(0.38, 1.21, 0.22, 1),
+                opacity 200ms ease;
   }
-  .modal-handle { width: 32px; height: 4px; background: rgba(0,0,0,0.16); border-radius: 2px; margin: 0 auto 1.25rem auto; }
+  .modal-handle { display: none; }
   .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 1.1rem; color: #1a1a1a; }
 
   /* Glass segmented control track and slider transitions built on snap physics */
@@ -489,10 +501,9 @@
     .modal-overlay { background: rgba(0, 0, 0, 0.55); }
     .modal-sheet {
       background: rgba(30, 30, 28, 0.72);
-      border-color: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.12);
       box-shadow: 0 -8px 40px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.06);
     }
-    .modal-handle { background: rgba(255, 255, 255, 0.24); }
     .modal-title { color: #e3e3df; }
     
     .type-toggle { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); }
@@ -592,7 +603,6 @@
 <!-- Add / Edit Transaction Modal -->
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this) closeTxnModal()">
   <div class="modal-sheet">
-    <div class="modal-handle"></div>
     <div class="modal-title" id="modal-title">Add Transaction</div>
 
     <div class="modal-error" id="modal-error"></div>
