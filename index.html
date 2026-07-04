@@ -259,7 +259,6 @@
     }
     .metric-grid.home-grid .balance-card { grid-column: span 2; }
     
-    /* Strict Mobile Blueprint Centering Constraints for Analytics Cards */
     .metric-grid.analytics-grid { 
       grid-template-columns: repeat(2, 1fr); 
       max-width: 440px;
@@ -327,7 +326,6 @@
     border-color: var(--outline-variant); 
   }
 
-  /* Centered desktop/mobile viewports structural containers */
   .charts-row { 
     display: grid; 
     grid-template-columns: 1fr 1fr; 
@@ -345,7 +343,6 @@
 
   .card { background: var(--surface-container-low); border-radius: var(--shape-lg); border: 1px solid var(--outline-variant); padding: 1.25rem; width: 100%; display: flex; flex-direction: column; }
   
-  /* Analytics section specific layout wrapper center-locks on tiny viewports */
   @media (max-width: 768px) {
     #analytics-view > .card {
       max-width: 440px;
@@ -404,7 +401,7 @@
   .txn-details { display: flex; flex-direction: column; gap: 2px; }
   .txn-badge-container { display: flex; margin-top: 1px; }
 
-  /* Day subtotal elements styles setup */
+  /* Clean Subtotal Presentation */
   .txn-footer {
     background: var(--surface-container);
     padding: 11px 1.25rem 11px 1.45rem; 
@@ -623,10 +620,10 @@
         </div>
         <div class="custom-pill-legend">
           <div class="pill-item">
-            <div class="pill-dot" style="background:var(--semantic-expense)"></div>This month
+            <div class="pill-dot" style="background:#1A1A1A"></div>This month
           </div>
           <div class="pill-item">
-            <div class="pill-dot" style="background:#6C757D"></div>Last month
+            <div class="pill-dot" style="background:var(--semantic-expense)"></div>Last month
           </div>
         </div>
       </div>
@@ -695,15 +692,6 @@ const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXIWSRt1xVAbLnNPlhiHHaWpTHGB23N1wkoMU74nHifMT9prU3rM4m6/exec";
 const SECRET_KEY = "8891";
 
-const CAT_COLORS = {
-  "Food & Dining":     { hex: "#E53E3E" },
-  "Transport":         { hex: "#007A87" },
-  "Bills & Utilities": { hex: "#D97706" },
-  "Shopping":          { hex: "#2684FF" },
-  "Groceries":         { hex: "#6554C0" },
-  "Entertainment":     { hex: "#E774BB" },
-  "Other":             { hex: "#495057" }
-};
 const INCOME_CATEGORIES = ["Salary", "Freelance", "Bonus", "Investment", "Side Income", "Reimbursement", "Other Income"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -852,6 +840,19 @@ function calculateAndRender() {
   const catData = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
   const maxCat = catData[0]?.[1] || 1;
 
+  // Resolve computed hex values dynamically from computed styles root mapping
+  const activeExpenseColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-expense').trim() || "#E53E3E";
+
+  const CAT_COLORS = {
+    "Food & Dining":     { hex: activeExpenseColor },
+    "Transport":         { hex: "#007A87" },
+    "Bills & Utilities": { hex: "#D97706" },
+    "Shopping":          { hex: "#2684FF" },
+    "Groceries":         { hex: "#6554C0" },
+    "Entertainment":     { hex: "#E774BB" },
+    "Other":             { hex: "#495057" }
+  };
+
   if (currentView === 'home') {
     document.getElementById('home-metrics').innerHTML = `
       <div class="metric income-card">
@@ -892,7 +893,7 @@ function calculateAndRender() {
               <div class="txn-left">
                 <div class="txn-details">
                   <div class="txn-desc">${r.Description}</div>
-                  <div class="txn-badge-container"><span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Income' : r.Category.split(' ')[0]}</span></div>
+                  <div class="txn-badge-container<span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Income' : r.Category.split(' ')[0]}</span></div>
                 </div>
               </div>
               <span class="txn-amt ${isInc ? 'income' : 'expense'}">${isInc ? '+' : ''}RM ${formatCurrency(r.Amount)}</span>
@@ -974,14 +975,16 @@ function calculateAndRender() {
     const lineContainer = document.getElementById('cumulative-line-container');
     if (lineContainer) lineContainer.innerHTML = '<canvas id="cumulative-line"></canvas>';
 
+    const activeThisMonthLineColor = isDarkMode ? "#F8F9FA" : "#1A1A1A";
+
     if (lineChart) lineChart.destroy();
     lineChart = new Chart(document.getElementById('cumulative-line'), {
       type: 'line',
       data: {
         labels: Array.from({ length: daysInMonth }, (_, i) => i + 1),
         datasets: [
-          { label: 'This Month', data: currentMonthlyCumulativeData, borderColor: 'var(--semantic-expense)', backgroundColor: 'transparent', borderWidth: 3, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: '#fff', pointBorderColor: 'var(--semantic-expense)', pointBorderWidth: 2, tension: 0.1 },
-          { label: 'Last Month', data: priorMonthlyCumulativeData, borderColor: '#6C757D', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.1 }
+          { label: 'This Month', data: currentMonthlyCumulativeData, borderColor: activeThisMonthLineColor, backgroundColor: 'transparent', borderWidth: 3, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: '#fff', pointBorderColor: activeThisMonthLineColor, pointBorderWidth: 2, tension: 0.1 },
+          { label: 'Last Month', data: priorMonthlyCumulativeData, borderColor: activeExpenseColor, backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.1 }
         ]
       },
       options: {
