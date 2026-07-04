@@ -13,9 +13,9 @@
      M3 EXPRESSIVE DESIGN TOKENS — CLEAN MONOCHROME
      ──────────────────────────────────────────────────────────── */
   :root {
-    /* Premium Semantic Fin-Colors (Vibrant, distinct, professional) */
-    --semantic-income: #00875A;
-    --semantic-expense: #DE350B;
+    /* High-Vibrancy Semantic Fin-Colors (Punchy & Sharp) */
+    --semantic-income: #00A36C;
+    --semantic-expense: #E53E3E;
 
     /* Layout & Brand Accents — Clean Slate Monochromatic Framework */
     --primary: #1A1A1A; 
@@ -44,8 +44,8 @@
     --on-surface-variant: #495057;
 
     /* Micro-Washes for Metrics Cards */
-    --wash-income: rgba(0, 135, 90, 0.04);
-    --wash-expense: rgba(222, 53, 11, 0.04);
+    --wash-income: rgba(0, 163, 108, 0.04);
+    --wash-expense: rgba(229, 62, 62, 0.04);
     --wash-hero: rgba(33, 37, 41, 0.03);
 
     /* M3 Shape Library Scales */
@@ -66,8 +66,8 @@
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --semantic-income: #36B37E;
-      --semantic-expense: #FF5630;
+      --semantic-income: #2ECC71;
+      --semantic-expense: #FF4D4D;
 
       --primary: #F8F9FA;
       --on-primary: #212529;
@@ -83,8 +83,8 @@
       --on-surface: #F8F9FA;
       --on-surface-variant: #CED4DA;
 
-      --wash-income: rgba(54, 179, 126, 0.06);
-      --wash-expense: rgba(255, 86, 48, 0.06);
+      --wash-income: rgba(46, 204, 113, 0.06);
+      --wash-expense: rgba(255, 77, 77, 0.06);
       --wash-hero: rgba(248, 249, 250, 0.04);
     }
   }
@@ -252,9 +252,19 @@
     width: 100%; 
   }
   @media (max-width: 480px) {
-    .metric-grid.home-grid { grid-template-columns: repeat(2, 1fr); }
+    .metric-grid.home-grid { 
+      grid-template-columns: repeat(2, 1fr); 
+      max-width: 440px;
+      margin: 0 auto 1.5rem auto;
+    }
     .metric-grid.home-grid .balance-card { grid-column: span 2; }
-    .metric-grid.analytics-grid { grid-template-columns: repeat(2, 1fr); }
+    
+    /* Strict Mobile Blueprint Centering Constraints for Analytics Cards */
+    .metric-grid.analytics-grid { 
+      grid-template-columns: repeat(2, 1fr); 
+      max-width: 440px;
+      margin: 0 auto 1.5rem auto;
+    }
   }
 
   /* Tonal Container Washed Surfaces */
@@ -317,7 +327,7 @@
     border-color: var(--outline-variant); 
   }
 
-  /* Centered mobile viewport layout constraint maps */
+  /* Centered desktop/mobile viewports structural containers */
   .charts-row { 
     display: grid; 
     grid-template-columns: 1fr 1fr; 
@@ -328,12 +338,21 @@
   @media (max-width: 768px) { 
     .charts-row { 
       grid-template-columns: 1fr; 
-      max-width: 480px; 
+      max-width: 440px; 
       margin: 0 auto 1.5rem auto; 
     } 
   }
 
   .card { background: var(--surface-container-low); border-radius: var(--shape-lg); border: 1px solid var(--outline-variant); padding: 1.25rem; width: 100%; display: flex; flex-direction: column; }
+  
+  /* Analytics section specific layout wrapper center-locks on tiny viewports */
+  @media (max-width: 768px) {
+    #analytics-view > .card {
+      max-width: 440px;
+      margin: 0 auto;
+    }
+  }
+  
   .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
@@ -385,7 +404,7 @@
   .txn-details { display: flex; flex-direction: column; gap: 2px; }
   .txn-badge-container { display: flex; margin-top: 1px; }
 
-  /* Clean Subtotal Presentation (Unified color contrast steps) */
+  /* Day subtotal elements styles setup */
   .txn-footer {
     background: var(--surface-container);
     padding: 11px 1.25rem 11px 1.45rem; 
@@ -543,13 +562,13 @@
   .btn-danger {
     flex: 0 0 auto; padding: 12px 16px; color: var(--semantic-expense);
     background: var(--wash-expense);
-    border: 1px solid rgba(222, 53, 11, 0.2);
+    border: 1px solid rgba(229, 62, 62, 0.2);
   }
   .btn-danger:disabled { opacity: 0.4; }
 
   .modal-error {
     display: none; background: var(--wash-expense); color: var(--semantic-expense); font-size: 12px; font-weight: 600;
-    padding: 10px 12px; border-radius: var(--shape-sm); margin-bottom: 1rem; border: 1px solid rgba(222, 53, 11, 0.2);
+    padding: 10px 12px; border-radius: var(--shape-sm); margin-bottom: 1rem; border: 1px solid rgba(229, 62, 62, 0.2);
   }
 </style>
 </head>
@@ -607,7 +626,7 @@
             <div class="pill-dot" style="background:var(--semantic-expense)"></div>This month
           </div>
           <div class="pill-item">
-            <div class="pill-dot" style="background:#ADB5BD"></div>Last month
+            <div class="pill-dot" style="background:#6C757D"></div>Last month
           </div>
         </div>
       </div>
@@ -677,7 +696,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXI
 const SECRET_KEY = "8891";
 
 const CAT_COLORS = {
-  "Food & Dining":     { hex: "#DE350B" },
+  "Food & Dining":     { hex: "#E53E3E" },
   "Transport":         { hex: "#007A87" },
   "Bills & Utilities": { hex: "#D97706" },
   "Shopping":          { hex: "#2684FF" },
@@ -962,7 +981,7 @@ function calculateAndRender() {
         labels: Array.from({ length: daysInMonth }, (_, i) => i + 1),
         datasets: [
           { label: 'This Month', data: currentMonthlyCumulativeData, borderColor: 'var(--semantic-expense)', backgroundColor: 'transparent', borderWidth: 3, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: '#fff', pointBorderColor: 'var(--semantic-expense)', pointBorderWidth: 2, tension: 0.1 },
-          { label: 'Last Month', data: priorMonthlyCumulativeData, borderColor: '#ADB5BD', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.1 }
+          { label: 'Last Month', data: priorMonthlyCumulativeData, borderColor: '#6C757D', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.1 }
         ]
       },
       options: {
