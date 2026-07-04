@@ -333,7 +333,9 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.45);
+    background: rgba(0,0,0,0.35);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -344,47 +346,98 @@
   }
   .modal-overlay.open { opacity: 1; pointer-events: auto; }
   .modal-sheet {
-    background: #fff;
+    background: rgba(255,255,255,0.72);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.7);
+    border-bottom: none;
     width: 100%;
     max-width: 480px;
-    border-radius: 20px 20px 0 0;
+    border-radius: 24px 24px 0 0;
     padding: 1.5rem 1.25rem 1.75rem 1.25rem;
     transform: translateY(100%);
-    transition: transform 0.32s cubic-bezier(0.175, 0.885, 0.32, 1.05);
+    transition: transform 0.5s cubic-bezier(0.34, 1.25, 0.64, 1);
+    box-shadow: 0 -8px 40px rgba(0,0,0,0.16), inset 0 1px 1px rgba(255,255,255,0.7);
     max-height: 88vh;
     overflow-y: auto;
   }
   .modal-overlay.open .modal-sheet { transform: translateY(0); }
-  .modal-handle { width: 36px; height: 4px; background: #e0e0dc; border-radius: 2px; margin: 0 auto 1.1rem auto; }
+  .modal-handle { width: 36px; height: 4px; background: rgba(0,0,0,0.15); border-radius: 2px; margin: 0 auto 1.1rem auto; }
   .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 1.1rem; color: #1a1a1a; }
 
-  .type-toggle { display: flex; background: #f2f2ee; border-radius: 12px; padding: 3px; margin-bottom: 1rem; }
+  /* Glass segmented control — same language as the bottom nav pill */
+  .type-toggle {
+    position: relative;
+    display: flex;
+    background: rgba(255,255,255,0.4);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: 13px;
+    padding: 3px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+  .type-toggle-slider {
+    position: absolute;
+    top: 3px; bottom: 3px; left: 3px;
+    width: calc(50% - 3px);
+    background: rgba(255,255,255,0.92);
+    border: 1px solid rgba(255,255,255,1);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.14), inset 0 1px 1px rgba(255,255,255,0.9);
+    border-radius: 10px;
+    transition: transform 0.5s cubic-bezier(0.34, 1.25, 0.64, 1);
+    z-index: 1;
+    pointer-events: none;
+  }
   .type-toggle button {
+    position: relative; z-index: 2;
     flex: 1; border: none; background: transparent; padding: 9px;
     border-radius: 10px; font-size: 13px; font-weight: 700; color: #888; cursor: pointer;
+    transition: color 0.3s ease, transform 0.5s cubic-bezier(0.34, 1.25, 0.64, 1), font-weight 0.3s ease;
   }
-  .type-toggle button.active-expense { background: #fff; color: #FF6B6B; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-  .type-toggle button.active-income { background: #fff; color: #1D9E75; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .type-toggle button.active-expense { color: #FF6B6B; font-weight: 800; transform: scale(1.06); }
+  .type-toggle button.active-income { color: #1D9E75; font-weight: 800; transform: scale(1.06); }
 
   .form-group { margin-bottom: 0.9rem; }
   .form-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #888; margin-bottom: 5px; display: block; }
   .form-input, .form-select {
-    width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid #e8e8e4;
-    font-size: 14px; font-family: inherit; background: #fff; color: #1a1a1a; outline: none;
+    width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.08);
+    font-size: 14px; font-family: inherit; background: rgba(255,255,255,0.6); color: #1a1a1a; outline: none;
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
   }
-  .form-input:focus, .form-select:focus { border-color: #1a1a1a; }
+  .form-input:focus, .form-select:focus {
+    border-color: rgba(26,26,26,0.25);
+    box-shadow: 0 0 0 4px rgba(255,255,255,0.55), 0 0 0 1px rgba(26,26,26,0.1);
+  }
 
   .modal-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
-  .btn { padding: 13px; border-radius: 12px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .btn {
+    padding: 13px; border-radius: 12px; border: none; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  .btn:active { transform: scale(0.95); }
   .btn-primary { flex: 1; background: #1a1a1a; color: #fff; }
   .btn-primary:disabled { opacity: 0.55; }
-  .btn-ghost { flex: 1; background: #f2f2ee; color: #555; }
-  .btn-danger { flex: 0 0 auto; padding: 13px 16px; background: transparent; color: #FF6B6B; border: 1px solid #FF6B6B; }
+  .btn-ghost {
+    flex: 1; color: #555;
+    background: rgba(255,255,255,0.45);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.6);
+  }
+  .btn-danger {
+    flex: 0 0 auto; padding: 13px 16px; color: #FF6B6B;
+    background: rgba(255,107,107,0.10);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255,107,107,0.4);
+  }
   .btn-danger:disabled { opacity: 0.5; }
 
   .modal-error {
-    display: none; background: #fff3f3; color: #c62828; font-size: 12px; font-weight: 600;
-    padding: 9px 12px; border-radius: 10px; margin-bottom: 0.9rem;
+    display: none; background: rgba(255,107,107,0.12); color: #c62828; font-size: 12px; font-weight: 600;
+    padding: 9px 12px; border-radius: 10px; margin-bottom: 0.9rem; border: 1px solid rgba(255,107,107,0.3);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -416,16 +469,31 @@
     .txn-desc, .card-title { color: #e3e3df; }
     .metric.crystal-ball { background: radial-gradient(circle at 85% 15%, #2b243d 0%, #1e1e1c 80%); border-color: #463b61; }
 
-    .modal-sheet { background: #1e1e1c; }
-    .modal-handle { background: #3a3a37; }
+    .modal-overlay { background: rgba(0,0,0,0.55); }
+    .modal-sheet {
+      background: rgba(30,30,28,0.68);
+      border-color: rgba(255,255,255,0.08);
+      box-shadow: 0 -8px 40px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.06);
+    }
+    .modal-handle { background: rgba(255,255,255,0.18); }
     .modal-title { color: #e3e3df; }
-    .type-toggle { background: #262624; }
-    .type-toggle button.active-expense, .type-toggle button.active-income { background: #1e1e1c; }
-    .form-input, .form-select { background: #141412; border-color: #2c2c2a; color: #e3e3df; }
-    .btn-ghost { background: #262624; color: #ccc; }
-    .modal-error { background: #2a1c1c; color: #ff8a8a; }
+    .type-toggle { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
+    .type-toggle-slider {
+      background: rgba(255,255,255,0.16);
+      border-color: rgba(255,255,255,0.2);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.15);
+    }
+    .form-input, .form-select { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); color: #e3e3df; }
+    .form-input:focus, .form-select:focus {
+      border-color: rgba(255,255,255,0.3);
+      box-shadow: 0 0 0 4px rgba(255,255,255,0.1), 0 0 0 1px rgba(255,255,255,0.25);
+    }
+    .btn-ghost { background: rgba(255,255,255,0.08); color: #ccc; border-color: rgba(255,255,255,0.12); }
+    .btn-danger { background: rgba(255,107,107,0.14); border-color: rgba(255,107,107,0.35); }
+    .modal-error { background: rgba(255,107,107,0.14); color: #ff8a8a; border-color: rgba(255,107,107,0.3); }
   }
 </style>
+
 </head>
 <body>
 
@@ -513,6 +581,7 @@
     <input type="hidden" id="modal-uid">
 
     <div class="type-toggle">
+      <div class="type-toggle-slider" id="type-slider"></div>
       <button type="button" id="type-expense-btn" onclick="setModalType('Expense')">Expense</button>
       <button type="button" id="type-income-btn" onclick="setModalType('Income')">Income</button>
     </div>
@@ -1063,6 +1132,7 @@ function setModalType(type) {
   document.getElementById('modal-type').value = type;
   document.getElementById('type-expense-btn').classList.toggle('active-expense', type === 'Expense');
   document.getElementById('type-income-btn').classList.toggle('active-income', type === 'Income');
+  document.getElementById('type-slider').style.transform = type === 'Income' ? 'translateX(100%)' : 'translateX(0)';
   populateCategoryOptions(type);
 }
 
