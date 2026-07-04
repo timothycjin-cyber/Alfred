@@ -5,21 +5,102 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Project Alfred — Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght,wdth@8..144,300..900,75..125&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  
-  /* Soft, warm cream background and minimalist base font matching Money Mama */
+
+  /* ────────────────────────────────────────────────────────────
+     M3 EXPRESSIVE DESIGN TOKENS
+     Source color: jade green (growth/money) → primary
+     Secondary: clay red (expense/attention) · Tertiary: violet (forecast)
+     Roboto Flex gives us variable weight/width for expressive type.
+     ──────────────────────────────────────────────────────────── */
+  :root {
+    /* color roles */
+    --primary: #146C43;
+    --on-primary: #FFFFFF;
+    --primary-container: #B7F0CE;
+    --on-primary-container: #002111;
+
+    --secondary: #C4433E;
+    --on-secondary: #FFFFFF;
+    --secondary-container: #FFDAD4;
+    --on-secondary-container: #410E0A;
+
+    --tertiary: #6552C4;
+    --on-tertiary: #FFFFFF;
+    --tertiary-container: #E6DEFF;
+    --on-tertiary-container: #1D0060;
+
+    --surface: #F9F8F2;
+    --surface-container-low: #FFFFFF;
+    --surface-container: #F2EFE6;
+    --surface-container-high: #EAE6D9;
+    --outline: #837F73;
+    --outline-variant: #E4E0D4;
+    --on-surface: #1B1B17;
+    --on-surface-variant: #6F6C61;
+
+    /* shape scale — 5 roundedness levels + full */
+    --shape-xs: 6px;
+    --shape-sm: 10px;
+    --shape-md: 14px;
+    --shape-lg: 20px;
+    --shape-xl: 28px;
+    --shape-full: 999px;
+
+    /* motion — expressive spring easing, physics-based feel */
+    --motion-spring-fast: 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    --motion-spring-default: 450ms cubic-bezier(0.34, 1.35, 0.27, 1);
+    --motion-standard: 300ms cubic-bezier(0.2, 0, 0, 1);
+
+    /* type */
+    --font-body: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --primary: #7FDBA3;
+      --on-primary: #00391D;
+      --primary-container: #00522B;
+      --on-primary-container: #B7F0CE;
+
+      --secondary: #FFB4AB;
+      --on-secondary: #690500;
+      --secondary-container: #93000A;
+      --on-secondary-container: #FFDAD4;
+
+      --tertiary: #C9BFFF;
+      --on-tertiary: #31228F;
+      --tertiary-container: #4B3D9E;
+      --on-tertiary-container: #E6DEFF;
+
+      --surface: #14140F;
+      --surface-container-low: #1E1E1A;
+      --surface-container: #232320;
+      --surface-container-high: #2B2B26;
+      --outline: #928F84;
+      --outline-variant: #47443A;
+      --on-surface: #E7E3D8;
+      --on-surface-variant: #C9C5B9;
+    }
+  }
+
+  /* Warm surface background, expressive variable-weight type */
   body { 
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
-    background: #f9f9f6; 
-    color: #1a1a1a; 
+    font-family: var(--font-body);
+    font-variation-settings: 'wght' 400, 'wdth' 100;
+    background: var(--surface); 
+    color: var(--on-surface); 
     min-height: 100vh; 
     padding-bottom: 105px; 
   }
 
   /* Streamlined Header Zone */
   .header { 
-    background: #fff; 
+    background: var(--surface-container-low); 
     padding: 1.25rem 1.5rem; 
     display: flex; 
     align-items: center; 
@@ -27,19 +108,26 @@
     position: sticky; 
     top: 0; 
     z-index: 10; 
-    border-bottom: 1px solid #e8e8e4; 
+    border-bottom: 1px solid var(--outline-variant); 
   }
   .header-left { display: flex; align-items: center; gap: 12px; }
-  .header-title { font-size: 19px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.3px; }
+  /* Editorial-style emphasized headline — heavier weight via variable font axis */
+  .header-title { 
+    font-size: 20px; 
+    font-weight: 800; 
+    font-variation-settings: 'wght' 700, 'wdth' 105; 
+    color: var(--on-surface); 
+    letter-spacing: -0.4px; 
+  }
   
   /* Minimal Dropdown Styling */
   .month-select { 
     font-size: 13px; 
     padding: 5px 10px; 
-    border-radius: 8px; 
-    border: 1px solid #e8e8e4; 
-    background: #fff; 
-    color: #1a1a1a; 
+    border-radius: var(--shape-sm); 
+    border: 1px solid var(--outline-variant); 
+    background: var(--surface-container-low); 
+    color: var(--on-surface); 
     cursor: pointer; 
     font-weight: 600; 
     outline: none; 
@@ -49,19 +137,20 @@
   .refresh-btn { 
     width: 36px; 
     height: 36px; 
-    border-radius: 50%; 
-    border: 1px solid #e8e8e4; 
+    border-radius: var(--shape-full); 
+    border: 1px solid var(--outline-variant); 
     background: transparent; 
-    color: #555; 
+    color: var(--on-surface-variant); 
     cursor: pointer; 
     display: flex; 
     align-items: center; 
     justify-content: center; 
-    transition: background 0.2s; 
+    transition: background var(--motion-standard), transform var(--motion-spring-fast); 
     padding: 0; 
     outline: none;
   }
-  .refresh-btn:hover { background: #f5f5f0; }
+  .refresh-btn:hover { background: var(--surface-container); }
+  .refresh-btn:active { transform: rotate(180deg); }
 
   /* Bottom control group — FAB + nav pill share one centered row so they
      always sit on the same vertical axis, regardless of screen width. */
@@ -85,7 +174,7 @@
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(0, 0, 0, 0.18); 
-    border-radius: 27px; 
+    border-radius: var(--shape-full); 
     display: flex; 
     align-items: center; 
     padding: 4px; 
@@ -100,17 +189,17 @@
     flex: 1; 
     border: none; 
     background: transparent; 
-    color: #777; 
+    color: var(--on-surface-variant); 
     font-size: 13px; 
     font-weight: 600; 
     cursor: pointer; 
     height: 100%; 
     z-index: 2; 
-    transition: color 0.2s ease, transform 0.35s cubic-bezier(0.42, 1.67, 0.21, 0.90), font-weight 0.2s ease; 
+    transition: color var(--motion-standard), transform var(--motion-spring-default), font-weight var(--motion-standard); 
     outline: none; 
     -webkit-tap-highlight-color: transparent; 
   }
-  .nav-btn.active { color: #1a1a1a; font-weight: 800; transform: scale(1.08); }
+  .nav-btn.active { color: var(--primary); font-weight: 800; transform: scale(1.08); }
   
   .nav-slider { 
     position: absolute; 
@@ -118,35 +207,34 @@
     bottom: 4px; 
     left: 4px; 
     width: calc(50% - 4px); 
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(255, 255, 255, 1);
+    background: var(--primary-container);
+    border: 1px solid rgba(255, 255, 255, 0.5);
     box-shadow: 0 4px 14px rgba(0,0,0,0.14), inset 0 1px 1px rgba(255,255,255,0.9);
-    border-radius: 23px; 
-    transition: transform 0.35s cubic-bezier(0.42, 1.67, 0.21, 0.90); 
+    border-radius: var(--shape-full); 
+    transition: transform var(--motion-spring-default); 
     z-index: 1; 
     pointer-events: none; 
   }
 
   /* Floating Action Button (new transaction) — glass language with high contrast line edge */
+  /* FAB carries the source color — the one bold, high-chroma element in the bar */
   .fab {
     width: 54px;
     height: 54px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.65);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(0, 0, 0, 0.18); 
-    color: #1a1a1a;
+    border-radius: var(--shape-full);
+    background: var(--primary);
+    border: 1px solid rgba(255, 255, 255, 0.25); 
+    color: var(--on-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 12px 36px rgba(0,0,0,0.12), inset 0 1px 1px rgba(255,255,255,0.8);
+    box-shadow: 0 12px 28px -8px rgba(20, 108, 67, 0.55), inset 0 1px 1px rgba(255,255,255,0.25);
     cursor: pointer;
     flex-shrink: 0;
-    transition: transform 0.15s ease;
+    transition: transform var(--motion-spring-fast);
     -webkit-tap-highlight-color: transparent;
   }
-  .fab:active { transform: scale(0.95); }
+  .fab:active { transform: scale(0.9) rotate(-8deg); }
 
   .container { max-width: 900px; margin: 0 auto; padding: 1.25rem 1rem; }
   .view-section { display: none; }
@@ -172,28 +260,36 @@
 
   /* Highly Rounded Cards with Minimalist Geometry */
   .metric { 
-    background: #fff; 
-    border-radius: 14px; 
+    background: var(--surface-container-low); 
+    border-radius: var(--shape-lg); 
     padding: 0.75rem 0.5rem; 
-    border: 1px solid #e8e8e4; 
+    border: 1px solid var(--outline-variant); 
     text-align: center; 
     display: flex; 
     flex-direction: column; 
     justify-content: center; 
     min-height: 80px; 
+    transition: transform var(--motion-spring-fast);
   }
   .metric-label { 
     font-size: 10px; 
-    color: #888; 
+    color: var(--on-surface-variant); 
     margin-bottom: 4px; 
     font-weight: 600; 
     text-transform: uppercase; 
     letter-spacing: 0.3px; 
   }
-  .metric-val { font-size: 14px; font-weight: 700; white-space: nowrap; }
+  /* Numerals get the expressive treatment — heavier weight, tabular width */
+  .metric-val { 
+    font-size: 14px; 
+    font-weight: 700; 
+    font-variation-settings: 'wght' 650, 'wdth' 100; 
+    white-space: nowrap; 
+  }
   .metric-sub { 
     font-size: 9px; 
-    color: #aaa; 
+    color: var(--on-surface-variant); 
+    opacity: 0.75;
     margin-top: 3px; 
     font-weight: 500; 
     white-space: nowrap; 
@@ -213,8 +309,8 @@
 
   /* Soft thematic analytics crystal ball gradient */
   .metric.crystal-ball { 
-    background: radial-gradient(circle at 85% 15%, #fff 0%, #faf9fc 60%, #f5f0ff 100%); 
-    border-color: #e1d8ff; 
+    background: radial-gradient(circle at 85% 15%, var(--surface-container-low) 0%, var(--tertiary-container) 140%); 
+    border-color: var(--tertiary-container); 
   }
 
   /* Centered layouts for chart cards */
@@ -234,12 +330,12 @@
     } 
   }
 
-  .card { background: #fff; border-radius: 14px; border: 1px solid #e8e8e4; padding: 1.25rem; width: 100%; display: flex; flex-direction: column; }
-  .card-title { font-size: 12px; font-weight: 600; margin-bottom: 14px; color: #1a1a1a; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card { background: var(--surface-container-low); border-radius: var(--shape-lg); border: 1px solid var(--outline-variant); padding: 1.25rem; width: 100%; display: flex; flex-direction: column; }
+  .card-title { font-size: 12px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface); text-transform: uppercase; letter-spacing: 0.5px; }
 
   /* Custom Pill Shape Legendary Alignments */
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
-  .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #666; padding: 4px 14px; border-radius: 20px; border: 1px solid #e8e8e4; background: #fff; }
+  .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); padding: 4px 14px; border-radius: var(--shape-full); border: 1px solid var(--outline-variant); background: var(--surface-container-low); }
   .pill-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
   .legend-side-box { display: flex; flex-direction: column; gap: 8px; justify-content: center; margin-top: 12px; }
@@ -253,15 +349,14 @@
   .legend-row-left { display: flex; align-items: center; gap: 6px; }
 
   .cat-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-  .cat-name { font-size: 12px; color: #666; font-weight: 500; width: 110px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cat-bar-bg { flex: 1; height: 6px; border-radius: 3px; background: #f2f2ee; overflow: hidden; }
-  .cat-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
-  .cat-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+  .cat-name { font-size: 12px; color: var(--on-surface-variant); font-weight: 500; width: 110px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cat-bar-bg { flex: 1; height: 6px; border-radius: var(--shape-full); background: var(--surface-container); overflow: hidden; }
+  .cat-bar-fill { height: 100%; border-radius: var(--shape-full); transition: width var(--motion-spring-default); }
   .cat-amt { font-size: 12px; font-weight: 600; width: 72px; text-align: right; flex-shrink: 0; }
 
   /* Chronological Timeline Presentation */
-  .date-group-header { font-size: 12px; font-weight: 700; color: #888; margin: 1.5rem 0 0.5rem 0.25rem; text-transform: uppercase; letter-spacing: 0.5px; }
-  .txn-list { border-radius: 14px; border: 1px solid #e8e8e4; background: #fff; overflow: hidden; margin-bottom: 0.5rem; }
+  .date-group-header { font-size: 12px; font-weight: 700; color: var(--on-surface-variant); margin: 1.5rem 0 0.5rem 0.25rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .txn-list { border-radius: var(--shape-lg); border: 1px solid var(--outline-variant); background: var(--surface-container-low); overflow: hidden; margin-bottom: 0.5rem; }
   
   /* Compact and high-density timeline rows layout */
   .txn-row { 
@@ -269,14 +364,14 @@
     align-items: center; 
     justify-content: space-between; 
     padding: 10px 1.25rem; 
-    border-bottom: 1px solid #f5f5f0; 
+    border-bottom: 1px solid var(--outline-variant); 
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: background var(--motion-standard);
     -webkit-tap-highlight-color: transparent;
   }
   .txn-row:last-child { border-bottom: none; }
-  .txn-row:hover { background: #fafaf8; }
-  .txn-row:active { background: #f5f5f0; }
+  .txn-row:hover { background: var(--surface-container); }
+  .txn-row:active { background: var(--surface-container-high); }
   
   .txn-left { display: flex; align-items: center; gap: 12px; }
   .txn-details { display: flex; flex-direction: column; gap: 2px; }
@@ -284,7 +379,7 @@
 
   /* Daily Spent Total Row Footer with left accent bar closer to "Spent" label */
   .txn-footer {
-    background: #fafaf9;
+    background: var(--surface-container);
     padding: 11px 1.25rem 11px 1.45rem; 
     position: relative; 
     display: flex;
@@ -292,13 +387,13 @@
     align-items: center;
     font-size: 12px;
     font-weight: 700;
-    color: #666;
-    border-top: 1px solid #f5f5f0;
+    color: var(--on-surface-variant);
+    border-top: 1px solid var(--outline-variant);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
   
-  /* Custom floating red vertical bar closer to text */
+  /* Custom floating accent bar in the secondary (expense) tone */
   .txn-footer::before {
     content: '';
     position: absolute;
@@ -306,31 +401,31 @@
     top: 8px;   
     bottom: 8px;
     width: 4px;
-    background-color: #FF6B6B; 
-    border-radius: 3px; 
+    background-color: var(--secondary); 
+    border-radius: var(--shape-xs); 
   }
   
   .txn-footer-amt {
-    color: #FF6B6B; 
+    color: var(--secondary); 
     font-size: 13.5px;
     font-weight: 800;
   }
   
   /* Balanced, highly stylized outlined semantic tags */
-  .badge { font-size: 9px; padding: 1px 6px; border-radius: 5px; font-weight: 700; white-space: nowrap; background: transparent; border-width: 1px; border-style: solid; text-transform: uppercase; letter-spacing: 0.3px; }
-  .badge.inc-badge { color: #1D9E75; border-color: #1D9E75; }
-  .badge.exp-badge { color: #FF6B6B; border-color: #FF6B6B; }
+  .badge { font-size: 9px; padding: 1px 6px; border-radius: var(--shape-xs); font-weight: 700; white-space: nowrap; background: transparent; border-width: 1px; border-style: solid; text-transform: uppercase; letter-spacing: 0.3px; }
+  .badge.inc-badge { color: var(--primary); border-color: var(--primary); }
+  .badge.exp-badge { color: var(--secondary); border-color: var(--secondary); }
 
-  .txn-desc { font-size: 13px; font-weight: 600; color: #1a1a1a; line-height: 1.25; }
+  .txn-desc { font-size: 13px; font-weight: 600; color: var(--on-surface); line-height: 1.25; }
   .txn-amt { font-size: 13px; font-weight: 700; }
-  .txn-amt.income { color: #1D9E75; }
-  .txn-amt.expense { color: #FF6B6B; }
+  .txn-amt.income { color: var(--primary); }
+  .txn-amt.expense { color: var(--secondary); }
 
-  .empty { text-align: center; padding: 3rem 1rem; color: #aaa; }
+  .empty { text-align: center; padding: 3rem 1rem; color: var(--on-surface-variant); }
   .empty-icon { font-size: 36px; margin-bottom: 12px; }
 
-  .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4rem 1rem; color: #888; font-size: 14px; }
-  .spinner { width: 28px; height: 28px; border: 3px solid #e8e8e4; border-top-color: #1D9E75; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
+  .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4rem 1rem; color: var(--on-surface-variant); font-size: 14px; }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--outline-variant); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* Edit / Add Transaction Modal — Material 3 Expressive Focal Expand */
@@ -365,7 +460,7 @@
     border: 1px solid rgba(0, 0, 0, 0.15);
     width: 100%;
     max-width: 420px;
-    border-radius: 28px; 
+    border-radius: var(--shape-xl); 
     padding: 1.75rem 1.5rem;
     box-shadow: 0 24px 48px rgba(0,0,0,0.16);
     max-height: 90vh;
@@ -374,18 +469,22 @@
     /* M3 Expressive Scale/Overshoot Departure States */
     transform: scale(0.85) translateY(20px);
     opacity: 0;
-    transition: transform 400ms cubic-bezier(0.38, 1.21, 0.22, 1),
-                opacity 300ms ease;
+    transition: transform var(--motion-spring-default), opacity 300ms ease;
   }
   /* Material 3 Expressive Entry Profile */
   .modal-overlay.open .modal-sheet { 
     transform: scale(1) translateY(0);
     opacity: 1;
-    transition: transform 500ms cubic-bezier(0.38, 1.21, 0.22, 1),
-                opacity 200ms ease;
+    transition: transform var(--motion-spring-default), opacity 200ms ease;
   }
   .modal-handle { display: none; }
-  .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 1.1rem; color: #1a1a1a; }
+  .modal-title { 
+    font-size: 19px; 
+    font-weight: 700; 
+    font-variation-settings: 'wght' 650, 'wdth' 100; 
+    margin-bottom: 1.1rem; 
+    color: var(--on-surface); 
+  }
 
   /* Glass segmented control track and slider transitions built on snap physics */
   .type-toggle {
@@ -395,7 +494,7 @@
     -webkit-backdrop-filter: blur(16px) saturate(180%);
     backdrop-filter: blur(16px) saturate(180%);
     border: 1px solid rgba(0, 0, 0, 0.12);
-    border-radius: 13px;
+    border-radius: var(--shape-md);
     padding: 3px;
     margin-bottom: 1rem;
     overflow: hidden;
@@ -407,96 +506,78 @@
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid rgba(255, 255, 255, 1);
     box-shadow: 0 4px 14px rgba(0,0,0,0.14), inset 0 1px 1px rgba(255, 255, 255, 0.9);
-    border-radius: 10px;
-    transition: transform 0.35s cubic-bezier(0.42, 1.67, 0.21, 0.90);
+    border-radius: var(--shape-sm);
+    transition: transform var(--motion-spring-default);
     z-index: 1;
     pointer-events: none;
   }
   .type-toggle button {
     position: relative; z-index: 2;
     flex: 1; border: none; background: transparent; padding: 9px;
-    border-radius: 10px; font-size: 13px; font-weight: 700; color: #888; cursor: pointer;
-    transition: color 0.2s ease, transform 0.35s cubic-bezier(0.42, 1.67, 0.21, 0.90), font-weight 0.2s ease;
+    border-radius: var(--shape-sm); font-size: 13px; font-weight: 700; color: var(--on-surface-variant); cursor: pointer;
+    transition: color var(--motion-standard), transform var(--motion-spring-default), font-weight var(--motion-standard);
   }
-  .type-toggle button.active-expense { color: #FF6B6B; font-weight: 800; transform: scale(1.06); }
-  .type-toggle button.active-income { color: #1D9E75; font-weight: 800; transform: scale(1.06); }
+  .type-toggle button.active-expense { color: var(--secondary); font-weight: 800; transform: scale(1.06); }
+  .type-toggle button.active-income { color: var(--primary); font-weight: 800; transform: scale(1.06); }
 
   .form-group { margin-bottom: 0.9rem; }
-  .form-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #888; margin-bottom: 5px; display: block; }
+  .form-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--on-surface-variant); margin-bottom: 5px; display: block; }
   
   /* Glass inputs with soft blurred ring on active focus layout */
   .form-input, .form-select {
-    width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06);
-    font-size: 14px; font-family: inherit; background: rgba(255, 255, 255, 0.6); color: #1a1a1a; outline: none;
+    width: 100%; padding: 11px 12px; border-radius: var(--shape-sm); border: 1px solid rgba(0,0,0,0.06);
+    font-size: 14px; font-family: inherit; background: rgba(255, 255, 255, 0.6); color: var(--on-surface); outline: none;
     transition: box-shadow 0.25s ease, border-color 0.25s ease;
   }
   .form-input:focus, .form-select:focus {
-    border-color: rgba(26,26,26,0.2);
-    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.55), 0 0 0 1px rgba(26,26,26,0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(20, 108, 67, 0.14), 0 0 0 1px var(--primary);
   }
 
   .modal-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
   .btn {
-    padding: 13px; border-radius: 12px; border: none; font-size: 14px; font-weight: 700; cursor: pointer;
-    transition: transform 0.15s ease;
+    padding: 13px; border-radius: var(--shape-md); border: none; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: transform var(--motion-spring-fast);
     display: inline-flex; align-items: center; justify-content: center;
   }
-  .btn:active { transform: scale(0.95); }
-  .btn-primary { flex: 1; background: #1a1a1a; color: #fff; }
+  .btn:active { transform: scale(0.94); }
+  /* Filled M3 button — carries the source color, not a neutral near-black */
+  .btn-primary { flex: 1; background: var(--primary); color: var(--on-primary); }
   .btn-primary:disabled { opacity: 0.55; }
   
   .btn-ghost {
-    flex: 1; color: #555;
+    flex: 1; color: var(--on-surface-variant);
     background: rgba(255, 255, 255, 0.45);
     -webkit-backdrop-filter: blur(16px) saturate(180%);
     backdrop-filter: blur(16px) saturate(180%);
     border: 1px solid rgba(0, 0, 0, 0.12);
   }
   .btn-danger {
-    flex: 0 0 auto; padding: 13px 16px; color: #FF6B6B;
-    background: rgba(255, 107, 107, 0.12);
+    flex: 0 0 auto; padding: 13px 16px; color: var(--secondary);
+    background: rgba(196, 67, 62, 0.12);
     -webkit-backdrop-filter: blur(16px) saturate(180%);
     backdrop-filter: blur(16px) saturate(180%);
-    border: 1px solid rgba(255, 107, 107, 0.4);
+    border: 1px solid rgba(196, 67, 62, 0.4);
   }
   .btn-danger:disabled { opacity: 0.5; }
 
   .modal-error {
-    display: none; background: rgba(255,107,107,0.12); color: #c62828; font-size: 12px; font-weight: 600;
-    padding: 9px 12px; border-radius: 10px; margin-bottom: 0.9rem; border: 1px solid rgba(255,107,107,0.3);
+    display: none; background: var(--secondary-container); color: var(--on-secondary-container); font-size: 12px; font-weight: 600;
+    padding: 9px 12px; border-radius: var(--shape-sm); margin-bottom: 0.9rem; border: 1px solid rgba(196, 67, 62, 0.3);
   }
 
+  /* Dark mode: color roles above already flip via the :root token override.
+     Only glass/translucency treatments (which use fixed rgba white, not
+     tokens) need a dark-specific pass here. */
   @media (prefers-color-scheme: dark) {
-    body { background: #141412; color: #e3e3df; }
-    .header, .metric, .card, .txn-list, .month-select { background: #1e1e1c; border-color: #2c2c2a; color: #e3e3df; }
-    
     .floating-nav {
       background: rgba(30, 30, 28, 0.6);
       border-color: rgba(255, 255, 255, 0.16); 
       box-shadow: 0 12px 36px rgba(0,0,0,0.45), inset 0 1px 1px rgba(255,255,255,0.12);
     }
-    .nav-btn { color: #999; }
-    .nav-btn.active { color: #fff; }
-    .nav-slider {
-      background: rgba(255, 255, 255, 0.22);
-      border-color: rgba(255, 255, 255, 0.28);
-      box-shadow: 0 4px 14px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.2);
-    }
-    
-    .fab {
-      background: rgba(30, 30, 28, 0.6);
-      border-color: rgba(255, 255, 255, 0.16); 
-      color: #fff;
-      box-shadow: 0 12px 36px rgba(0,0,0,0.45), inset 0 1px 1px rgba(255,255,255,0.12);
-    }
-    
-    .cat-bar-bg { background: #2c2c2a; }
-    .txn-row { border-color: #2c2c2a; }
-    .txn-row:hover { background: #232321; }
-    .txn-row:active { background: #292926; }
-    .txn-footer { background: #252523; border-top-color: #2c2c2a; color: #aaa; }
-    .txn-desc, .card-title { color: #e3e3df; }
-    .metric.crystal-ball { background: radial-gradient(circle at 85% 15%, #2b243d 0%, #1e1e1c 80%); border-color: #463b61; }
+    .nav-slider { border-color: rgba(255,255,255,0.15); }
+
+    .fab { box-shadow: 0 12px 28px -8px rgba(127, 219, 163, 0.35), inset 0 1px 1px rgba(255,255,255,0.2); }
 
     .modal-overlay { background: rgba(0, 0, 0, 0.55); }
     .modal-sheet {
@@ -504,8 +585,7 @@
       border-color: rgba(255, 255, 255, 0.12);
       box-shadow: 0 -8px 40px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.06);
     }
-    .modal-title { color: #e3e3df; }
-    
+
     .type-toggle { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); }
     .type-toggle-slider {
       background: rgba(255, 255, 255, 0.16);
@@ -513,14 +593,12 @@
       box-shadow: 0 4px 14px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.15);
     }
     
-    .form-input, .form-select { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); color: #e3e3df; }
+    .form-input, .form-select { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
     .form-input:focus, .form-select:focus {
-      border-color: rgba(255,255,255,0.3);
-      box-shadow: 0 0 0 4px rgba(255,255,255,0.1), 0 0 0 1px rgba(255,255,255,0.25);
+      box-shadow: 0 0 0 4px rgba(127, 219, 163, 0.16), 0 0 0 1px var(--primary);
     }
-    .btn-ghost { background: rgba(255,255,255,0.08); color: #ccc; border-color: rgba(255,255,255,0.12); }
-    .btn-danger { background: rgba(255,107,107,0.14); border-color: rgba(255,107,107,0.35); }
-    .modal-error { background: rgba(255,107,107,0.14); color: #ff8a8a; border-color: rgba(255,107,107,0.3); }
+    .btn-ghost { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.12); }
+    .btn-danger { background: rgba(255,180,171,0.14); border-color: rgba(255,180,171,0.35); }
   }
 </style>
 
@@ -575,11 +653,11 @@
           <canvas id="cumulative-line"></canvas>
         </div>
         <div class="custom-pill-legend" style="display:flex; gap:10px; justify-content:center; margin-top:10px">
-          <div style="display:flex; align-items:center; gap:5px; font-size:11px; color:#666; font-weight:600; padding:4px 12px; border-radius:20px; border:1px solid #e8e8e4;">
-            <div style="width:8px; height:8px; border-radius:50%; background:#FF6B6B"></div>This month
+          <div style="display:flex; align-items:center; gap:5px; font-size:11px; color:var(--on-surface-variant); font-weight:600; padding:4px 12px; border-radius:var(--shape-full); border:1px solid var(--outline-variant);">
+            <div style="width:8px; height:8px; border-radius:50%; background:#C4433E"></div>This month
           </div>
-          <div style="display:flex; align-items:center; gap:5px; font-size:11px; color:#666; font-weight:600; padding:4px 12px; border-radius:20px; border:1px solid #e8e8e4;">
-            <div style="width:8px; height:8px; border-radius:50%; background:#b0bec5"></div>Last month
+          <div style="display:flex; align-items:center; gap:5px; font-size:11px; color:var(--on-surface-variant); font-weight:600; padding:4px 12px; border-radius:var(--shape-full); border:1px solid var(--outline-variant);">
+            <div style="width:8px; height:8px; border-radius:50%; background:#B8B3A3"></div>Last month
           </div>
         </div>
       </div>
@@ -653,14 +731,26 @@ const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXIWSRt1xVAbLnNPlhiHHaWpTHGB23N1wkoMU74nHifMT9prU3rM4m6/exec";
 const SECRET_KEY = "8891";
 
+// JS mirror of the CSS custom properties in :root — kept in sync manually
+// since template-literal inline styles can't read var() at render time.
+const THEME = {
+  primary: "#146C43",     // income
+  secondary: "#C4433E",   // expense
+  tertiary: "#6552C4",    // forecast / analytics
+  tertiaryOnContainer: "#4B3D9E",
+  neutralLine: "#B8B3A3"  // "last month" comparison line
+};
+
+// M3-flavored categorical palette — muted, tonal hues rather than flat/neon,
+// each roughly matched in chroma so no single category visually dominates.
 const CAT_COLORS = {
-  "Food & Dining":     { hex: "#FF6B6B", light: "#FFEAEA", text: "#D32F2F" },
-  "Transport":         { hex: "#00BFA5", light: "#E0F2F1", text: "#004D40" },
-  "Bills & Utilities": { hex: "#FFAB00", light: "#FFF8E1", text: "#FF6D00" },
-  "Shopping":          { hex: "#2979FF", light: "#E3F2FD", text: "#0D47A1" },
-  "Groceries":         { hex: "#AA00FF", light: "#F3E5F5", text: "#4A148C" },
-  "Entertainment":     { hex: "#FF3D00", light: "#FBE9E7", text: "#BF360C" },
-  "Other":             { hex: "#78909C", light: "#ECEFF1", text: "#263238" }
+  "Food & Dining":     { hex: "#C4433E" },
+  "Transport":         { hex: "#1B8F82" },
+  "Bills & Utilities": { hex: "#C98A1D" },
+  "Shopping":          { hex: "#3A66C4" },
+  "Groceries":         { hex: "#8A5CC4" },
+  "Entertainment":     { hex: "#C4519E" },
+  "Other":             { hex: "#7A7669" }
 };
 // From ALFRED_BOT_CONTEXT.md — used when Type = Income
 const INCOME_CATEGORIES = ["Salary", "Freelance", "Bonus", "Investment", "Side Income", "Reimbursement", "Other Income"];
@@ -703,11 +793,11 @@ const centerTextPlugin = {
     ctx.save();
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     ctx.font = '500 11px -apple-system, sans-serif';
-    ctx.fillStyle = isDark ? '#aaa' : '#888';
+    ctx.fillStyle = isDark ? '#C9C5B9' : '#6F6C61';
     ctx.textAlign = 'center';
     ctx.fillText("Total", centerX, centerY - 10);
     ctx.font = 'bold 14px -apple-system, sans-serif';
-    ctx.fillStyle = isDark ? '#e3e3df' : '#1a1a1a';
+    ctx.fillStyle = isDark ? '#E7E3D8' : '#1B1B17';
     ctx.fillText("RM " + formatCurrency(chart.config.options.plugins.centerText.totalAmount), centerX, centerY + 8);
     ctx.restore();
   }
@@ -850,17 +940,17 @@ function calculateAndRender() {
     document.getElementById('home-metrics').innerHTML = `
       <div class="metric">
         <div class="metric-label">Income</div>
-        <div class="metric-val counter-val" style="color: #1D9E75;" data-val="${totalIncome}" data-prefix="RM ">RM 0.00</div>
+        <div class="metric-val counter-val" style="color: ${THEME.primary};" data-val="${totalIncome}" data-prefix="RM ">RM 0.00</div>
         <div class="metric-sub">${rows.filter(r => r.Type === "Income").length} items</div>
       </div>
       <div class="metric">
         <div class="metric-label">Expenses</div>
-        <div class="metric-val counter-val" style="color: #FF6B6B;" data-val="${totalExpense}" data-prefix="RM ">RM 0.00</div>
+        <div class="metric-val counter-val" style="color: ${THEME.secondary};" data-val="${totalExpense}" data-prefix="RM ">RM 0.00</div>
         <div class="metric-sub">${expenseRows.length} items</div>
       </div>
       <div class="metric balance-card">
         <div class="metric-label">Net Balance</div>
-        <div class="metric-val counter-val" style="color: ${netBalance >= 0 ? '#1D9E75' : '#FF6B6B'};" data-val="${netBalance}" data-prefix="RM ">RM 0.00</div>
+        <div class="metric-val counter-val" style="color: ${netBalance >= 0 ? THEME.primary : THEME.secondary};" data-val="${netBalance}" data-prefix="RM ">RM 0.00</div>
         <div class="metric-sub">${balanceCheekySub}</div>
       </div>
     `;
@@ -938,12 +1028,12 @@ function calculateAndRender() {
     document.getElementById('analytics-metrics').innerHTML = `
       <div class="metric">
         <div class="metric-label">Average Daily Spend</div>
-        <div class="metric-val counter-val" style="color: #FF6B6B;" data-val="${dailyBurnRate}" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
+        <div class="metric-val counter-val" style="color: ${THEME.secondary};" data-val="${dailyBurnRate}" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
         <div class="metric-sub">${burnCheekySub}</div>
       </div>
       <div class="metric crystal-ball">
-        <div class="metric-label" style="color: #7F77DD;">🔮 Forecasted Spend</div>
-        <div class="metric-val counter-val" style="color: #534AB7;" data-val="${projectedEndSpend}" data-prefix="RM ">RM 0.00</div>
+        <div class="metric-label" style="color: ${THEME.tertiary};">🔮 Forecasted Spend</div>
+        <div class="metric-val counter-val" style="color: ${THEME.tertiaryOnContainer};" data-val="${projectedEndSpend}" data-prefix="RM ">RM 0.00</div>
         <div class="metric-sub">Where you're landing 🛬</div>
       </div>
     `;
@@ -968,7 +1058,7 @@ function calculateAndRender() {
           <span class="cat-amt">RM ${formatCurrency(val)}</span>
         </div>
       `;
-    }).join('') : '<div style="color:#aaa; font-size:13px; padding:10px 0;">No chart profiles mapped.</div>';
+    }).join('') : '<div style="color:var(--on-surface-variant); font-size:13px; padding:10px 0;">No chart profiles mapped.</div>';
 
     // Recreation of Donut Canvas Container to prevent duplicate Chart.js overlaps
     const donutContainer = document.getElementById('donut-container');
@@ -1056,20 +1146,20 @@ function calculateAndRender() {
           { 
             label: 'This Month', 
             data: currentMonthlyCumulativeData, 
-            borderColor: '#FF6B6B', 
+            borderColor: THEME.secondary, 
             backgroundColor: 'transparent', 
             borderWidth: 3, 
             pointRadius: 3,
             pointHoverRadius: 6, // Slightly larger active target node
             pointBackgroundColor: '#fff',
-            pointBorderColor: '#FF6B6B',
+            pointBorderColor: THEME.secondary,
             pointBorderWidth: 2,
             tension: 0.1 
           },
           { 
             label: 'Last Month', 
             data: priorMonthlyCumulativeData, 
-            borderColor: '#b0bec5', 
+            borderColor: THEME.neutralLine, 
             backgroundColor: 'transparent', 
             borderWidth: 2, 
             borderDash: [5, 5], 
@@ -1103,11 +1193,11 @@ function calculateAndRender() {
           x: { 
             grid: { 
               display: true,
-              color: isDarkMode ? '#2c2c2a' : '#e8e8e4',
+              color: isDarkMode ? '#47443A' : '#E4E0D4',
               lineWidth: 0.5
             }, 
             ticks: {
-              color: isDarkMode ? '#aaa' : '#888',
+              color: isDarkMode ? '#C9C5B9' : '#6F6C61',
               font: { size: 10 }
             }
           },
@@ -1115,11 +1205,11 @@ function calculateAndRender() {
             beginAtZero: true, 
             grid: { 
               display: true,
-              color: isDarkMode ? '#2c2c2a' : '#e8e8e4',
+              color: isDarkMode ? '#47443A' : '#E4E0D4',
               lineWidth: 0.5
             },
             ticks: {
-              color: isDarkMode ? '#aaa' : '#888',
+              color: isDarkMode ? '#C9C5B9' : '#6F6C61',
               font: { size: 10 },
               callback: (val) => val.toLocaleString('en-US')
             }
