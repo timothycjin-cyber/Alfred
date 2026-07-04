@@ -63,67 +63,83 @@
   }
   .refresh-btn:hover { background: #f5f5f0; }
 
-  /* Floating Bottom Navigation Pill with snappy sliding slider mechanics */
+  /* Bottom control group — FAB + nav pill share one centered row so they
+     always sit on the same vertical axis, regardless of screen width. */
+  .bottom-bar {
+    position: fixed;
+    bottom: 24px;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  .bottom-bar > * { pointer-events: auto; }
+
+  /* Floating Bottom Navigation Pill — liquid glass finish */
   .floating-nav { 
-    position: fixed; 
-    bottom: 24px; 
-    left: 50%; 
-    transform: translateX(-50%); 
-    background: #1a1a1a; 
-    border-radius: 30px; 
+    background: rgba(255,255,255,0.55);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.7);
+    border-radius: 27px; 
     display: flex; 
     align-items: center; 
     padding: 4px; 
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
-    z-index: 100; 
+    box-shadow: 0 8px 32px rgba(0,0,0,0.10), inset 0 1px 1px rgba(255,255,255,0.6);
     width: 260px; 
-    height: 50px; 
+    height: 54px; 
+    overflow: hidden;
   }
   .nav-btn { 
     flex: 1; 
     border: none; 
     background: transparent; 
-    color: #aaa; 
+    color: #777; 
     font-size: 13px; 
     font-weight: 600; 
     cursor: pointer; 
     height: 100%; 
     z-index: 2; 
-    transition: color 0.3s ease; 
+    transition: color 0.3s ease, transform 0.5s cubic-bezier(0.34, 1.25, 0.64, 1), font-weight 0.3s ease; 
     outline: none; 
     -webkit-tap-highlight-color: transparent; 
   }
-  .nav-btn.active { color: #fff; }
+  .nav-btn.active { color: #1a1a1a; font-weight: 800; transform: scale(1.08); }
   .nav-slider { 
     position: absolute; 
     top: 4px; 
     bottom: 4px; 
     left: 4px; 
     width: calc(50% - 4px); 
-    background: rgba(255,255,255,0.15); 
-    border-radius: 25px; 
-    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+    background: rgba(255,255,255,0.92);
+    border: 1px solid rgba(255,255,255,1);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.14), inset 0 1px 1px rgba(255,255,255,0.9);
+    border-radius: 23px; 
+    transition: transform 0.5s cubic-bezier(0.34, 1.25, 0.64, 1); 
     z-index: 1; 
     pointer-events: none; 
   }
 
-  /* Floating Action Button (new transaction) */
+  /* Floating Action Button (new transaction) — same glass finish as the pill, sits to its right */
   .fab {
-    position: fixed;
-    right: 20px;
-    bottom: 90px;
     width: 54px;
     height: 54px;
     border-radius: 50%;
-    background: #1a1a1a;
-    color: #fff;
-    border: none;
+    background: rgba(255,255,255,0.55);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.7);
+    color: #1a1a1a;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 10px 26px rgba(0,0,0,0.24);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.10), inset 0 1px 1px rgba(255,255,255,0.6);
     cursor: pointer;
-    z-index: 99;
+    flex-shrink: 0;
     transition: transform 0.15s ease;
     -webkit-tap-highlight-color: transparent;
   }
@@ -374,7 +390,24 @@
   @media (prefers-color-scheme: dark) {
     body { background: #141412; color: #e3e3df; }
     .header, .metric, .card, .txn-list, .month-select { background: #1e1e1c; border-color: #2c2c2a; color: #e3e3df; }
-    .floating-nav { background: #262624; }
+    .floating-nav {
+      background: rgba(30,30,28,0.45);
+      border-color: rgba(255,255,255,0.08);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.06);
+    }
+    .nav-btn { color: #999; }
+    .nav-btn.active { color: #fff; }
+    .nav-slider {
+      background: rgba(255,255,255,0.22);
+      border-color: rgba(255,255,255,0.28);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.2);
+    }
+    .fab {
+      background: rgba(30,30,28,0.45);
+      border-color: rgba(255,255,255,0.08);
+      color: #fff;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.06);
+    }
     .cat-bar-bg { background: #2c2c2a; }
     .txn-row { border-color: #2c2c2a; }
     .txn-row:hover { background: #232321; }
@@ -410,17 +443,19 @@
   </button>
 </div>
 
-<div class="floating-nav">
-  <div id="nav-slider" class="nav-slider"></div>
-  <button class="nav-btn active" id="tab-home" onclick="switchView('home')">Home</button>
-  <button class="nav-btn" id="tab-analytics" onclick="switchView('analytics')">Analytics</button>
-</div>
+<div class="bottom-bar">
+  <div class="floating-nav">
+    <div id="nav-slider" class="nav-slider"></div>
+    <button class="nav-btn active" id="tab-home" onclick="switchView('home')">Home</button>
+    <button class="nav-btn" id="tab-analytics" onclick="switchView('analytics')">Analytics</button>
+  </div>
 
-<button class="fab" onclick="openTxnModal(null)" aria-label="Add transaction">
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-  </svg>
-</button>
+  <button class="fab" onclick="openTxnModal(null)" aria-label="Add transaction">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </button>
+</div>
 
 <div class="container">
   <div id="main-loader" class="loading">
