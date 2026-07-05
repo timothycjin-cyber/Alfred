@@ -7,10 +7,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght,wdth@8..144,300..900,75..125&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght,wdth@8..144,300..900,75..125&display=swap" rel="stylesheet">
 <style>
   /* ────────────────────────────────────────────────────────────
-     M3 EXPRESSIVE DESIGN TOKENS + EDITORIAL TYPOGRAPHY
+     M3 EXPRESSIVE DESIGN TOKENS — CLEAN MONOCHROME
      ──────────────────────────────────────────────────────────── */
   :root {
     /* High-Vibrancy Semantic Fin-Colors (Punchy & Sharp) */
@@ -61,10 +61,7 @@
     --motion-snap: 220ms cubic-bezier(0.25, 1, 0.3, 1);
     --motion-standard: 250ms cubic-bezier(0.2, 0, 0, 1);
 
-    /* Typography Families */
     --font-body: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --font-serif: 'Merriweather', Georgia, serif;
-    --font-mono: 'Monaco', 'Courier New', monospace;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -103,93 +100,6 @@
     padding-bottom: 115px; 
   }
 
-  /* ────────────────────────────────────────────────────────────
-     TYPOGRAPHIC HIERARCHY
-     ──────────────────────────────────────────────────────────── */
-  
-  /* Masthead: "Project Alfred" */
-  .t-masthead { 
-    font-family: var(--font-serif);
-    font-size: 24px;
-    font-weight: 900;
-    color: var(--on-surface);
-    letter-spacing: -0.5px;
-    line-height: 1.1;
-  }
-  
-  /* Masthead subtitle: month/year */
-  .t-masthead-sub {
-    font-family: var(--font-body);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--on-surface-variant);
-    letter-spacing: 0.3px;
-  }
-  
-  /* Section headers (e.g., logical dividers between views) */
-  .t-section-head {
-    font-family: var(--font-serif);
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--on-surface);
-    letter-spacing: -0.3px;
-    line-height: 1.2;
-  }
-  
-  /* Display numbers (metric card values) */
-  .t-display {
-    font-family: var(--font-serif);
-    font-size: 32px;
-    font-weight: 900;
-    color: var(--on-surface);
-    line-height: 1;
-  }
-  
-  /* Data/mono (transaction amounts, precise values) */
-  .t-data {
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--on-surface);
-    letter-spacing: 0.2px;
-  }
-  
-  /* Card labels (metric labels, chart titles) */
-  .t-card-label {
-    font-family: var(--font-body);
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--on-surface-variant);
-  }
-  
-  /* Body text (transaction descriptions) */
-  .t-body {
-    font-family: var(--font-body);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--on-surface);
-    line-height: 1.4;
-  }
-  
-  /* Supporting text (counts, status) */
-  .t-support {
-    font-family: var(--font-body);
-    font-size: 12px;
-    font-weight: 400;
-    color: var(--on-surface-variant);
-  }
-  
-  /* Badge text */
-  .t-badge {
-    font-family: var(--font-body);
-    font-size: 9px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
-
   /* Header Layout */
   .header { 
     background: var(--surface-container-low); 
@@ -202,11 +112,12 @@
     z-index: 10; 
     border-bottom: 1px solid var(--outline-variant); 
   }
-  
   .header-title { 
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    font-size: 20px; 
+    font-weight: 800; 
+    font-variation-settings: 'wght' 700, 'wdth' 105; 
+    color: var(--on-surface); 
+    letter-spacing: -0.4px; 
   }
   
   .month-select { 
@@ -392,12 +303,12 @@
     white-space: nowrap; 
   }
   
-  /* Editorial Display Treatment — Serif metric values */
+  /* Editorial Display Treatment Headline Metric Scale */
   .metric.balance-card .metric-val {
-    font-family: var(--font-serif);
-    font-size: 32px;
+    font-size: 34px;
     font-weight: 900;
-    letter-spacing: -0.5px;
+    font-variation-settings: 'wght' 850, 'wdth' 80;
+    letter-spacing: -1px;
     line-height: 1.1;
     margin: 2px 0;
   }
@@ -439,14 +350,7 @@
     }
   }
   
-  .card-title { 
-    font-family: var(--font-serif);
-    font-size: 16px; 
-    font-weight: 700; 
-    margin-bottom: 14px; 
-    color: var(--on-surface); 
-    letter-spacing: -0.2px;
-  }
+  .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
   .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); padding: 4px 12px; border-radius: var(--shape-full); border: 1px solid var(--outline-variant); background: var(--surface-container-low); }
@@ -523,9 +427,8 @@
     border-radius: var(--shape-xs); 
   }
   .txn-footer-amt {
-    font-family: var(--font-mono);
     color: var(--semantic-expense); 
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 700;
   }
   
@@ -533,12 +436,8 @@
   .badge.inc-badge { color: var(--semantic-income); border-color: var(--semantic-income); }
   .badge.exp-badge { color: var(--semantic-expense); border-color: var(--semantic-expense); }
 
-  .txn-desc { font-size: 13px; font-weight: 600; color: var(--on-surface); line-height: 1.25; }
-  .txn-amt { 
-    font-family: var(--font-mono);
-    font-size: 13px; 
-    font-weight: 700; 
-  }
+  .txn-desc { font-size: 13.5px; font-weight: 600; color: var(--on-surface); line-height: 1.25; }
+  .txn-amt { font-size: 13.5px; font-weight: 700; }
   .txn-amt.income { color: var(--semantic-income); }
   .txn-amt.expense { color: var(--semantic-expense); }
 
@@ -675,10 +574,7 @@
 <div class="header">
   <div class="header-left">
     <div class="header-title-row" style="display: flex; align-items: center; gap: 10px;">
-      <div style="display: flex; flex-direction: column; gap: 2px;">
-        <div class="t-masthead">Project Alfred</div>
-        <div class="t-masthead-sub" id="month-label">July 2026</div>
-      </div>
+      <div class="header-title">Project Alfred</div>
       <select id="month-select-element" class="month-select" onchange="handleMonthDropdown(this.value)"></select>
     </div>
   </div>
@@ -797,6 +693,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXI
 const SECRET_KEY = "8891";
 
 const INCOME_CATEGORIES = ["Salary", "Freelance", "Bonus", "Investment", "Side Income", "Reimbursement", "Other Income"];
+// FIX: moved out of calculateAndRender() so it's globally accessible to populateCategoryOptions()
 const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "Shopping", "Groceries", "Entertainment", "Other"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -926,7 +823,6 @@ function handleMonthDropdown(val) {
   const parts = val.split('-');
   activeYear = parseInt(parts[0]);
   activeMonth = parseInt(parts[1]);
-  document.getElementById('month-label').textContent = `${MONTHS[activeMonth]} ${activeYear}`;
   calculateAndRender();
 }
 
@@ -946,6 +842,7 @@ function calculateAndRender() {
   const catData = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
   const maxCat = catData[0]?.[1] || 1;
 
+  // Resolve computed hex values dynamically from computed styles root mapping
   const activeExpenseColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-expense').trim() || "#E53E3E";
 
   const CAT_COLORS = {
@@ -962,12 +859,12 @@ function calculateAndRender() {
     document.getElementById('home-metrics').innerHTML = `
       <div class="metric income-card">
         <div class="metric-label">Income</div>
-        <div class="metric-val counter-val" style="color: var(--semantic-income); font-family: var(--font-serif); font-size: 32px; font-weight: 900;" data-val="${totalIncome}" data-prefix="RM ">RM 0.00</div>
+        <div class="metric-val counter-val" style="color: var(--semantic-income);" data-val="${totalIncome}" data-prefix="RM ">RM 0.00</div>
         <div class="metric-sub">${rows.filter(r => r.Type === "Income").length} items</div>
       </div>
       <div class="metric expense-card">
         <div class="metric-label">Expenses</div>
-        <div class="metric-val counter-val" style="color: var(--semantic-expense); font-family: var(--font-serif); font-size: 32px; font-weight: 900;" data-val="${totalExpense}" data-prefix="RM ">RM 0.00</div>
+        <div class="metric-val counter-val" style="color: var(--semantic-expense);" data-val="${totalExpense}" data-prefix="RM ">RM 0.00</div>
         <div class="metric-sub">${expenseRows.length} items</div>
       </div>
       <div class="metric balance-card">
@@ -1024,12 +921,12 @@ function calculateAndRender() {
     document.getElementById('analytics-metrics').innerHTML = `
       <div class="metric">
         <div class="metric-label">Average Daily Spend</div>
-        <div class="metric-val counter-val" style="color: var(--semantic-expense); font-family: var(--font-serif); font-size: 32px; font-weight: 900;" data-val="${dailyBurnRate}" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
+        <div class="metric-val counter-val" style="color: var(--semantic-expense);" data-val="${dailyBurnRate}" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
         <div class="metric-sub">${dailyBurnRate > 100 ? 'Splurging 💸' : 'Cooling 🧊'}</div>
       </div>
       <div class="metric crystal-ball">
         <div class="metric-label" style="color: var(--on-surface-variant);">🔮 Forecasted Spend</div>
-        <div class="metric-val counter-val" style="color: var(--on-surface); font-family: var(--font-serif); font-size: 32px; font-weight: 900;" data-val="${dailyBurnRate * daysInMonth}" data-prefix="RM ">RM 0.00</div>
+        <div class="metric-val counter-val" style="color: var(--on-surface);" data-val="${dailyBurnRate * daysInMonth}" data-prefix="RM ">RM 0.00</div>
         <div class="metric-sub">Landing trajectory</div>
       </div>
     `;
@@ -1109,6 +1006,7 @@ function calculateAndRender() {
 
 function populateCategoryOptions(type, selected) {
   const sel = document.getElementById('modal-category');
+  // FIX: use the global EXPENSE_CATEGORIES constant instead of the out-of-scope CAT_COLORS object
   sel.innerHTML = (type === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(c => `<option value="${c}"${c === selected ? ' selected' : ''}>${c}</option>`).join('');
 }
 
