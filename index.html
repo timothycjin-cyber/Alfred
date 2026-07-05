@@ -693,6 +693,8 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXI
 const SECRET_KEY = "8891";
 
 const INCOME_CATEGORIES = ["Salary", "Freelance", "Bonus", "Investment", "Side Income", "Reimbursement", "Other Income"];
+// FIX: moved out of calculateAndRender() so it's globally accessible to populateCategoryOptions()
+const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "Shopping", "Groceries", "Entertainment", "Other"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 let allRows = [];
@@ -893,7 +895,7 @@ function calculateAndRender() {
               <div class="txn-left">
                 <div class="txn-details">
                   <div class="txn-desc">${r.Description}</div>
-                  <div class="txn-badge-container<span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Income' : r.Category.split(' ')[0]}</span></div>
+                  <div class="txn-badge-container"><span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Income' : r.Category.split(' ')[0]}</span></div>
                 </div>
               </div>
               <span class="txn-amt ${isInc ? 'income' : 'expense'}">${isInc ? '+' : ''}RM ${formatCurrency(r.Amount)}</span>
@@ -1004,7 +1006,8 @@ function calculateAndRender() {
 
 function populateCategoryOptions(type, selected) {
   const sel = document.getElementById('modal-category');
-  sel.innerHTML = (type === 'Income' ? INCOME_CATEGORIES : Object.keys(CAT_COLORS)).map(c => `<option value="${c}"${c === selected ? ' selected' : ''}>${c}</option>`).join('');
+  // FIX: use the global EXPENSE_CATEGORIES constant instead of the out-of-scope CAT_COLORS object
+  sel.innerHTML = (type === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(c => `<option value="${c}"${c === selected ? ' selected' : ''}>${c}</option>`).join('');
 }
 
 function setModalType(type) {
