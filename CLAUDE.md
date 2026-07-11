@@ -191,6 +191,13 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **No-replay re-renders:** `renderedKey` (per view: `year-month-dataStamp`) makes `calculateAndRender()` a no-op when switching back to a tab whose content is already current — charts/DOM persist, nothing re-animates. `dataStamp` bumps on every `init()` fetch. On a genuine re-render (month switch, post-save), `hasEntranced` adds `.no-entrance` to the view, which kills hero/tile pop-ins (rows still cascade — they're new content).
 - **Value-inertia counters:** `counterMemory` (keyed by `data-key` on each `.counter-val`) makes numbers animate **from their previous value** to the new one instead of re-counting from RM 0.00. First paint still counts up from zero.
 
+**Quick-wins pass (2026-07-11, same session — DONE):**
+- **`prefers-reduced-motion`:** zeroes the three motion tokens (collapsing every transition/animation built on them) + stagger delays; JS `REDUCED_MOTION` flag makes counters instant and sets `Chart.defaults.animation = false`. Loading spinner + refresh spin kept (status, not flourish).
+- **Chip valence:** tile chips are now `.good`/`.bad` (green/red) by whether the change is good news — expenses dropping reads green. Average Daily Spend tile went expense-tint → neutral (it's information, not a warning).
+- **Refresh feedback:** `.refresh-btn.spinning` spins the icon while `init()`'s fetch is in flight (also covers initial load); replaced the old `:active` rotate.
+- **Category palette** (validated with the dataviz six-checks script, light+dark): Food & Dining `#C2542D` (own burnt-sienna hue — semantic expense red is reserved for amounts/deltas), Transport `#0891B2` (chroma fix), Entertainment `#DB2777` (contrast fix); Other stays deliberate-neutral `#495057`. "Last month" cumulative line + legend dot are now outline gray per theme (`#6C757D`/`#ADB5BD`) — reference, not warning.
+- **Hero mini-chart negatives:** `minBarLength: 4` + `heroBaselinePlugin` (faint zero line, gated on `canvas.id === 'hero-trend'`) so negative-net months stay visible.
+
 **Potential next tie-in:** surface the shared daily-summary block ("today so far vs average") at the top of the dashboard, reusing the digest logic.
 
 ---
