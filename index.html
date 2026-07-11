@@ -251,6 +251,10 @@
     from { opacity: 0; transform: scale(0.4); }
     to   { opacity: 1; transform: scale(1); }
   }
+  @keyframes rowIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
   .hero-card {
     background: var(--surface-container-low);
@@ -261,7 +265,7 @@
     margin-bottom: 12px;
     position: relative;
     overflow: hidden;
-    animation: heroPopIn var(--motion-wobble);
+    animation: heroPopIn var(--motion-wobble) backwards;
   }
   @media (prefers-color-scheme: dark) {
     .hero-card {
@@ -296,10 +300,17 @@
     min-height: 104px;
     justify-content: center;
     cursor: default;
-    animation: tilePopIn var(--motion-wobble);
+    animation: tilePopIn var(--motion-wobble) backwards;
     transition: transform var(--motion-snap);
   }
   .tile-block:active { transform: scale(0.97); }
+  /* Entrance cascade: hero lands first, then the tiles follow one by one.
+     `backwards` fill keeps delayed elements hidden until their turn. */
+  .tile-row .tile-block:nth-child(1) { animation-delay: 70ms; }
+  .tile-row .tile-block:nth-child(2) { animation-delay: 140ms; }
+  /* A view re-render with the same layout (month switch, post-save refresh)
+     should update values, not replay the pop-in ceremony. */
+  .no-entrance .hero-card, .no-entrance .tile-block { animation: none; }
   .tile-block.income-block { background: var(--wash-income); }
   .tile-block.expense-block { background: var(--wash-expense); }
   .tile-block.neutral-block { background: var(--surface-container); }
@@ -321,7 +332,8 @@
     width: 36px; height: 36px; border-radius: var(--shape-sm);
     display: flex; align-items: center; justify-content: center;
     font-size: 16px; flex-shrink: 0;
-    animation: chipPop var(--motion-wobble);
+    animation: chipPop var(--motion-wobble) backwards;
+    animation-delay: var(--d, 0ms);
   }
 
   .charts-row {
@@ -397,6 +409,8 @@
     background: transparent;
     transition: background-color var(--motion-snap);
     outline: none;
+    animation: rowIn var(--motion-snap) backwards;
+    animation-delay: var(--d, 0ms);
   }
   .txn-row:last-child { border-bottom: none; }
   .txn-row:hover { background: rgba(0, 0, 0, 0.02); }
@@ -750,6 +764,16 @@ let activeMonth = new Date().getMonth();
 let activeYear = new Date().getFullYear();
 let currentView = 'home';
 
+// Render-state tracking so revisiting a tab doesn't rebuild (and re-animate)
+// content that is already current. dataStamp bumps on every sheet fetch;
+// renderedKey remembers what month+data each view last rendered.
+let dataStamp = 0;
+const renderedKey = { home: null, analytics: null };
+const hasEntranced = { home: false, analytics: false };
+// Last value each counter displayed, so numbers animate from where they
+// were (value inertia) instead of re-counting from zero on every render.
+const counterMemory = {};
+
 let donutChart = null;
 let lineChart = null;
 let heroChart = null;
@@ -871,12 +895,10 @@ const pieLabelsPlugin = {
     const { ctx } = chart;
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
+    // Bold % centered inside the slice — only where it's wide enough to hold it.
     meta.data.forEach((arc, i) => {
-      const val = dataset.data[i];
-      const pct = (val / total) * 100;
+      const pct = (dataset.data[i] / total) * 100;
       if (pct < 8) return;
-
-      // Bold % centered inside the slice
       const pos = arc.tooltipPosition();
       ctx.save();
       ctx.font = '800 13px -apple-system, sans-serif';
@@ -887,66 +909,74 @@ const pieLabelsPlugin = {
       ctx.shadowBlur = 3;
       ctx.fillText(Math.round(pct) + '%', pos.x, pos.y);
       ctx.restore();
+    });
 
-      // External name + amount callout with a leader line, radiating outward
-      // from the slice's own angle so it works for any number of categories.
+    // Every slice gets a name + amount callout (tooltips are disabled, so
+    // this is the only way to identify small categories). Callouts route to
+    // a left or right column by slice angle, then get pushed apart
+    // vertically so clustered thin slices never overlap.
+    const sides = { left: [], right: [] };
+    meta.data.forEach((arc, i) => {
       const angle = (arc.startAngle + arc.endAngle) / 2;
       const cos = Math.cos(angle), sin = Math.sin(angle);
-      const edgeX = arc.x + cos * arc.outerRadius;
-      const edgeY = arc.y + sin * arc.outerRadius;
-      const name = chart.data.labels[i].split(' ')[0];
-      const amt = 'RM ' + formatCurrency(val);
+      sides[cos >= 0 ? 'right' : 'left'].push({
+        i, cos,
+        edgeX: arc.x + cos * arc.outerRadius,
+        edgeY: arc.y + sin * arc.outerRadius,
+        mx: arc.x + cos * (arc.outerRadius + 16),
+        y: arc.y + sin * (arc.outerRadius + 16)
+      });
+    });
 
-      ctx.save();
-      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
-      ctx.lineWidth = 1;
+    const minGap = 32; // two-line text block is ~30px tall
+    for (const side of ['left', 'right']) {
+      const items = sides[side].sort((a, b) => a.y - b.y);
+      for (let k = 1; k < items.length; k++)
+        if (items[k].y < items[k - 1].y + minGap) items[k].y = items[k - 1].y + minGap;
+      // Keep the stack on-canvas: shift up if it ran off the bottom, then
+      // clamp the top and re-space downward.
+      if (items.length) {
+        const overflow = items[items.length - 1].y + 16 - chart.height;
+        if (overflow > 0) items.forEach(it => { it.y -= overflow; });
+        items[0].y = Math.max(items[0].y, 18);
+        for (let k = 1; k < items.length; k++)
+          if (items[k].y < items[k - 1].y + minGap) items[k].y = items[k - 1].y + minGap;
+      }
 
-      if (Math.abs(cos) > 0.35) {
-        // Side slice: diagonal stub, then a horizontal run that stops just
-        // short of the text block so the line never crosses the label.
-        const mx = arc.x + cos * (arc.outerRadius + 16);
-        const my = arc.y + sin * (arc.outerRadius + 16);
-        const hx = cos > 0 ? chart.chartArea.right + 40 : chart.chartArea.left - 40;
+      for (const it of items) {
+        const right = side === 'right';
+        const hx = right ? chart.chartArea.right + 40 : chart.chartArea.left - 40;
+        const name = chart.data.labels[it.i].split(' ')[0];
+        const amt = 'RM ' + formatCurrency(dataset.data[it.i]);
 
+        ctx.save();
+        ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = 1;
+
+        // Diagonal stub (absorbs any de-collision shift), then a horizontal
+        // run that stops just short of the text block.
         ctx.font = '800 11.5px -apple-system, sans-serif';
         const nameW = ctx.measureText(name).width;
         ctx.font = '600 10px -apple-system, sans-serif';
         const blockW = Math.max(nameW, ctx.measureText(amt).width);
-        const lineEndX = cos > 0 ? hx - blockW - 6 : hx + blockW + 6;
+        const lineEndX = right ? hx - blockW - 6 : hx + blockW + 6;
 
         ctx.beginPath();
-        ctx.moveTo(edgeX, edgeY);
-        ctx.lineTo(mx, my);
-        ctx.lineTo(lineEndX, my);
+        ctx.moveTo(it.edgeX, it.edgeY);
+        ctx.lineTo(it.mx, it.y);
+        ctx.lineTo(lineEndX, it.y);
         ctx.stroke();
 
-        ctx.textAlign = cos > 0 ? 'right' : 'left';
+        ctx.textAlign = right ? 'right' : 'left';
         ctx.font = '800 11.5px -apple-system, sans-serif';
         ctx.fillStyle = isDark ? '#F8F9FA' : '#212529';
-        ctx.fillText(name, hx, my - 3);
+        ctx.fillText(name, hx, it.y - 3);
         ctx.font = '600 10px -apple-system, sans-serif';
         ctx.fillStyle = isDark ? '#ADB5BD' : '#6C757D';
-        ctx.fillText(amt, hx, my + 12);
-      } else {
-        // Top/bottom slice: straight ray with the text stacked past its end.
-        const lx = arc.x + cos * (arc.outerRadius + 26);
-        const ly = arc.y + sin * (arc.outerRadius + 26);
-        const above = sin < 0;
-        ctx.beginPath();
-        ctx.moveTo(edgeX, edgeY);
-        ctx.lineTo(lx, ly);
-        ctx.stroke();
-
-        ctx.textAlign = 'center';
-        ctx.font = '800 11.5px -apple-system, sans-serif';
-        ctx.fillStyle = isDark ? '#F8F9FA' : '#212529';
-        ctx.fillText(name, lx, above ? ly - 21 : ly + 15);
-        ctx.font = '600 10px -apple-system, sans-serif';
-        ctx.fillStyle = isDark ? '#ADB5BD' : '#6C757D';
-        ctx.fillText(amt, lx, above ? ly - 8 : ly + 28);
+        ctx.fillText(amt, hx, it.y + 12);
+        ctx.restore();
       }
-      ctx.restore();
-    });
+    }
   }
 };
 // Scale each slice's outer radius slightly by its share of the largest
@@ -975,6 +1005,16 @@ function animateCounters() {
     const target = parseFloat(counter.getAttribute('data-val')) || 0;
     const prefix = counter.getAttribute('data-prefix') || "";
     const suffix = counter.getAttribute('data-suffix') || "";
+    const key = counter.getAttribute('data-key');
+    const from = (key && key in counterMemory) ? counterMemory[key] : 0;
+    if (key) counterMemory[key] = target;
+
+    if (from === target) {
+      counter.innerHTML = prefix + formatCurrency(target) + suffix;
+      return;
+    }
+    counter.innerHTML = prefix + formatCurrency(from) + suffix;
+
     const duration = 1200;
     let startTimestamp = null;
 
@@ -982,7 +1022,7 @@ function animateCounters() {
       if (!startTimestamp) startTimestamp = timestamp;
       const progress = Math.min((timestamp - startTimestamp) / duration, 1);
       const easeOut = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
-      const currentVal = target * easeOut;
+      const currentVal = from + (target - from) * easeOut;
       counter.innerHTML = prefix + formatCurrency(currentVal) + suffix;
       if (progress < 1) window.requestAnimationFrame(step);
       else counter.innerHTML = prefix + formatCurrency(target) + suffix;
@@ -1022,7 +1062,8 @@ async function init() {
       });
       
     document.getElementById('main-loader').style.display = 'none';
-    
+
+    dataStamp++;
     renderDropdownOptions();
     switchView(currentView);
   } catch(e) {
@@ -1061,6 +1102,18 @@ function handleMonthDropdown(val) {
 }
 
 function calculateAndRender() {
+  // Skip entirely if this view already shows the current month + data —
+  // switching back to a tab should reveal it as-is, not replay everything.
+  const viewKey = `${activeYear}-${activeMonth}-${dataStamp}`;
+  if (renderedKey[currentView] === viewKey) return;
+  renderedKey[currentView] = viewKey;
+
+  // First render of a view gets the full entrance cascade; later re-renders
+  // (month switch, post-save refresh) only animate the values.
+  const firstEntrance = !hasEntranced[currentView];
+  hasEntranced[currentView] = true;
+  document.getElementById(`${currentView}-view`).classList.toggle('no-entrance', !firstEntrance);
+
   const rows = allRows.filter(r => {
     const d = new Date(r.Date);
     const isMonthMatch = d.getMonth() === activeMonth && d.getFullYear() === activeYear;
@@ -1113,7 +1166,7 @@ function calculateAndRender() {
         <div class="hero-top">
           <div class="hero-label">Net Balance</div>
         </div>
-        <div class="hero-amount counter-val" id="hero-amount" style="color: ${netBalance >= 0 ? 'var(--semantic-income)' : 'var(--semantic-expense)'};" data-val="${netBalance}" data-prefix="RM ">RM 0.00</div>
+        <div class="hero-amount counter-val" id="hero-amount" style="color: ${netBalance >= 0 ? 'var(--semantic-income)' : 'var(--semantic-expense)'};" data-val="${netBalance}" data-key="home-net" data-prefix="RM ">RM 0.00</div>
         <div class="hero-sub">${netBalance >= 0 ? 'In the green' : 'Watching the leak'}</div>
         <div class="hero-chart-wrap"><canvas id="hero-trend"></canvas></div>
       </div>
@@ -1122,12 +1175,12 @@ function calculateAndRender() {
     document.getElementById('home-tiles').innerHTML = `
       <div class="tile-block income-block">
         <div class="tile-label">Income</div>
-        <div class="tile-val counter-val" data-val="${totalIncome}" data-prefix="RM ">RM 0.00</div>
+        <div class="tile-val counter-val" data-val="${totalIncome}" data-key="home-inc" data-prefix="RM ">RM 0.00</div>
         <div class="tile-chip">${incChangePct >= 0 ? '▲' : '▼'} ${Math.abs(incChangePct).toFixed(0)}% vs last mo.</div>
       </div>
       <div class="tile-block expense-block">
         <div class="tile-label">Expenses</div>
-        <div class="tile-val counter-val" data-val="${totalExpense}" data-prefix="RM ">RM 0.00</div>
+        <div class="tile-val counter-val" data-val="${totalExpense}" data-key="home-exp" data-prefix="RM ">RM 0.00</div>
         <div class="tile-chip">${expChangePct >= 0 ? '▲' : '▼'} ${Math.abs(expChangePct).toFixed(0)}% vs last mo.</div>
       </div>
     `;
@@ -1168,6 +1221,10 @@ function calculateAndRender() {
         groups[dateHeader].push(r);
       });
 
+      // Rows cascade in top-to-bottom (35ms apart, capped so long lists don't
+      // stall); on first entrance they wait for the hero + tiles to land.
+      const rowBaseDelay = firstEntrance ? 190 : 0;
+      let rowIdx = 0;
       let timelineHtml = '';
       for (const [dateStr, records] of Object.entries(groups)) {
         const dayExpensesTotal = records.filter(r => r.Type !== 'Income').reduce((sum, r) => sum + r.Amount, 0);
@@ -1176,8 +1233,9 @@ function calculateAndRender() {
           const isInc = r.Type === "Income";
           const chipColor = isInc ? activeIncomeColor : (CAT_COLORS[r.Category] || CAT_COLORS["Other"]).hex;
           const icon = isInc ? "💰" : (CAT_ICONS[r.Category] || CAT_ICONS["Other"]);
+          const rowDelay = rowBaseDelay + Math.min(rowIdx++, 10) * 35;
           return `
-            <div class="txn-row" data-uid="${r.UID}">
+            <div class="txn-row" data-uid="${r.UID}" style="--d:${rowDelay}ms">
               <div class="txn-left">
                 <div class="txn-icon-chip" style="background:${hexToRgba(chipColor, 0.14)}">${icon}</div>
                 <div class="txn-details">
@@ -1208,11 +1266,11 @@ function calculateAndRender() {
     document.getElementById('analytics-metrics').innerHTML = `
       <div class="tile-block expense-block">
         <div class="tile-label">Average Daily Spend</div>
-        <div class="tile-val counter-val" data-val="${dailyBurnRate}" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
+        <div class="tile-val counter-val" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
       </div>
       <div class="tile-block neutral-block">
         <div class="tile-label">Forecasted Spend</div>
-        <div class="tile-val counter-val" data-val="${dailyBurnRate * daysInMonth}" data-prefix="RM ">RM 0.00</div>
+        <div class="tile-val counter-val" data-val="${dailyBurnRate * daysInMonth}" data-key="an-fc" data-prefix="RM ">RM 0.00</div>
       </div>
     `;
 
