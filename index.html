@@ -13,27 +13,20 @@
      M3 EXPRESSIVE DESIGN TOKENS — CLEAN MONOCHROME
      ──────────────────────────────────────────────────────────── */
   :root {
-    /* High-Vibrancy Semantic Fin-Colors (Punchy & Sharp) */
     --semantic-income: #00A36C;
     --semantic-expense: #E53E3E;
-
-    /* Layout & Brand Accents — Clean Slate Monochromatic Framework */
     --primary: #1A1A1A; 
     --on-primary: #FFFFFF;
     --primary-container: #E9ECEF; 
     --on-primary-container: #1A1A1A;
-
     --secondary: #343A40;
     --on-secondary: #FFFFFF;
     --secondary-container: #F8F9FA;
     --on-secondary-container: #212529;
-
     --tertiary: #495057;
     --on-tertiary: #FFFFFF;
     --tertiary-container: #E9ECEF;
     --on-tertiary-container: #212529;
-
-    /* Base Surfaces — Clean Monotone Light Grays (No warm cream tones) */
     --surface: #F8F9FA;
     --surface-container-low: #FFFFFF;
     --surface-container: #F1F3F5;
@@ -42,25 +35,18 @@
     --outline-variant: #E9ECEF;
     --on-surface: #212529;
     --on-surface-variant: #495057;
-
-    /* Micro-Washes for Metrics Cards */
     --wash-income: rgba(0, 163, 108, 0.04);
     --wash-expense: rgba(229, 62, 62, 0.04);
     --wash-hero: rgba(33, 37, 41, 0.03);
-
-    /* M3 Shape Library Scales */
     --shape-xs: 6px;
     --shape-sm: 10px;
     --shape-md: 14px;
     --shape-lg: 20px;
     --shape-xl: 28px;
     --shape-full: 999px;
-
-    /* Physical Motion System — High Velocity + Intentional Elastic Wobble */
     --motion-wobble: 420ms cubic-bezier(0.34, 1.85, 0.4, 0.85);
     --motion-snap: 220ms cubic-bezier(0.25, 1, 0.3, 1);
     --motion-standard: 250ms cubic-bezier(0.2, 0, 0, 1);
-
     --font-body: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 
@@ -68,12 +54,10 @@
     :root {
       --semantic-income: #2ECC71;
       --semantic-expense: #FF4D4D;
-
       --primary: #F8F9FA;
       --on-primary: #212529;
       --primary-container: #2B3035;
       --on-primary-container: #F8F9FA;
-
       --surface: #121212;
       --surface-container-low: #1E1E1E;
       --surface-container: #2D2D2D;
@@ -82,7 +66,6 @@
       --outline-variant: #2D2D2D;
       --on-surface: #F8F9FA;
       --on-surface-variant: #CED4DA;
-
       --wash-income: rgba(46, 204, 113, 0.06);
       --wash-expense: rgba(255, 77, 77, 0.06);
       --wash-hero: rgba(248, 249, 250, 0.04);
@@ -100,7 +83,6 @@
     padding-bottom: 115px; 
   }
 
-  /* Header Layout */
   .header { 
     background: var(--surface-container-low); 
     padding: 1.25rem 1.5rem; 
@@ -112,6 +94,7 @@
     z-index: 10; 
     border-bottom: 1px solid var(--outline-variant); 
   }
+  
   .header-title { 
     font-size: 20px; 
     font-weight: 800; 
@@ -150,7 +133,6 @@
   .refresh-btn:hover { background: var(--surface-container); }
   .refresh-btn:active { transform: rotate(180deg); }
 
-  /* Bottom Controls Layer Layout */
   .bottom-bar {
     position: fixed;
     bottom: 24px;
@@ -179,6 +161,7 @@
     width: 230px; 
     height: 48px; 
   }
+  
   @media (prefers-color-scheme: dark) {
     .floating-nav {
       background: rgba(30, 30, 30, 0.75);
@@ -215,7 +198,6 @@
     pointer-events: none; 
   }
 
-  /* Kinetic Action FAB */
   .fab {
     width: 48px;
     height: 48px;
@@ -243,7 +225,6 @@
   .view-section { display: none; }
   .view-section.active { display: block; }
 
-  /* Layout Systems Grid Configuration */
   .metric-grid { 
     display: grid; 
     grid-template-columns: repeat(3, 1fr); 
@@ -251,6 +232,7 @@
     margin-bottom: 1.5rem; 
     width: 100%; 
   }
+  
   @media (max-width: 480px) {
     .metric-grid.home-grid { 
       grid-template-columns: repeat(2, 1fr); 
@@ -266,7 +248,6 @@
     }
   }
 
-  /* Tonal Container Washed Surfaces */
   .metric { 
     background: var(--surface-container-low); 
     border-radius: var(--shape-lg); 
@@ -280,8 +261,6 @@
   }
   .metric.income-card { background: var(--wash-income); }
   .metric.expense-card { background: var(--wash-expense); }
-  
-  /* Asymmetric Layout Hero Balance Card Design Requirements */
   .metric.balance-card { 
     background: var(--wash-hero);
     border-color: var(--outline);
@@ -303,7 +282,6 @@
     white-space: nowrap; 
   }
   
-  /* Editorial Display Treatment Headline Metric Scale */
   .metric.balance-card .metric-val {
     font-size: 34px;
     font-weight: 900;
@@ -333,6 +311,7 @@
     margin-bottom: 1.5rem; 
     width: 100%; 
   }
+  
   @media (max-width: 768px) { 
     .charts-row { 
       grid-template-columns: 1fr; 
@@ -373,7 +352,6 @@
   .cat-bar-fill { height: 100%; border-radius: var(--shape-full); transition: width var(--motion-wobble); }
   .cat-amt { font-size: 12px; font-weight: 600; width: 72px; text-align: right; flex-shrink: 0; }
 
-  /* Timeline Presentation Layout */
   .date-group-header { font-size: 11px; font-weight: 700; color: var(--on-surface-variant); margin: 1.5rem 0 0.5rem 0.25rem; text-transform: uppercase; letter-spacing: 0.5px; }
   .txn-list { border-radius: var(--shape-lg); border: 1px solid var(--outline-variant); background: var(--surface-container-low); overflow: hidden; margin-bottom: 0.5rem; }
   
@@ -401,7 +379,6 @@
   .txn-details { display: flex; flex-direction: column; gap: 2px; }
   .txn-badge-container { display: flex; margin-top: 1px; }
 
-  /* Clean Subtotal Presentation */
   .txn-footer {
     background: var(--surface-container);
     padding: 11px 1.25rem 11px 1.45rem; 
@@ -448,7 +425,6 @@
   .spinner { width: 28px; height: 28px; border: 3px solid var(--outline-variant); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Expressive Modal Overlay Framework Sheet */
   .modal-overlay {
     position: fixed;
     inset: 0;
@@ -496,7 +472,6 @@
     color: var(--on-surface); 
   }
 
-  /* Toggle Segmented Track Control */
   .type-toggle {
     position: relative;
     display: flex;
@@ -575,6 +550,10 @@
   <div class="header-left">
     <div class="header-title-row" style="display: flex; align-items: center; gap: 10px;">
       <div class="header-title">Project Alfred</div>
+      <select id="view-mode-select" class="month-select" onchange="handleViewMode(this.value)" style="display: none;">
+        <option value="personal">My Data</option>
+        <option value="household">Household</option>
+      </select>
       <select id="month-select-element" class="month-select" onchange="handleMonthDropdown(this.value)"></select>
     </div>
   </div>
@@ -693,9 +672,14 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXI
 const SECRET_KEY = "8891";
 
 const INCOME_CATEGORIES = ["Salary", "Freelance", "Bonus", "Investment", "Side Income", "Reimbursement", "Other Income"];
-// FIX: moved out of calculateAndRender() so it's globally accessible to populateCategoryOptions()
 const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "Shopping", "Groceries", "Entertainment", "Other"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// Parse User ID from URL
+const urlParams = new URLSearchParams(window.location.search);
+let activeUser = urlParams.get('user') || '';
+// Default to 'personal' if URL has a user, otherwise 'household'
+let viewMode = activeUser ? 'personal' : 'household'; 
 
 let allRows = [];
 let activeMonth = new Date().getMonth();
@@ -759,6 +743,11 @@ function animateCounters() {
   });
 }
 
+function handleViewMode(val) {
+  viewMode = val;
+  calculateAndRender();
+}
+
 async function init() {
   try {
     const res = await fetch(SHEET_URL);
@@ -784,12 +773,22 @@ async function init() {
           Category: r.c[2]?.v || "Other",
           Description: r.c[3]?.v || "",
           Type: r.c[5]?.v ? String(r.c[5].v).trim() : "Expense",
-          UID: r.c[6]?.v ? String(r.c[6].v).trim() : ""
+          UID: r.c[6]?.v ? String(r.c[6].v).trim() : "",
+          User: r.c[7]?.v ? String(r.c[7].v).trim() : ""
         };
       });
       
     document.getElementById('main-loader').style.display = 'none';
+    
     renderDropdownOptions();
+    
+    // Unhide view toggle if accessing via personalized Telegram link
+    if (activeUser) {
+      const viewSelect = document.getElementById('view-mode-select');
+      viewSelect.style.display = 'inline-block';
+      viewSelect.value = viewMode;
+    }
+    
     switchView(currentView);
   } catch(e) {
     console.error(e);
@@ -829,7 +828,12 @@ function handleMonthDropdown(val) {
 function calculateAndRender() {
   const rows = allRows.filter(r => {
     const d = new Date(r.Date);
-    return d.getMonth() === activeMonth && d.getFullYear() === activeYear;
+    const isMonthMatch = d.getMonth() === activeMonth && d.getFullYear() === activeYear;
+    
+    // If in household mode or no active user, show all. Otherwise, check user ID (with empty string legacy fallback).
+    const isUserMatch = (viewMode === 'household' || !activeUser) ? true : (r.User === activeUser || r.User === '');
+    
+    return isMonthMatch && isUserMatch;
   });
 
   const totalIncome = rows.filter(r => r.Type === "Income").reduce((s, r) => s + r.Amount, 0);
@@ -842,7 +846,6 @@ function calculateAndRender() {
   const catData = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
   const maxCat = catData[0]?.[1] || 1;
 
-  // Resolve computed hex values dynamically from computed styles root mapping
   const activeExpenseColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-expense').trim() || "#E53E3E";
 
   const CAT_COLORS = {
@@ -956,7 +959,14 @@ function calculateAndRender() {
 
     let lastMo = activeMonth - 1, lastYr = activeYear;
     if (lastMo < 0) { lastMo = 11; lastYr -= 1; }
-    const lastMonthExpenseRows = allRows.filter(r => { const d = new Date(r.Date); return d.getMonth() === lastMo && d.getFullYear() === lastYr && r.Type !== "Income"; });
+    
+    // Make sure we apply the user filter to last month's data as well
+    const lastMonthExpenseRows = allRows.filter(r => { 
+      const d = new Date(r.Date); 
+      const isTimeMatch = d.getMonth() === lastMo && d.getFullYear() === lastYr && r.Type !== "Income"; 
+      const isUserMatch = (viewMode === 'household' || !activeUser) ? true : (r.User === activeUser || r.User === '');
+      return isTimeMatch && isUserMatch;
+    });
 
     let currentSum = 0, lastSum = 0;
     const currentMonthlyCumulativeData = [], priorMonthlyCumulativeData = [];
@@ -1006,7 +1016,6 @@ function calculateAndRender() {
 
 function populateCategoryOptions(type, selected) {
   const sel = document.getElementById('modal-category');
-  // FIX: use the global EXPENSE_CATEGORIES constant instead of the out-of-scope CAT_COLORS object
   sel.innerHTML = (type === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(c => `<option value="${c}"${c === selected ? ' selected' : ''}>${c}</option>`).join('');
 }
 
@@ -1072,7 +1081,7 @@ async function saveTxn() {
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ key: SECRET_KEY, action: isEdit ? 'edit' : 'add', uid, date, amount, category, description, type })
+      body: JSON.stringify({ key: SECRET_KEY, action: isEdit ? 'edit' : 'add', uid, date, amount, category, description, type, user: activeUser })
     });
     const result = await res.json().catch(() => ({ success: true }));
     if (result.error) throw new Error(result.error);
