@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-11 (Pipeline 2 Phase 1, 2 & 3 — NLP array schema, validation layer, ledger-tone bot + 10pm digest)*
+*Last updated: 2026-07-11 (Dashboard UX refresh vibe session — Home hero card + tiles + txn icon chips, Analytics pie/spend-pace redesign. Prior same-day work: Pipeline 2 Phase 1–3.)*
 
 ---
 
@@ -167,7 +167,24 @@ doPost(e) routes add/edit/delete · handleAdd() (writes User col H) · handleEdi
 - Opening without `?user=` → zero rows render (intentional strict privacy). Always test with `?user=YOUR_CHAT_ID`.
 - No household/"view all" toggle — deliberate strict per-user isolation
 
-**Design system:** Material 3 Expressive foundation + editorial/newsletter layer — warm surfaces, ink monochrome, serif/sans/mono hierarchy (Merriweather 900 masthead/metrics/chart titles, Roboto Flex UI, Monaco amounts), burnt-sienna accent. Semantic red/green preserved. FAB + modal share liquid-glass aesthetic with nav pill. Mobile serif metrics use `clamp(18px,6vw,32px)` via `.serif-display`.
+**Design system:** Material 3 Expressive foundation — Roboto Flex UI, ink monochrome tokens, semantic red/green preserved, burnt-sienna (`#C2542D`) accent. Bouncy motion is core: `--motion-wobble` (overshoot cubic-bezier) drives the nav pill slider, hero/tile/chip pop-in animations, and bar transitions; `--motion-snap` for taps. FAB + modal + nav pill share a liquid-glass aesthetic. Theme-aware via `prefers-color-scheme`.
+
+### 3a. Dashboard UX refresh (2026-07-11 vibe session — DONE)
+
+Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** system + purpose-built cards. Drew inspiration from finance-app dribbble refs (hero balance card w/ embedded mini-chart, on-slice pie %s, income/expense pills), translated into Alfred's own tokens (not the refs' purple-on-white).
+
+**Home:**
+- **Net Balance hero card** (`.hero-card`, `#home-hero`) — full-width; **ink-black gradient in dark mode, monochrome off-white surface in light mode** (no shadow). Holds: privacy **blur toggle** (`toggleHeroPrivacy()` → `.value-hidden` CSS blur), and an embedded **6-month net-trend mini bar chart** (`heroChart`, current month in burnt-sienna, others tinted green/red by sign). Balance figure colored green/red by sign via semantic tokens.
+- **Income / Expense tiles** (`#home-tiles`) — tinted-surface (`--wash-income`/`--wash-expense`), number colored by type, each with a `▲/▼ X% vs last month` outlined chip.
+- **Transaction rows** — per-category **icon chip** (`.txn-icon-chip`, `CAT_ICONS` map) tinted from the existing `CAT_COLORS` map.
+
+**Analytics:**
+- **Average Daily Spend / Forecasted Spend** — same `tile-block` system (expense-tint / neutral-tint); emoji subtitles removed.
+- **Spend card** (`#income-bar-block`) — no headline; a two-segment **"% of income spent · % left"** bar (`.income-bar-seg used/rem`) plus a **"Today" month-pace marker** (`.income-bar-marker` at month-elapsed %) and a `Day D of N · spending ahead/under/on pace` line (red/green/neutral). Marker + pace only render for the **current** month; needs `totalIncome > 0`.
+- **Expenses by Category** — **solid pie** (was donut). `pieLabelsPlugin` draws bold on-slice %s (≥8%) + name+amount callouts with elbow leader lines; `variableRadiusPlugin` scales each slice's outer radius **subtly** by share (`0.92 + 0.08 × share`) so a dominant Food category doesn't lopside the circle. Center-total (old donut hole) and the separate Category Breakdown card were both removed — callouts carry name + amount now.
+- **Mobile centering:** every direct child of `#analytics-view` shares one `max-width:440px` + auto-center at ≤768px, so tiles/cards/charts all line up (previously tiles went full-width while charts stayed capped).
+
+⚠️ Chart plugins (`pieLabelsPlugin`, `variableRadiusPlugin`) are gated on `chart.canvas.id === 'donut'` so they only touch the category pie, not the cumulative line. Custom callouts are drawn in Chart.js `layout.padding` — the pie renders at `radius:'90%'` inside a 380px-tall container with L/R padding for label room.
 
 **Potential next tie-in:** surface the shared daily-summary block ("today so far vs average") at the top of the dashboard, reusing the digest logic.
 
@@ -184,7 +201,8 @@ doPost(e) routes add/edit/delete · handleAdd() (writes User col H) · handleEdi
 - **Pipeline 2 Phase 1 & 2 — DONE.** Array-return schema (multi-entry, multi-day, quantity math, bill-split, relative dates, currency normalization) + validation/sanitization layer (fix-quietly/drop-loudly), unit-tested.
 - **Pipeline 2 Phase 3 — DONE.** Analytics commands cut; bot repositioned capture+glance+push; all replies in ledger tone; 10pm KL daily digest (Python-only, zero OpenAI cost); `/run-digest` test endpoint.
 
-**Dashboard:** Full Home + Analytics tabs; GViz date fix; month selector; dark mode; animated counters; cumulative + donut + category charts; Apps Script add/edit/delete; FAB + modal (liquid glass); M3 Expressive + editorial layer; strict per-user filtering.
+**Dashboard:** Full Home + Analytics tabs; GViz date fix; month selector; dark mode; animated counters; Apps Script add/edit/delete; FAB + modal (liquid glass); M3 Expressive layer; strict per-user filtering.
+- **UX refresh (2026-07-11) — DONE.** Home Net Balance hero card (privacy toggle + 6-mo mini trend) + income/expense tiles + txn category icon chips; Analytics spend card with month-pace "Today" marker, solid variable-radius pie w/ on-slice %s + callouts (replaced donut + Category Breakdown), unified mobile centering. Shared `tile-block` system across both tabs; dead `.metric`/`.crystal-ball` CSS removed. See §3a. Shipped via PRs #6 + #7.
 
 ### What's Pending ❌
 - **Stress test (in progress):** run the bot 1 month on Railway Free tier with 3 users to see if it fits within the $1/mo credit + 0.5 GB RAM ceiling. Deferred until after this: (a) RAM logging on boot/post-digest, (b) Railway billing alert at ~$0.80. Decision after test: stay Free / upgrade Hobby ($5/mo) / migrate.
@@ -233,3 +251,12 @@ doPost(e) routes add/edit/delete · handleAdd() (writes User col H) · handleEdi
 - filter_by_user() empty-string fallback still critical during legacy transition.
 - ALLOWED_USERS parsed at module level (not per-message); Railway env formatting has no spaces/quotes.
 - /undo walks raw sheet rows (not filtered) for correct deletion index.
+
+**Dashboard UX (2026-07-11 vibe session):**
+- **Steal patterns, not palettes.** Finance-app refs gave the *structure* (hero card w/ mini-chart, on-slice pie %s, income/expense pills); reskinning them into Alfred's existing tokens kept one coherent system instead of a purple-on-white transplant.
+- **One shared component beats per-tab cards.** Migrating Home + Analytics onto `tile-block` let dead `.metric`/`.crystal-ball` CSS be deleted outright — consistency + less code in one move.
+- **A metric is more useful paired with its baseline.** The spend bar only became meaningful once the "Today" month-pace marker gave it something to be read *against* (spent-vs-time), not just a raw %.
+- **Variable-radius pie needs restraint.** Scaling slice radius by share (`0.92 + 0.08×share`) hints hierarchy; the first pass (`0.72 + 0.28`) made one dominant category visibly lopside the circle.
+- **Chart.js custom canvas draws (on-slice labels, callouts, variable radius, center text) must be gated by `canvas.id`** — an ungated plugin bleeds onto every chart on the page.
+- **Always eyeball mobile widths, not just desktop.** The "right-drift" was tiles going full-width while charts stayed `max-width`-capped between 480–768px — invisible on desktop, obvious on a phone. Screenshotted at 390 / 600 / 900 to confirm.
+- **Render-to-verify loop:** local `python3 -m http.server` + Playwright (mock the GViz response, serve Chart.js locally since the CDN is proxy-blocked) → screenshot at multiple widths & both themes before committing.
