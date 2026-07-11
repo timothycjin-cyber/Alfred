@@ -198,6 +198,13 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Category palette** (validated with the dataviz six-checks script, light+dark): Food & Dining `#C2542D` (own burnt-sienna hue — semantic expense red is reserved for amounts/deltas), Transport `#0891B2` (chroma fix), Entertainment `#DB2777` (contrast fix); Other stays deliberate-neutral `#495057`. "Last month" cumulative line + legend dot are now outline gray per theme (`#6C757D`/`#ADB5BD`) — reference, not warning.
 - **Hero mini-chart negatives:** `minBarLength: 4` + `heroBaselinePlugin` (faint zero line, gated on `canvas.id === 'hero-trend'`) so negative-net months stay visible.
 
+**Physics pass (2026-07-11, same session — DONE):**
+- **Real spring easing:** `@supports (transition-timing-function: linear(0,0.5,1))` overrides the motion tokens with sampled damped-spring `linear()` curves — wobble = stiffness 320 / ζ 0.62 (~8% overshoot, 632ms), snap = stiffness 700 / ζ 0.85 (near-critical, 370ms). Old cubic-beziers remain as the fallback for pre-`linear()` browsers; the reduced-motion zeroing (later in the sheet) still wins.
+- **Shared-axis tab transition:** incoming view springs in along X via `.axis-in-left/right` (direction = tab order), applied in `switchView()` only on an actual tab change. Companion fix: `display:none → block` restarts child CSS animations, so revisited tabs were replaying pop-ins despite the no-replay render skip — `.settled` (added on the skip path, removed on real renders) pins hero/tile/row/chip animations on revisit.
+- **Spend bar actually springs now:** segments + Today marker mount at their previous state (`barMemory`, or nearly-empty on first render) and get their real `flex-grow`/`left` one frame later, so the wobble transitions fire (elements born at final state never animate). Verified overshoot: 10.1 → 19.25 → settles 18.14.
+- **Loader:** spinner replaced with a 4-bar bouncing mini bar-chart (staggered 120ms, last bar burnt-sienna); under reduced motion it becomes an opacity pulse (`loaderPulse`).
+- **Micro:** txn rows get a `scale(0.985)` press squish matching the tiles.
+
 **Potential next tie-in:** surface the shared daily-summary block ("today so far vs average") at the top of the dashboard, reusing the digest logic.
 
 ---

@@ -50,6 +50,18 @@
     --font-body: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 
+  /* Real damped-spring physics where linear() is supported (the beziers above
+     are the fallback). Curves are sampled from a simulated spring, mass 1:
+     wobble = stiffness 320, damping ratio 0.62 (~8% overshoot, settles 632ms);
+     snap = stiffness 700, damping ratio 0.85 (near-critical, settles 370ms).
+     Same parameterization M3 Expressive uses for its spatial springs. */
+  @supports (transition-timing-function: linear(0, 0.5, 1)) {
+    :root {
+      --motion-wobble: 632ms linear(0.0003, 0.0924 4.0%, 0.2917 8.0%, 0.5096 12.0%, 0.7087 16.0%, 0.8667 20.0%, 0.9806 24.0%, 1.0455 28.0%, 1.0756 32.0%, 1.0812 36.0%, 1.0716 40.0%, 1.0553 44.0%, 1.0375 48.0%, 1.0211 52.0%, 1.0089 56.0%, 1.0006 60.0%, 0.9958 64.0%, 0.9936 68.0%, 0.9934 72.0%, 0.9943 76.0%, 0.9958 80.0%, 0.9972 84.0%, 0.9984 88.0%, 0.9994 92.0%, 1 96.0%, 1.0004);
+      --motion-snap: 370ms linear(0.0007, 0.0756 4.0%, 0.2194 8.0%, 0.3704 12.0%, 0.5238 16.0%, 0.6553 20.0%, 0.7609 24.0%, 0.8413 28.0%, 0.8965 32.0%, 0.9384 36.0%, 0.9665 40.0%, 0.9844 44.0%, 0.9952 48.0%, 1.0009 52.0%, 1.0039 56.0%, 1.005 60.0%, 1.0049 64.0%, 1.0043 68.0%, 1.0036 72.0%, 1.0028 76.0%, 1.0021 80.0%, 1.0015 84.0%, 1.001 88.0%, 1.0007 92.0%, 1.0004 96.0%, 1.0002);
+    }
+  }
+
   @media (prefers-color-scheme: dark) {
     :root {
       --semantic-income: #2ECC71;
@@ -232,6 +244,26 @@
   .view-section { display: none; }
   .view-section.active { display: block; }
 
+  /* M3 shared-axis: the incoming view springs in along X, direction matching
+     tab order (Home ← → Analytics), so the pill and content move as one
+     connected mechanism. */
+  @keyframes axisInLeft {
+    from { opacity: 0; transform: translateX(32px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes axisInRight {
+    from { opacity: 0; transform: translateX(-32px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .view-section.axis-in-left { animation: axisInLeft var(--motion-snap) both; }
+  .view-section.axis-in-right { animation: axisInRight var(--motion-snap) both; }
+
+  /* Revisiting a tab restarts child CSS animations (display:none → block
+     resets them); .settled pins already-seen content so only the section's
+     own axis slide plays. */
+  .view-section.settled .hero-card, .view-section.settled .tile-block,
+  .view-section.settled .txn-row, .view-section.settled .txn-icon-chip { animation: none; }
+
   @media (max-width: 480px) {
     .tile-row {
       max-width: 440px;
@@ -384,8 +416,10 @@
   .income-bar-seg.used { background: var(--semantic-expense); color: #fff; justify-content: flex-start; }
   .income-bar-seg.rem { background: var(--surface-container); color: var(--on-surface); }
 
-  /* "Today" marker overlaid on the bar at the month-elapsed position */
-  .income-bar-marker { position: absolute; top: -7px; bottom: -7px; width: 2px; background: var(--on-surface); border-radius: 2px; transform: translateX(-1px); pointer-events: none; }
+  /* "Today" marker overlaid on the bar at the month-elapsed position;
+     springs from 0 to its position alongside the segments' flex-grow spring
+     (both start values are set in markup, finals applied a frame later). */
+  .income-bar-marker { position: absolute; top: -7px; bottom: -7px; width: 2px; background: var(--on-surface); border-radius: 2px; transform: translateX(-1px); pointer-events: none; transition: left var(--motion-wobble); }
   .income-bar-marker::before {
     content: attr(data-label);
     position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
@@ -422,14 +456,14 @@
     border-bottom: 1px solid var(--outline-variant); 
     cursor: pointer;
     background: transparent;
-    transition: background-color var(--motion-snap);
+    transition: background-color var(--motion-snap), transform var(--motion-snap);
     outline: none;
     animation: rowIn var(--motion-snap) backwards;
     animation-delay: var(--d, 0ms);
   }
   .txn-row:last-child { border-bottom: none; }
   .txn-row:hover { background: rgba(0, 0, 0, 0.02); }
-  .txn-row:active { background: rgba(0, 0, 0, 0.05); }
+  .txn-row:active { background: rgba(0, 0, 0, 0.05); transform: scale(0.985); }
   
   @media (prefers-color-scheme: dark) {
     .txn-row:hover { background: rgba(255, 255, 255, 0.02); }
@@ -483,8 +517,27 @@
   .empty-icon { font-size: 36px; margin-bottom: 12px; }
 
   .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4rem 1rem; color: var(--on-surface-variant); font-size: 14px; }
-  .spinner { width: 28px; height: 28px; border: 3px solid var(--outline-variant); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Loader: a bouncing mini bar-chart — Alfred's own data, warming up.
+     Last bar wears the burnt-sienna accent, same as the hero chart's
+     current-month bar. */
+  .loader-bars { display: flex; align-items: flex-end; gap: 5px; height: 34px; margin-bottom: 16px; }
+  .loader-bars span {
+    width: 8px; height: 100%; border-radius: 4px;
+    background: var(--primary); transform-origin: bottom;
+    animation: loaderBounce 1s ease-in-out infinite;
+  }
+  .loader-bars span:nth-child(2) { animation-delay: 120ms; }
+  .loader-bars span:nth-child(3) { animation-delay: 240ms; }
+  .loader-bars span:nth-child(4) { animation-delay: 360ms; background: #C2542D; }
+  @keyframes loaderBounce {
+    0%, 100% { transform: scaleY(0.25); }
+    50% { transform: scaleY(1); }
+  }
+  @keyframes loaderPulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+  }
 
   .modal-overlay {
     position: fixed;
@@ -625,6 +678,8 @@
     :root { --motion-wobble: 0ms; --motion-snap: 0ms; --motion-standard: 0ms; }
     .hero-card, .tile-block, .tile-row .tile-block:nth-child(1), .tile-row .tile-block:nth-child(2),
     .txn-row, .txn-icon-chip { animation-delay: 0ms; }
+    /* Loader still signals activity, but as a gentle pulse instead of a bounce. */
+    .loader-bars span { animation: loaderPulse 1.4s ease-in-out infinite; }
   }
 </style>
 </head>
@@ -667,7 +722,7 @@
 
 <div class="container">
   <div id="main-loader" class="loading">
-    <div class="spinner"></div>
+    <div class="loader-bars"><span></span><span></span><span></span><span></span></div>
     Reading your Google Sheet...
   </div>
 
@@ -799,6 +854,9 @@ const hasEntranced = { home: false, analytics: false };
 // Last value each counter displayed, so numbers animate from where they
 // were (value inertia) instead of re-counting from zero on every render.
 const counterMemory = {};
+// Same idea for the spend bar: segments + Today marker spring from their
+// previous position (or from empty on first render) to the new one.
+let barMemory = null;
 
 let donutChart = null;
 let lineChart = null;
@@ -1128,11 +1186,19 @@ async function init() {
 
 function switchView(view) {
   window.scrollTo(0, 0);
+  const isTabChange = view !== currentView;
   currentView = view;
   document.querySelectorAll('.nav-btn').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
   document.getElementById(`tab-${view}`).classList.add('active');
-  document.getElementById(`${view}-view`).classList.add('active');
+  const section = document.getElementById(`${view}-view`);
+  section.classList.add('active');
+  // Shared-axis slide, direction matching tab order — only on an actual tab
+  // change, never on initial load or same-view refreshes.
+  section.classList.remove('axis-in-left', 'axis-in-right');
+  if (isTabChange) {
+    section.classList.add(view === 'analytics' ? 'axis-in-left' : 'axis-in-right');
+  }
   document.getElementById('nav-slider').style.transform = (view === 'analytics') ? 'translateX(100%)' : 'translateX(0)';
   calculateAndRender();
 }
@@ -1158,15 +1224,21 @@ function handleMonthDropdown(val) {
 function calculateAndRender() {
   // Skip entirely if this view already shows the current month + data —
   // switching back to a tab should reveal it as-is, not replay everything.
+  // (.settled pins child animations, since display:none → block restarts them.)
   const viewKey = `${activeYear}-${activeMonth}-${dataStamp}`;
-  if (renderedKey[currentView] === viewKey) return;
+  const viewEl = document.getElementById(`${currentView}-view`);
+  if (renderedKey[currentView] === viewKey) {
+    viewEl.classList.add('settled');
+    return;
+  }
   renderedKey[currentView] = viewKey;
+  viewEl.classList.remove('settled');
 
   // First render of a view gets the full entrance cascade; later re-renders
   // (month switch, post-save refresh) only animate the values.
   const firstEntrance = !hasEntranced[currentView];
   hasEntranced[currentView] = true;
-  document.getElementById(`${currentView}-view`).classList.toggle('no-entrance', !firstEntrance);
+  viewEl.classList.toggle('no-entrance', !firstEntrance);
 
   const rows = allRows.filter(r => {
     const d = new Date(r.Date);
@@ -1342,8 +1414,9 @@ function calculateAndRender() {
 
       // Marker + pace commentary only make sense for the live month.
       let markerHtml = '', paceHtml = '';
+      const markerStart = barMemory ? barMemory.marker : 0;
       if (isCurrentMonth) {
-        markerHtml = `<div class="income-bar-marker" data-label="Today" style="left:${monthPct.toFixed(1)}%"></div>`;
+        markerHtml = `<div class="income-bar-marker" data-label="Today" style="left:${markerStart.toFixed(1)}%"></div>`;
         const diff = usedPct - monthPct;
         let cls = '', word = 'on pace';
         if (diff > 5) { cls = 'ahead'; word = 'ahead of pace'; }
@@ -1351,17 +1424,35 @@ function calculateAndRender() {
         paceHtml = `<div class="income-bar-pace">Day ${today.getDate()} of ${daysInMonth} · spending <b class="${cls}">${word}</b></div>`;
       }
 
+      // Mount the bar at its previous state (or nearly-empty on first render),
+      // then set the real values a frame later so the flex-grow / left
+      // transitions actually spring — elements born at their final state
+      // never animate.
+      const usedFlex = Math.max(usedPct, 4), remFlex = Math.max(remPct, 4);
+      const startUsed = barMemory ? barMemory.used : 4;
+      const startRem = barMemory ? barMemory.rem : 96;
+
       document.getElementById('income-bar-block').innerHTML = `
         <div class="income-bar-caption"><span><b>${usedPct.toFixed(0)}%</b> of income spent · ${remPct.toFixed(0)}% left</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>
         <div class="income-bar-wrap">
           <div class="income-bar-row">
-            ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${Math.max(usedPct, 4)}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
-            ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${Math.max(remPct, 4)}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
+            ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${startUsed}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
+            ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${startRem}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
           </div>
           ${markerHtml}
         </div>
         ${paceHtml}
       `;
+
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const usedEl = document.querySelector('#income-bar-block .income-bar-seg.used');
+        const remEl = document.querySelector('#income-bar-block .income-bar-seg.rem');
+        const markerEl = document.querySelector('#income-bar-block .income-bar-marker');
+        if (usedEl) usedEl.style.flexGrow = usedFlex;
+        if (remEl) remEl.style.flexGrow = remFlex;
+        if (markerEl) markerEl.style.left = monthPct.toFixed(1) + '%';
+      }));
+      barMemory = { used: usedFlex, rem: remFlex, marker: isCurrentMonth ? monthPct : markerStart };
     } else {
       document.getElementById('income-bar-block').innerHTML = `<div class="income-bar-caption"><span>No income logged this month</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>`;
     }
