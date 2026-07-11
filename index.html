@@ -403,6 +403,11 @@
   
   .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
+  .income-bar-caption { font-size: 12.5px; font-weight: 600; color: var(--on-surface-variant); margin: -6px 0 8px; }
+  .income-bar-caption b { color: var(--on-surface); font-weight: 800; }
+  .income-bar-track { height: 10px; border-radius: var(--shape-full); background: var(--surface-container); overflow: hidden; margin-bottom: 1.25rem; }
+  .income-bar-fill { height: 100%; background: var(--semantic-expense); transition: width var(--motion-wobble); }
+
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
   .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); padding: 4px 12px; border-radius: var(--shape-full); border: 1px solid var(--outline-variant); background: var(--surface-container-low); }
   .pill-dot { width: 8px; height: 8px; border-radius: 50%; }
@@ -677,8 +682,9 @@
       </div>
       <div class="card">
         <div class="card-title">Expenses by Category</div>
+        <div id="income-bar-block"></div>
         <div class="donut-layout">
-          <div id="donut-container" class="donut-container" style="position:relative; width:100%; height:160px">
+          <div id="donut-container" class="donut-container" style="position:relative; width:100%; height:196px">
             <canvas id="donut"></canvas>
           </div>
           <div class="legend-side-box" id="donut-legend-rows"></div>
@@ -803,25 +809,61 @@ Chart.Tooltip.positioners.thisMonthOnly = function(elements) {
   return false;
 };
 
-const centerTextPlugin = {
-  id: 'centerText',
-  afterDraw: (chart) => {
-    if (chart.config.type !== 'doughnut') return;
-    const { ctx, chartArea: { left, top, right, bottom } } = chart;
-    const centerX = (left + right) / 2, centerY = (top + bottom) / 2;
-    ctx.save();
+const pieLabelsPlugin = {
+  id: 'pieLabels',
+  afterDatasetsDraw: (chart) => {
+    if (chart.canvas.id !== 'donut') return;
+    const meta = chart.getDatasetMeta(0);
+    const dataset = chart.data.datasets[0];
+    if (!meta.data.length) return;
+    const total = dataset.data.reduce((a, b) => a + b, 0);
+    if (!total) return;
+
+    const { ctx } = chart;
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    ctx.font = '700 11px -apple-system, sans-serif';
-    ctx.fillStyle = isDark ? '#CED4DA' : '#495057';
+
+    meta.data.forEach((arc, i) => {
+      const pct = (dataset.data[i] / total) * 100;
+      if (pct < 8) return;
+      const pos = arc.tooltipPosition();
+      ctx.save();
+      ctx.font = '800 13px -apple-system, sans-serif';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur = 3;
+      ctx.fillText(Math.round(pct) + '%', pos.x, pos.y);
+      ctx.restore();
+    });
+
+    // Callout + leader line for the largest (index 0) category
+    const topArc = meta.data[0];
+    const angle = (topArc.startAngle + topArc.endAngle) / 2;
+    const edgeX = topArc.x + Math.cos(angle) * topArc.outerRadius;
+    const edgeY = topArc.y + Math.sin(angle) * topArc.outerRadius;
+    const labelY = chart.chartArea.top - 6;
+    const labelX = Math.min(chart.chartArea.right - 42, Math.max(chart.chartArea.left + 42, edgeX));
+
+    ctx.save();
+    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(edgeX, edgeY);
+    ctx.lineTo(labelX, labelY);
+    ctx.stroke();
+
     ctx.textAlign = 'center';
-    ctx.fillText("Total", centerX, centerY - 10);
-    ctx.font = 'bold 14px -apple-system, sans-serif';
+    ctx.font = '800 12px -apple-system, sans-serif';
     ctx.fillStyle = isDark ? '#F8F9FA' : '#212529';
-    ctx.fillText("RM " + formatCurrency(chart.config.options.plugins.centerText.totalAmount), centerX, centerY + 8);
+    ctx.fillText(chart.data.labels[0], labelX, labelY - 22);
+    ctx.font = '600 10px -apple-system, sans-serif';
+    ctx.fillStyle = isDark ? '#ADB5BD' : '#6C757D';
+    ctx.fillText('RM ' + formatCurrency(dataset.data[0]), labelX, labelY - 9);
     ctx.restore();
   }
 };
-Chart.register(centerTextPlugin);
+Chart.register(pieLabelsPlugin);
 
 function animateCounters() {
   document.querySelectorAll('.counter-val').forEach(counter => {
@@ -1085,18 +1127,40 @@ function calculateAndRender() {
       return `<div class="cat-row"><span class="cat-name">${cat}</span><div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${(val / maxCat * 100).toFixed(1)}%; background:${(CAT_COLORS[cat] || CAT_COLORS["Other"]).hex}"></div></div><span class="cat-amt">RM ${formatCurrency(val)}</span></div>`;
     }).join('') : '<div style="font-size:13px; padding:10px 0;">No chart profiles mapped.</div>';
 
+    if (totalIncome > 0) {
+      const usedPct = Math.min(100, (totalExpense / totalIncome) * 100);
+      const remPct = Math.max(0, 100 - usedPct);
+      document.getElementById('income-bar-block').innerHTML = `
+        <div class="income-bar-caption"><b>${usedPct.toFixed(0)}%</b> of income spent this month · ${remPct.toFixed(0)}% left</div>
+        <div class="income-bar-track"><div class="income-bar-fill" style="width:${usedPct.toFixed(1)}%"></div></div>
+      `;
+    } else {
+      document.getElementById('income-bar-block').innerHTML = `<div class="income-bar-caption">No income logged this month</div>`;
+    }
+
     const donutContainer = document.getElementById('donut-container');
     if (donutContainer) donutContainer.innerHTML = '<canvas id="donut"></canvas>';
 
     if (donutChart) donutChart.destroy();
     if (catData.length) {
       donutChart = new Chart(document.getElementById('donut'), {
-        type: 'doughnut',
+        type: 'pie',
         data: {
           labels: catData.map(d => d[0]),
-          datasets: [{ data: catData.map(d => d[1]), backgroundColor: catData.map(([cat]) => (CAT_COLORS[cat] || CAT_COLORS["Other"]).hex), borderWidth: 1, borderColor: 'var(--surface-container-low)' }]
+          datasets: [{
+            data: catData.map(d => d[1]),
+            backgroundColor: catData.map(([cat]) => (CAT_COLORS[cat] || CAT_COLORS["Other"]).hex),
+            borderWidth: 1,
+            borderColor: 'var(--surface-container-low)',
+            offset: catData.map((_, i) => i === 0 ? 16 : 0)
+          }]
         },
-        options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false }, centerText: { totalAmount: totalExpense } } }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: { padding: { top: 34 } },
+          plugins: { legend: { display: false } }
+        }
       });
     }
 
