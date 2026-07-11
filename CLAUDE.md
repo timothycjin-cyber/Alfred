@@ -1,5 +1,4 @@
-# ALFRED_DASHBOARD_CONTEXT.md
-_Paste this at the start of every new session before sharing any code._
+# CLAUDE.md
 
 ---
 
@@ -152,13 +151,3 @@ Full script is live. Key functions:
 
 > ⚠️ If you ever need to update the Apps Script, click **Deploy → Manage deployments → Edit** and create a new version. Do NOT create a new deployment — it gives a different URL.
 
----
-
-## How to Start a Session
-1. Paste this file as your first message
-2. Paste the current `index.html`
-3. State what you're building today
-4. Recommended order for next sessions:
-   - First: update `main.py` with UID (quick, 2-line change)
-   - Then: build FAB
-   - Then: build edit/delete modal
