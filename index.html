@@ -723,7 +723,7 @@
 <div class="container">
   <div id="main-loader" class="loading">
     <div class="loader-bars"><span></span><span></span><span></span><span></span></div>
-    Reading your Google Sheet...
+    Loading data...
   </div>
 
   <div id="home-view" class="view-section">
@@ -1007,7 +1007,6 @@ const pieLabelsPlugin = {
         i, cos,
         edgeX: arc.x + cos * arc.outerRadius,
         edgeY: arc.y + sin * arc.outerRadius,
-        mx: arc.x + cos * (arc.outerRadius + 16),
         y: arc.y + sin * (arc.outerRadius + 16)
       });
     });
@@ -1037,8 +1036,11 @@ const pieLabelsPlugin = {
         ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
         ctx.lineWidth = 1;
 
-        // Diagonal stub (absorbs any de-collision shift), then a horizontal
-        // run that stops just short of the text block.
+        // One straight segment from slice edge to just short of the text.
+        // Anchors and labels share the same top-to-bottom order (both follow
+        // slice angle, and de-collision preserves it), so straight leaders
+        // can never cross — the old radial-stub elbow could, when adjacent
+        // small slices had their labels pushed apart.
         ctx.font = '800 11.5px -apple-system, sans-serif';
         const nameW = ctx.measureText(name).width;
         ctx.font = '600 10px -apple-system, sans-serif';
@@ -1047,7 +1049,6 @@ const pieLabelsPlugin = {
 
         ctx.beginPath();
         ctx.moveTo(it.edgeX, it.edgeY);
-        ctx.lineTo(it.mx, it.y);
         ctx.lineTo(lineEndX, it.y);
         ctx.stroke();
 
