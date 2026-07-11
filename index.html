@@ -403,31 +403,28 @@
   
   .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .income-bar-caption { font-size: 12.5px; font-weight: 600; color: var(--on-surface-variant); margin: -6px 0 8px; }
+  .spend-headline { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 16px; font-weight: 700; letter-spacing: -0.2px; color: var(--on-surface); margin-bottom: 12px; }
+  .spend-headline b { color: var(--semantic-expense); font-weight: 800; }
+  .spend-period { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); white-space: nowrap; }
+
+  .income-bar-caption { font-size: 12.5px; font-weight: 600; color: var(--on-surface-variant); margin: 0 0 10px; }
   .income-bar-caption b { color: var(--on-surface); font-weight: 800; }
-  .income-bar-track { height: 10px; border-radius: var(--shape-full); background: var(--surface-container); overflow: hidden; margin-bottom: 1.25rem; }
-  .income-bar-fill { height: 100%; background: var(--semantic-expense); transition: width var(--motion-wobble); }
+  .income-bar-row { display: flex; gap: 6px; }
+  .income-bar-seg {
+    border-radius: var(--shape-full);
+    padding: 10px 14px;
+    font-size: 13px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    white-space: nowrap; overflow: hidden;
+    transition: flex-grow var(--motion-wobble);
+    min-width: 4px;
+  }
+  .income-bar-seg.used { background: var(--semantic-expense); color: #fff; justify-content: flex-start; }
+  .income-bar-seg.rem { background: var(--surface-container); color: var(--on-surface); }
 
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
   .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); padding: 4px 12px; border-radius: var(--shape-full); border: 1px solid var(--outline-variant); background: var(--surface-container-low); }
   .pill-dot { width: 8px; height: 8px; border-radius: 50%; }
-  
-  .legend-side-box { display: flex; flex-direction: column; gap: 8px; justify-content: center; margin-top: 12px; }
-  @media (min-width: 480px) {
-    .donut-layout { display: flex; align-items: center; gap: 14px; }
-    .donut-container { flex: 1; }
-    .legend-side-box { flex: 1; margin-top: 0; }
-  }
-  
-  .legend-row-item { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 500; color: var(--on-surface-variant); }
-  .legend-row-left { display: flex; align-items: center; gap: 6px; }
-  .legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-
-  .cat-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-  .cat-name { font-size: 12px; color: var(--on-surface-variant); font-weight: 500; width: 110px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cat-bar-bg { flex: 1; height: 6px; border-radius: var(--shape-full); background: var(--surface-container); overflow: hidden; }
-  .cat-bar-fill { height: 100%; border-radius: var(--shape-full); transition: width var(--motion-wobble); }
-  .cat-amt { font-size: 12px; font-weight: 600; width: 72px; text-align: right; flex-shrink: 0; }
 
   .date-group-header { font-size: 11px; font-weight: 700; color: var(--on-surface-variant); margin: 1.5rem 0 0.5rem 0.25rem; text-transform: uppercase; letter-spacing: 0.5px; }
   .txn-list { border-radius: var(--shape-lg); border: 1px solid var(--outline-variant); background: var(--surface-container-low); overflow: hidden; margin-bottom: 0.5rem; }
@@ -665,6 +662,9 @@
 
   <div id="analytics-view" class="view-section">
     <div id="analytics-metrics" class="metric-grid analytics-grid"></div>
+    <div class="card" style="margin-bottom: 16px;">
+      <div id="income-bar-block"></div>
+    </div>
     <div class="charts-row">
       <div class="card">
         <div class="card-title">Cumulative Spend</div>
@@ -682,18 +682,10 @@
       </div>
       <div class="card">
         <div class="card-title">Expenses by Category</div>
-        <div id="income-bar-block"></div>
-        <div class="donut-layout">
-          <div id="donut-container" class="donut-container" style="position:relative; width:100%; height:196px">
-            <canvas id="donut"></canvas>
-          </div>
-          <div class="legend-side-box" id="donut-legend-rows"></div>
+        <div id="donut-container" style="position:relative; width:100%; height:320px">
+          <canvas id="donut"></canvas>
         </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Category Breakdown</div>
-      <div style="display:flex; flex-direction:column; gap:12px" id="bar-breakdown"></div>
     </div>
   </div>
 </div>
@@ -823,8 +815,11 @@ const pieLabelsPlugin = {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
     meta.data.forEach((arc, i) => {
-      const pct = (dataset.data[i] / total) * 100;
+      const val = dataset.data[i];
+      const pct = (val / total) * 100;
       if (pct < 8) return;
+
+      // Bold % centered inside the slice
       const pos = arc.tooltipPosition();
       ctx.save();
       ctx.font = '800 13px -apple-system, sans-serif';
@@ -835,35 +830,87 @@ const pieLabelsPlugin = {
       ctx.shadowBlur = 3;
       ctx.fillText(Math.round(pct) + '%', pos.x, pos.y);
       ctx.restore();
+
+      // External name + amount callout with a leader line, radiating outward
+      // from the slice's own angle so it works for any number of categories.
+      const angle = (arc.startAngle + arc.endAngle) / 2;
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      const edgeX = arc.x + cos * arc.outerRadius;
+      const edgeY = arc.y + sin * arc.outerRadius;
+      const name = chart.data.labels[i].split(' ')[0];
+      const amt = 'RM ' + formatCurrency(val);
+
+      ctx.save();
+      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = 1;
+
+      if (Math.abs(cos) > 0.35) {
+        // Side slice: diagonal stub, then a horizontal run that stops just
+        // short of the text block so the line never crosses the label.
+        const mx = arc.x + cos * (arc.outerRadius + 16);
+        const my = arc.y + sin * (arc.outerRadius + 16);
+        const hx = cos > 0 ? chart.chartArea.right + 40 : chart.chartArea.left - 40;
+
+        ctx.font = '800 11.5px -apple-system, sans-serif';
+        const nameW = ctx.measureText(name).width;
+        ctx.font = '600 10px -apple-system, sans-serif';
+        const blockW = Math.max(nameW, ctx.measureText(amt).width);
+        const lineEndX = cos > 0 ? hx - blockW - 6 : hx + blockW + 6;
+
+        ctx.beginPath();
+        ctx.moveTo(edgeX, edgeY);
+        ctx.lineTo(mx, my);
+        ctx.lineTo(lineEndX, my);
+        ctx.stroke();
+
+        ctx.textAlign = cos > 0 ? 'right' : 'left';
+        ctx.font = '800 11.5px -apple-system, sans-serif';
+        ctx.fillStyle = isDark ? '#F8F9FA' : '#212529';
+        ctx.fillText(name, hx, my - 3);
+        ctx.font = '600 10px -apple-system, sans-serif';
+        ctx.fillStyle = isDark ? '#ADB5BD' : '#6C757D';
+        ctx.fillText(amt, hx, my + 12);
+      } else {
+        // Top/bottom slice: straight ray with the text stacked past its end.
+        const lx = arc.x + cos * (arc.outerRadius + 26);
+        const ly = arc.y + sin * (arc.outerRadius + 26);
+        const above = sin < 0;
+        ctx.beginPath();
+        ctx.moveTo(edgeX, edgeY);
+        ctx.lineTo(lx, ly);
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.font = '800 11.5px -apple-system, sans-serif';
+        ctx.fillStyle = isDark ? '#F8F9FA' : '#212529';
+        ctx.fillText(name, lx, above ? ly - 21 : ly + 15);
+        ctx.font = '600 10px -apple-system, sans-serif';
+        ctx.fillStyle = isDark ? '#ADB5BD' : '#6C757D';
+        ctx.fillText(amt, lx, above ? ly - 8 : ly + 28);
+      }
+      ctx.restore();
     });
-
-    // Callout + leader line for the largest (index 0) category
-    const topArc = meta.data[0];
-    const angle = (topArc.startAngle + topArc.endAngle) / 2;
-    const edgeX = topArc.x + Math.cos(angle) * topArc.outerRadius;
-    const edgeY = topArc.y + Math.sin(angle) * topArc.outerRadius;
-    const labelY = chart.chartArea.top - 6;
-    const labelX = Math.min(chart.chartArea.right - 42, Math.max(chart.chartArea.left + 42, edgeX));
-
-    ctx.save();
-    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(edgeX, edgeY);
-    ctx.lineTo(labelX, labelY);
-    ctx.stroke();
-
-    ctx.textAlign = 'center';
-    ctx.font = '800 12px -apple-system, sans-serif';
-    ctx.fillStyle = isDark ? '#F8F9FA' : '#212529';
-    ctx.fillText(chart.data.labels[0], labelX, labelY - 22);
-    ctx.font = '600 10px -apple-system, sans-serif';
-    ctx.fillStyle = isDark ? '#ADB5BD' : '#6C757D';
-    ctx.fillText('RM ' + formatCurrency(dataset.data[0]), labelX, labelY - 9);
-    ctx.restore();
   }
 };
-Chart.register(pieLabelsPlugin);
+// Scale each slice's outer radius by its share of the largest category,
+// so the biggest expense visibly extends furthest (reference-style pie).
+// Runs every draw frame so the values never compound.
+const variableRadiusPlugin = {
+  id: 'variableRadius',
+  beforeDatasetsDraw: (chart) => {
+    if (chart.canvas.id !== 'donut') return;
+    const meta = chart.getDatasetMeta(0);
+    const data = chart.data.datasets[0].data;
+    if (!meta.data.length) return;
+    const maxVal = Math.max(...data);
+    if (!maxVal) return;
+    const base = meta.controller.outerRadius;
+    meta.data.forEach((arc, i) => {
+      arc.outerRadius = base * (0.72 + 0.28 * (data[i] / maxVal));
+    });
+  }
+};
+Chart.register(variableRadiusPlugin, pieLabelsPlugin);
 
 function animateCounters() {
   document.querySelectorAll('.counter-val').forEach(counter => {
@@ -975,7 +1022,6 @@ function calculateAndRender() {
   const catTotals = {};
   expenseRows.forEach(r => { catTotals[r.Category] = (catTotals[r.Category] || 0) + r.Amount; });
   const catData = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
-  const maxCat = catData[0]?.[1] || 1;
 
   const activeExpenseColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-expense').trim() || "#E53E3E";
   const activeIncomeColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-income').trim() || "#00A36C";
@@ -1119,23 +1165,24 @@ function calculateAndRender() {
       </div>
     `;
 
-    document.getElementById('donut-legend-rows').innerHTML = catData.map(([cat, val]) => {
-      return `<div class="legend-row-item"><div class="legend-row-left"><span class="legend-dot" style="background:${(CAT_COLORS[cat] || CAT_COLORS["Other"]).hex}"></span>${cat.split(' ')[0]}</div><div>${totalExpense > 0 ? ((val / totalExpense) * 100).toFixed(0) : 0}%</div></div>`;
-    }).join('');
-
-    document.getElementById('bar-breakdown').innerHTML = catData.length ? catData.map(([cat, val]) => {
-      return `<div class="cat-row"><span class="cat-name">${cat}</span><div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${(val / maxCat * 100).toFixed(1)}%; background:${(CAT_COLORS[cat] || CAT_COLORS["Other"]).hex}"></div></div><span class="cat-amt">RM ${formatCurrency(val)}</span></div>`;
-    }).join('') : '<div style="font-size:13px; padding:10px 0;">No chart profiles mapped.</div>';
-
+    const spendHeadline = `
+      <div class="spend-headline">
+        <span>You have spent <b>RM ${formatCurrency(totalExpense)}</b> this month.</span>
+        <span class="spend-period">${MONTHS[activeMonth]} ${activeYear}</span>
+      </div>
+    `;
     if (totalIncome > 0) {
       const usedPct = Math.min(100, (totalExpense / totalIncome) * 100);
       const remPct = Math.max(0, 100 - usedPct);
-      document.getElementById('income-bar-block').innerHTML = `
-        <div class="income-bar-caption"><b>${usedPct.toFixed(0)}%</b> of income spent this month · ${remPct.toFixed(0)}% left</div>
-        <div class="income-bar-track"><div class="income-bar-fill" style="width:${usedPct.toFixed(1)}%"></div></div>
+      document.getElementById('income-bar-block').innerHTML = spendHeadline + `
+        <div class="income-bar-caption"><b>${usedPct.toFixed(0)}%</b> of income spent · ${remPct.toFixed(0)}% left</div>
+        <div class="income-bar-row">
+          ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${Math.max(usedPct, 4)}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
+          ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${Math.max(remPct, 4)}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
+        </div>
       `;
     } else {
-      document.getElementById('income-bar-block').innerHTML = `<div class="income-bar-caption">No income logged this month</div>`;
+      document.getElementById('income-bar-block').innerHTML = spendHeadline + `<div class="income-bar-caption">No income logged this month</div>`;
     }
 
     const donutContainer = document.getElementById('donut-container');
@@ -1152,13 +1199,14 @@ function calculateAndRender() {
             backgroundColor: catData.map(([cat]) => (CAT_COLORS[cat] || CAT_COLORS["Other"]).hex),
             borderWidth: 1,
             borderColor: 'var(--surface-container-low)',
-            offset: catData.map((_, i) => i === 0 ? 16 : 0)
+            offset: 0
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          layout: { padding: { top: 34 } },
+          radius: '80%',
+          layout: { padding: { top: 44, bottom: 44, left: 64, right: 64 } },
           plugins: { legend: { display: false } }
         }
       });
