@@ -50,6 +50,18 @@
     --font-body: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 
+  /* Real damped-spring physics where linear() is supported (the beziers above
+     are the fallback). Curves are sampled from a simulated spring, mass 1:
+     wobble = stiffness 320, damping ratio 0.62 (~8% overshoot, settles 632ms);
+     snap = stiffness 700, damping ratio 0.85 (near-critical, settles 370ms).
+     Same parameterization M3 Expressive uses for its spatial springs. */
+  @supports (transition-timing-function: linear(0, 0.5, 1)) {
+    :root {
+      --motion-wobble: 632ms linear(0.0003, 0.0924 4.0%, 0.2917 8.0%, 0.5096 12.0%, 0.7087 16.0%, 0.8667 20.0%, 0.9806 24.0%, 1.0455 28.0%, 1.0756 32.0%, 1.0812 36.0%, 1.0716 40.0%, 1.0553 44.0%, 1.0375 48.0%, 1.0211 52.0%, 1.0089 56.0%, 1.0006 60.0%, 0.9958 64.0%, 0.9936 68.0%, 0.9934 72.0%, 0.9943 76.0%, 0.9958 80.0%, 0.9972 84.0%, 0.9984 88.0%, 0.9994 92.0%, 1 96.0%, 1.0004);
+      --motion-snap: 370ms linear(0.0007, 0.0756 4.0%, 0.2194 8.0%, 0.3704 12.0%, 0.5238 16.0%, 0.6553 20.0%, 0.7609 24.0%, 0.8413 28.0%, 0.8965 32.0%, 0.9384 36.0%, 0.9665 40.0%, 0.9844 44.0%, 0.9952 48.0%, 1.0009 52.0%, 1.0039 56.0%, 1.005 60.0%, 1.0049 64.0%, 1.0043 68.0%, 1.0036 72.0%, 1.0028 76.0%, 1.0021 80.0%, 1.0015 84.0%, 1.001 88.0%, 1.0007 92.0%, 1.0004 96.0%, 1.0002);
+    }
+  }
+
   @media (prefers-color-scheme: dark) {
     :root {
       --semantic-income: #2ECC71;
@@ -134,8 +146,11 @@
     flex-shrink: 0;
   }
   .icon-btn:hover { background: var(--surface-container); }
-  .refresh-btn:active { transform: rotate(180deg); }
   .export-btn:active { transform: scale(0.9); }
+
+  /* Refresh spins while a fetch is actually in flight — feedback, not decoration. */
+  @keyframes refreshSpin { to { transform: rotate(360deg); } }
+  .refresh-btn.spinning svg { animation: refreshSpin 0.7s linear infinite; }
 
   .bottom-bar {
     position: fixed;
@@ -229,6 +244,26 @@
   .view-section { display: none; }
   .view-section.active { display: block; }
 
+  /* M3 shared-axis: the incoming view springs in along X, direction matching
+     tab order (Home ← → Analytics), so the pill and content move as one
+     connected mechanism. */
+  @keyframes axisInLeft {
+    from { opacity: 0; transform: translateX(32px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes axisInRight {
+    from { opacity: 0; transform: translateX(-32px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .view-section.axis-in-left { animation: axisInLeft var(--motion-snap) both; }
+  .view-section.axis-in-right { animation: axisInRight var(--motion-snap) both; }
+
+  /* Revisiting a tab restarts child CSS animations (display:none → block
+     resets them); .settled pins already-seen content so only the section's
+     own axis slide plays. */
+  .view-section.settled .hero-card, .view-section.settled .tile-block,
+  .view-section.settled .txn-row, .view-section.settled .txn-icon-chip { animation: none; }
+
   @media (max-width: 480px) {
     .tile-row {
       max-width: 440px;
@@ -251,6 +286,10 @@
     from { opacity: 0; transform: scale(0.4); }
     to   { opacity: 1; transform: scale(1); }
   }
+  @keyframes rowIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
   .hero-card {
     background: var(--surface-container-low);
@@ -261,7 +300,7 @@
     margin-bottom: 12px;
     position: relative;
     overflow: hidden;
-    animation: heroPopIn var(--motion-wobble);
+    animation: heroPopIn var(--motion-wobble) backwards;
   }
   @media (prefers-color-scheme: dark) {
     .hero-card {
@@ -296,10 +335,17 @@
     min-height: 104px;
     justify-content: center;
     cursor: default;
-    animation: tilePopIn var(--motion-wobble);
+    animation: tilePopIn var(--motion-wobble) backwards;
     transition: transform var(--motion-snap);
   }
   .tile-block:active { transform: scale(0.97); }
+  /* Entrance cascade: hero lands first, then the tiles follow one by one.
+     `backwards` fill keeps delayed elements hidden until their turn. */
+  .tile-row .tile-block:nth-child(1) { animation-delay: 70ms; }
+  .tile-row .tile-block:nth-child(2) { animation-delay: 140ms; }
+  /* A view re-render with the same layout (month switch, post-save refresh)
+     should update values, not replay the pop-in ceremony. */
+  .no-entrance .hero-card, .no-entrance .tile-block { animation: none; }
   .tile-block.income-block { background: var(--wash-income); }
   .tile-block.expense-block { background: var(--wash-expense); }
   .tile-block.neutral-block { background: var(--surface-container); }
@@ -314,14 +360,17 @@
     border-radius: var(--shape-full); border: 1px solid; background: transparent;
     width: fit-content;
   }
-  .tile-block.income-block .tile-chip { color: var(--semantic-income); border-color: var(--semantic-income); }
-  .tile-block.expense-block .tile-chip { color: var(--semantic-expense); border-color: var(--semantic-expense); }
+  /* Chip color follows valence (good/bad news), not which tile it sits on —
+     expenses dropping is good news and should read green. */
+  .tile-chip.good { color: var(--semantic-income); border-color: var(--semantic-income); }
+  .tile-chip.bad { color: var(--semantic-expense); border-color: var(--semantic-expense); }
 
   .txn-icon-chip {
     width: 36px; height: 36px; border-radius: var(--shape-sm);
     display: flex; align-items: center; justify-content: center;
     font-size: 16px; flex-shrink: 0;
-    animation: chipPop var(--motion-wobble);
+    animation: chipPop var(--motion-wobble) backwards;
+    animation-delay: var(--d, 0ms);
   }
 
   .charts-row {
@@ -367,8 +416,10 @@
   .income-bar-seg.used { background: var(--semantic-expense); color: #fff; justify-content: flex-start; }
   .income-bar-seg.rem { background: var(--surface-container); color: var(--on-surface); }
 
-  /* "Today" marker overlaid on the bar at the month-elapsed position */
-  .income-bar-marker { position: absolute; top: -7px; bottom: -7px; width: 2px; background: var(--on-surface); border-radius: 2px; transform: translateX(-1px); pointer-events: none; }
+  /* "Today" marker overlaid on the bar at the month-elapsed position;
+     springs from 0 to its position alongside the segments' flex-grow spring
+     (both start values are set in markup, finals applied a frame later). */
+  .income-bar-marker { position: absolute; top: -7px; bottom: -7px; width: 2px; background: var(--on-surface); border-radius: 2px; transform: translateX(-1px); pointer-events: none; transition: left var(--motion-wobble); }
   .income-bar-marker::before {
     content: attr(data-label);
     position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
@@ -383,6 +434,16 @@
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
   .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); padding: 4px 12px; border-radius: var(--shape-full); border: 1px solid var(--outline-variant); background: var(--surface-container-low); }
   .pill-dot { width: 8px; height: 8px; border-radius: 50%; }
+  /* Matches the "This Month" line color the chart JS picks per theme —
+     the old hardcoded #1A1A1A dot was invisible on the dark card. */
+  .pill-dot-this { background: #1A1A1A; }
+  /* Last month is a reference, not a warning — outline gray, matching the
+     dashed line color the chart JS picks per theme. */
+  .pill-dot-last { background: #6C757D; }
+  @media (prefers-color-scheme: dark) {
+    .pill-dot-this { background: #F8F9FA; }
+    .pill-dot-last { background: #ADB5BD; }
+  }
 
   .date-group-header { font-size: 11px; font-weight: 700; color: var(--on-surface-variant); margin: 1.5rem 0 0.5rem 0.25rem; text-transform: uppercase; letter-spacing: 0.5px; }
   .txn-list { border-radius: var(--shape-lg); border: 1px solid var(--outline-variant); background: var(--surface-container-low); overflow: hidden; margin-bottom: 0.5rem; }
@@ -395,12 +456,14 @@
     border-bottom: 1px solid var(--outline-variant); 
     cursor: pointer;
     background: transparent;
-    transition: background-color var(--motion-snap);
+    transition: background-color var(--motion-snap), transform var(--motion-snap);
     outline: none;
+    animation: rowIn var(--motion-snap) backwards;
+    animation-delay: var(--d, 0ms);
   }
   .txn-row:last-child { border-bottom: none; }
   .txn-row:hover { background: rgba(0, 0, 0, 0.02); }
-  .txn-row:active { background: rgba(0, 0, 0, 0.05); }
+  .txn-row:active { background: rgba(0, 0, 0, 0.05); transform: scale(0.985); }
   
   @media (prefers-color-scheme: dark) {
     .txn-row:hover { background: rgba(255, 255, 255, 0.02); }
@@ -454,8 +517,27 @@
   .empty-icon { font-size: 36px; margin-bottom: 12px; }
 
   .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4rem 1rem; color: var(--on-surface-variant); font-size: 14px; }
-  .spinner { width: 28px; height: 28px; border: 3px solid var(--outline-variant); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Loader: a bouncing mini bar-chart — Alfred's own data, warming up.
+     Last bar wears the burnt-sienna accent, same as the hero chart's
+     current-month bar. */
+  .loader-bars { display: flex; align-items: flex-end; gap: 5px; height: 34px; margin-bottom: 16px; }
+  .loader-bars span {
+    width: 8px; height: 100%; border-radius: 4px;
+    background: var(--primary); transform-origin: bottom;
+    animation: loaderBounce 1s ease-in-out infinite;
+  }
+  .loader-bars span:nth-child(2) { animation-delay: 120ms; }
+  .loader-bars span:nth-child(3) { animation-delay: 240ms; }
+  .loader-bars span:nth-child(4) { animation-delay: 360ms; background: #C2542D; }
+  @keyframes loaderBounce {
+    0%, 100% { transform: scaleY(0.25); }
+    50% { transform: scaleY(1); }
+  }
+  @keyframes loaderPulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+  }
 
   .modal-overlay {
     position: fixed;
@@ -588,6 +670,17 @@
   .export-choice:active { transform: scale(0.97); }
   .export-choice-main { font-size: 14px; font-weight: 700; }
   .export-choice-sub { font-size: 12px; font-weight: 600; color: var(--on-surface-variant); }
+
+  /* Zeroing the motion tokens collapses every transition/animation that uses
+     them; the delay reset stops the stagger from becoming a flicker cascade.
+     The loading spinner and refresh spin stay — they're status, not flourish. */
+  @media (prefers-reduced-motion: reduce) {
+    :root { --motion-wobble: 0ms; --motion-snap: 0ms; --motion-standard: 0ms; }
+    .hero-card, .tile-block, .tile-row .tile-block:nth-child(1), .tile-row .tile-block:nth-child(2),
+    .txn-row, .txn-icon-chip { animation-delay: 0ms; }
+    /* Loader still signals activity, but as a gentle pulse instead of a bounce. */
+    .loader-bars span { animation: loaderPulse 1.4s ease-in-out infinite; }
+  }
 </style>
 </head>
 <body>
@@ -629,7 +722,7 @@
 
 <div class="container">
   <div id="main-loader" class="loading">
-    <div class="spinner"></div>
+    <div class="loader-bars"><span></span><span></span><span></span><span></span></div>
     Reading your Google Sheet...
   </div>
 
@@ -652,10 +745,10 @@
         </div>
         <div class="custom-pill-legend">
           <div class="pill-item">
-            <div class="pill-dot" style="background:#1A1A1A"></div>This month
+            <div class="pill-dot pill-dot-this"></div>This month
           </div>
           <div class="pill-item">
-            <div class="pill-dot" style="background:var(--semantic-expense)"></div>Last month
+            <div class="pill-dot pill-dot-last"></div>Last month
           </div>
         </div>
       </div>
@@ -745,10 +838,25 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 const urlParams = new URLSearchParams(window.location.search);
 let activeUser = urlParams.get('user') || '';
 
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 let allRows = [];
 let activeMonth = new Date().getMonth();
 let activeYear = new Date().getFullYear();
 let currentView = 'home';
+
+// Render-state tracking so revisiting a tab doesn't rebuild (and re-animate)
+// content that is already current. dataStamp bumps on every sheet fetch;
+// renderedKey remembers what month+data each view last rendered.
+let dataStamp = 0;
+const renderedKey = { home: null, analytics: null };
+const hasEntranced = { home: false, analytics: false };
+// Last value each counter displayed, so numbers animate from where they
+// were (value inertia) instead of re-counting from zero on every render.
+const counterMemory = {};
+// Same idea for the spend bar: segments + Today marker spring from their
+// previous position (or from empty on first render) to the new one.
+let barMemory = null;
 
 let donutChart = null;
 let lineChart = null;
@@ -871,12 +979,10 @@ const pieLabelsPlugin = {
     const { ctx } = chart;
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
+    // Bold % centered inside the slice — only where it's wide enough to hold it.
     meta.data.forEach((arc, i) => {
-      const val = dataset.data[i];
-      const pct = (val / total) * 100;
+      const pct = (dataset.data[i] / total) * 100;
       if (pct < 8) return;
-
-      // Bold % centered inside the slice
       const pos = arc.tooltipPosition();
       ctx.save();
       ctx.font = '800 13px -apple-system, sans-serif';
@@ -887,66 +993,74 @@ const pieLabelsPlugin = {
       ctx.shadowBlur = 3;
       ctx.fillText(Math.round(pct) + '%', pos.x, pos.y);
       ctx.restore();
+    });
 
-      // External name + amount callout with a leader line, radiating outward
-      // from the slice's own angle so it works for any number of categories.
+    // Every slice gets a name + amount callout (tooltips are disabled, so
+    // this is the only way to identify small categories). Callouts route to
+    // a left or right column by slice angle, then get pushed apart
+    // vertically so clustered thin slices never overlap.
+    const sides = { left: [], right: [] };
+    meta.data.forEach((arc, i) => {
       const angle = (arc.startAngle + arc.endAngle) / 2;
       const cos = Math.cos(angle), sin = Math.sin(angle);
-      const edgeX = arc.x + cos * arc.outerRadius;
-      const edgeY = arc.y + sin * arc.outerRadius;
-      const name = chart.data.labels[i].split(' ')[0];
-      const amt = 'RM ' + formatCurrency(val);
+      sides[cos >= 0 ? 'right' : 'left'].push({
+        i, cos,
+        edgeX: arc.x + cos * arc.outerRadius,
+        edgeY: arc.y + sin * arc.outerRadius,
+        mx: arc.x + cos * (arc.outerRadius + 16),
+        y: arc.y + sin * (arc.outerRadius + 16)
+      });
+    });
 
-      ctx.save();
-      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
-      ctx.lineWidth = 1;
+    const minGap = 32; // two-line text block is ~30px tall
+    for (const side of ['left', 'right']) {
+      const items = sides[side].sort((a, b) => a.y - b.y);
+      for (let k = 1; k < items.length; k++)
+        if (items[k].y < items[k - 1].y + minGap) items[k].y = items[k - 1].y + minGap;
+      // Keep the stack on-canvas: shift up if it ran off the bottom, then
+      // clamp the top and re-space downward.
+      if (items.length) {
+        const overflow = items[items.length - 1].y + 16 - chart.height;
+        if (overflow > 0) items.forEach(it => { it.y -= overflow; });
+        items[0].y = Math.max(items[0].y, 18);
+        for (let k = 1; k < items.length; k++)
+          if (items[k].y < items[k - 1].y + minGap) items[k].y = items[k - 1].y + minGap;
+      }
 
-      if (Math.abs(cos) > 0.35) {
-        // Side slice: diagonal stub, then a horizontal run that stops just
-        // short of the text block so the line never crosses the label.
-        const mx = arc.x + cos * (arc.outerRadius + 16);
-        const my = arc.y + sin * (arc.outerRadius + 16);
-        const hx = cos > 0 ? chart.chartArea.right + 40 : chart.chartArea.left - 40;
+      for (const it of items) {
+        const right = side === 'right';
+        const hx = right ? chart.chartArea.right + 40 : chart.chartArea.left - 40;
+        const name = chart.data.labels[it.i].split(' ')[0];
+        const amt = 'RM ' + formatCurrency(dataset.data[it.i]);
 
+        ctx.save();
+        ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = 1;
+
+        // Diagonal stub (absorbs any de-collision shift), then a horizontal
+        // run that stops just short of the text block.
         ctx.font = '800 11.5px -apple-system, sans-serif';
         const nameW = ctx.measureText(name).width;
         ctx.font = '600 10px -apple-system, sans-serif';
         const blockW = Math.max(nameW, ctx.measureText(amt).width);
-        const lineEndX = cos > 0 ? hx - blockW - 6 : hx + blockW + 6;
+        const lineEndX = right ? hx - blockW - 6 : hx + blockW + 6;
 
         ctx.beginPath();
-        ctx.moveTo(edgeX, edgeY);
-        ctx.lineTo(mx, my);
-        ctx.lineTo(lineEndX, my);
+        ctx.moveTo(it.edgeX, it.edgeY);
+        ctx.lineTo(it.mx, it.y);
+        ctx.lineTo(lineEndX, it.y);
         ctx.stroke();
 
-        ctx.textAlign = cos > 0 ? 'right' : 'left';
+        ctx.textAlign = right ? 'right' : 'left';
         ctx.font = '800 11.5px -apple-system, sans-serif';
         ctx.fillStyle = isDark ? '#F8F9FA' : '#212529';
-        ctx.fillText(name, hx, my - 3);
+        ctx.fillText(name, hx, it.y - 3);
         ctx.font = '600 10px -apple-system, sans-serif';
         ctx.fillStyle = isDark ? '#ADB5BD' : '#6C757D';
-        ctx.fillText(amt, hx, my + 12);
-      } else {
-        // Top/bottom slice: straight ray with the text stacked past its end.
-        const lx = arc.x + cos * (arc.outerRadius + 26);
-        const ly = arc.y + sin * (arc.outerRadius + 26);
-        const above = sin < 0;
-        ctx.beginPath();
-        ctx.moveTo(edgeX, edgeY);
-        ctx.lineTo(lx, ly);
-        ctx.stroke();
-
-        ctx.textAlign = 'center';
-        ctx.font = '800 11.5px -apple-system, sans-serif';
-        ctx.fillStyle = isDark ? '#F8F9FA' : '#212529';
-        ctx.fillText(name, lx, above ? ly - 21 : ly + 15);
-        ctx.font = '600 10px -apple-system, sans-serif';
-        ctx.fillStyle = isDark ? '#ADB5BD' : '#6C757D';
-        ctx.fillText(amt, lx, above ? ly - 8 : ly + 28);
+        ctx.fillText(amt, hx, it.y + 12);
+        ctx.restore();
       }
-      ctx.restore();
-    });
+    }
   }
 };
 // Scale each slice's outer radius slightly by its share of the largest
@@ -968,13 +1082,47 @@ const variableRadiusPlugin = {
     });
   }
 };
-Chart.register(variableRadiusPlugin, pieLabelsPlugin);
+// Faint zero line behind the hero trend bars so negative months read as
+// "below the line" instead of vanishing (paired with minBarLength on the
+// dataset, which guarantees every month at least a visible sliver).
+const heroBaselinePlugin = {
+  id: 'heroBaseline',
+  beforeDatasetsDraw: (chart) => {
+    if (chart.canvas.id !== 'hero-trend') return;
+    const yScale = chart.scales.y;
+    if (!yScale) return;
+    const y = yScale.getPixelForValue(0);
+    const { ctx, chartArea } = chart;
+    if (y < chartArea.top || y > chartArea.bottom) return;
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    ctx.save();
+    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(chartArea.left, y + 0.5);
+    ctx.lineTo(chartArea.right, y + 0.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+Chart.register(variableRadiusPlugin, pieLabelsPlugin, heroBaselinePlugin);
+if (REDUCED_MOTION) Chart.defaults.animation = false;
 
 function animateCounters() {
   document.querySelectorAll('.counter-val').forEach(counter => {
     const target = parseFloat(counter.getAttribute('data-val')) || 0;
     const prefix = counter.getAttribute('data-prefix') || "";
     const suffix = counter.getAttribute('data-suffix') || "";
+    const key = counter.getAttribute('data-key');
+    const from = (key && key in counterMemory) ? counterMemory[key] : 0;
+    if (key) counterMemory[key] = target;
+
+    if (REDUCED_MOTION || from === target) {
+      counter.innerHTML = prefix + formatCurrency(target) + suffix;
+      return;
+    }
+    counter.innerHTML = prefix + formatCurrency(from) + suffix;
+
     const duration = 1200;
     let startTimestamp = null;
 
@@ -982,7 +1130,7 @@ function animateCounters() {
       if (!startTimestamp) startTimestamp = timestamp;
       const progress = Math.min((timestamp - startTimestamp) / duration, 1);
       const easeOut = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
-      const currentVal = target * easeOut;
+      const currentVal = from + (target - from) * easeOut;
       counter.innerHTML = prefix + formatCurrency(currentVal) + suffix;
       if (progress < 1) window.requestAnimationFrame(step);
       else counter.innerHTML = prefix + formatCurrency(target) + suffix;
@@ -992,6 +1140,8 @@ function animateCounters() {
 }
 
 async function init() {
+  const refreshBtn = document.querySelector('.refresh-btn');
+  refreshBtn.classList.add('spinning');
   try {
     const res = await fetch(SHEET_URL);
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
@@ -1022,22 +1172,33 @@ async function init() {
       });
       
     document.getElementById('main-loader').style.display = 'none';
-    
+
+    dataStamp++;
     renderDropdownOptions();
     switchView(currentView);
   } catch(e) {
     console.error(e);
     document.getElementById('main-loader').innerHTML = `<div style="color:var(--semantic-expense); padding:15px; text-align:center;">⚠️ Failed to load data.</div>`;
+  } finally {
+    refreshBtn.classList.remove('spinning');
   }
 }
 
 function switchView(view) {
   window.scrollTo(0, 0);
+  const isTabChange = view !== currentView;
   currentView = view;
   document.querySelectorAll('.nav-btn').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
   document.getElementById(`tab-${view}`).classList.add('active');
-  document.getElementById(`${view}-view`).classList.add('active');
+  const section = document.getElementById(`${view}-view`);
+  section.classList.add('active');
+  // Shared-axis slide, direction matching tab order — only on an actual tab
+  // change, never on initial load or same-view refreshes.
+  section.classList.remove('axis-in-left', 'axis-in-right');
+  if (isTabChange) {
+    section.classList.add(view === 'analytics' ? 'axis-in-left' : 'axis-in-right');
+  }
   document.getElementById('nav-slider').style.transform = (view === 'analytics') ? 'translateX(100%)' : 'translateX(0)';
   calculateAndRender();
 }
@@ -1061,6 +1222,24 @@ function handleMonthDropdown(val) {
 }
 
 function calculateAndRender() {
+  // Skip entirely if this view already shows the current month + data —
+  // switching back to a tab should reveal it as-is, not replay everything.
+  // (.settled pins child animations, since display:none → block restarts them.)
+  const viewKey = `${activeYear}-${activeMonth}-${dataStamp}`;
+  const viewEl = document.getElementById(`${currentView}-view`);
+  if (renderedKey[currentView] === viewKey) {
+    viewEl.classList.add('settled');
+    return;
+  }
+  renderedKey[currentView] = viewKey;
+  viewEl.classList.remove('settled');
+
+  // First render of a view gets the full entrance cascade; later re-renders
+  // (month switch, post-save refresh) only animate the values.
+  const firstEntrance = !hasEntranced[currentView];
+  hasEntranced[currentView] = true;
+  viewEl.classList.toggle('no-entrance', !firstEntrance);
+
   const rows = allRows.filter(r => {
     const d = new Date(r.Date);
     const isMonthMatch = d.getMonth() === activeMonth && d.getFullYear() === activeYear;
@@ -1084,13 +1263,17 @@ function calculateAndRender() {
   const activeExpenseColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-expense').trim() || "#E53E3E";
   const activeIncomeColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-income').trim() || "#00A36C";
 
+  // Category palette (validated with the dataviz six-checks script, both
+  // themes). Food gets its own burnt-sienna hue — the semantic expense red
+  // is reserved for amounts/deltas so a food-heavy pie doesn't read as an
+  // alert. Other stays a deliberate neutral for the catch-all bucket.
   const CAT_COLORS = {
-    "Food & Dining":     { hex: activeExpenseColor },
-    "Transport":         { hex: "#007A87" },
+    "Food & Dining":     { hex: "#C2542D" },
+    "Transport":         { hex: "#0891B2" },
     "Bills & Utilities": { hex: "#D97706" },
     "Shopping":          { hex: "#2684FF" },
     "Groceries":         { hex: "#6554C0" },
-    "Entertainment":     { hex: "#E774BB" },
+    "Entertainment":     { hex: "#DB2777" },
     "Other":             { hex: "#495057" }
   };
 
@@ -1113,7 +1296,7 @@ function calculateAndRender() {
         <div class="hero-top">
           <div class="hero-label">Net Balance</div>
         </div>
-        <div class="hero-amount counter-val" id="hero-amount" style="color: ${netBalance >= 0 ? 'var(--semantic-income)' : 'var(--semantic-expense)'};" data-val="${netBalance}" data-prefix="RM ">RM 0.00</div>
+        <div class="hero-amount counter-val" id="hero-amount" style="color: ${netBalance >= 0 ? 'var(--semantic-income)' : 'var(--semantic-expense)'};" data-val="${netBalance}" data-key="home-net" data-prefix="RM ">RM 0.00</div>
         <div class="hero-sub">${netBalance >= 0 ? 'In the green' : 'Watching the leak'}</div>
         <div class="hero-chart-wrap"><canvas id="hero-trend"></canvas></div>
       </div>
@@ -1122,13 +1305,13 @@ function calculateAndRender() {
     document.getElementById('home-tiles').innerHTML = `
       <div class="tile-block income-block">
         <div class="tile-label">Income</div>
-        <div class="tile-val counter-val" data-val="${totalIncome}" data-prefix="RM ">RM 0.00</div>
-        <div class="tile-chip">${incChangePct >= 0 ? '▲' : '▼'} ${Math.abs(incChangePct).toFixed(0)}% vs last mo.</div>
+        <div class="tile-val counter-val" data-val="${totalIncome}" data-key="home-inc" data-prefix="RM ">RM 0.00</div>
+        <div class="tile-chip ${incChangePct >= 0 ? 'good' : 'bad'}">${incChangePct >= 0 ? '▲' : '▼'} ${Math.abs(incChangePct).toFixed(0)}% vs last mo.</div>
       </div>
       <div class="tile-block expense-block">
         <div class="tile-label">Expenses</div>
-        <div class="tile-val counter-val" data-val="${totalExpense}" data-prefix="RM ">RM 0.00</div>
-        <div class="tile-chip">${expChangePct >= 0 ? '▲' : '▼'} ${Math.abs(expChangePct).toFixed(0)}% vs last mo.</div>
+        <div class="tile-val counter-val" data-val="${totalExpense}" data-key="home-exp" data-prefix="RM ">RM 0.00</div>
+        <div class="tile-chip ${expChangePct <= 0 ? 'good' : 'bad'}">${expChangePct >= 0 ? '▲' : '▼'} ${Math.abs(expChangePct).toFixed(0)}% vs last mo.</div>
       </div>
     `;
 
@@ -1143,13 +1326,14 @@ function calculateAndRender() {
           data: trendData,
           backgroundColor: trendData.map((v, i) => i === trendData.length - 1 ? '#C2542D' : hexToRgba(v >= 0 ? activeIncomeColor : activeExpenseColor, 0.35)),
           borderRadius: 4,
-          maxBarThickness: 16
+          maxBarThickness: 16,
+          minBarLength: 4
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 750, easing: 'easeOutBack' },
+        animation: REDUCED_MOTION ? false : { duration: 750, easing: 'easeOutBack' },
         plugins: { legend: { display: false }, tooltip: { enabled: false } },
         scales: {
           x: { grid: { display: false }, border: { display: false }, ticks: { color: heroTickColor, font: { size: 9, weight: 700 } } },
@@ -1168,6 +1352,10 @@ function calculateAndRender() {
         groups[dateHeader].push(r);
       });
 
+      // Rows cascade in top-to-bottom (35ms apart, capped so long lists don't
+      // stall); on first entrance they wait for the hero + tiles to land.
+      const rowBaseDelay = firstEntrance ? 190 : 0;
+      let rowIdx = 0;
       let timelineHtml = '';
       for (const [dateStr, records] of Object.entries(groups)) {
         const dayExpensesTotal = records.filter(r => r.Type !== 'Income').reduce((sum, r) => sum + r.Amount, 0);
@@ -1176,8 +1364,9 @@ function calculateAndRender() {
           const isInc = r.Type === "Income";
           const chipColor = isInc ? activeIncomeColor : (CAT_COLORS[r.Category] || CAT_COLORS["Other"]).hex;
           const icon = isInc ? "💰" : (CAT_ICONS[r.Category] || CAT_ICONS["Other"]);
+          const rowDelay = rowBaseDelay + Math.min(rowIdx++, 10) * 35;
           return `
-            <div class="txn-row" data-uid="${r.UID}">
+            <div class="txn-row" data-uid="${r.UID}" style="--d:${rowDelay}ms">
               <div class="txn-left">
                 <div class="txn-icon-chip" style="background:${hexToRgba(chipColor, 0.14)}">${icon}</div>
                 <div class="txn-details">
@@ -1206,13 +1395,13 @@ function calculateAndRender() {
     const dailyBurnRate = daysElapsed > 0 ? (totalExpense / daysElapsed) : 0;
 
     document.getElementById('analytics-metrics').innerHTML = `
-      <div class="tile-block expense-block">
+      <div class="tile-block neutral-block">
         <div class="tile-label">Average Daily Spend</div>
-        <div class="tile-val counter-val" data-val="${dailyBurnRate}" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
+        <div class="tile-val counter-val" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
       </div>
       <div class="tile-block neutral-block">
         <div class="tile-label">Forecasted Spend</div>
-        <div class="tile-val counter-val" data-val="${dailyBurnRate * daysInMonth}" data-prefix="RM ">RM 0.00</div>
+        <div class="tile-val counter-val" data-val="${dailyBurnRate * daysInMonth}" data-key="an-fc" data-prefix="RM ">RM 0.00</div>
       </div>
     `;
 
@@ -1225,8 +1414,9 @@ function calculateAndRender() {
 
       // Marker + pace commentary only make sense for the live month.
       let markerHtml = '', paceHtml = '';
+      const markerStart = barMemory ? barMemory.marker : 0;
       if (isCurrentMonth) {
-        markerHtml = `<div class="income-bar-marker" data-label="Today" style="left:${monthPct.toFixed(1)}%"></div>`;
+        markerHtml = `<div class="income-bar-marker" data-label="Today" style="left:${markerStart.toFixed(1)}%"></div>`;
         const diff = usedPct - monthPct;
         let cls = '', word = 'on pace';
         if (diff > 5) { cls = 'ahead'; word = 'ahead of pace'; }
@@ -1234,17 +1424,35 @@ function calculateAndRender() {
         paceHtml = `<div class="income-bar-pace">Day ${today.getDate()} of ${daysInMonth} · spending <b class="${cls}">${word}</b></div>`;
       }
 
+      // Mount the bar at its previous state (or nearly-empty on first render),
+      // then set the real values a frame later so the flex-grow / left
+      // transitions actually spring — elements born at their final state
+      // never animate.
+      const usedFlex = Math.max(usedPct, 4), remFlex = Math.max(remPct, 4);
+      const startUsed = barMemory ? barMemory.used : 4;
+      const startRem = barMemory ? barMemory.rem : 96;
+
       document.getElementById('income-bar-block').innerHTML = `
         <div class="income-bar-caption"><span><b>${usedPct.toFixed(0)}%</b> of income spent · ${remPct.toFixed(0)}% left</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>
         <div class="income-bar-wrap">
           <div class="income-bar-row">
-            ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${Math.max(usedPct, 4)}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
-            ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${Math.max(remPct, 4)}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
+            ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${startUsed}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
+            ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${startRem}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
           </div>
           ${markerHtml}
         </div>
         ${paceHtml}
       `;
+
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const usedEl = document.querySelector('#income-bar-block .income-bar-seg.used');
+        const remEl = document.querySelector('#income-bar-block .income-bar-seg.rem');
+        const markerEl = document.querySelector('#income-bar-block .income-bar-marker');
+        if (usedEl) usedEl.style.flexGrow = usedFlex;
+        if (remEl) remEl.style.flexGrow = remFlex;
+        if (markerEl) markerEl.style.left = monthPct.toFixed(1) + '%';
+      }));
+      barMemory = { used: usedFlex, rem: remFlex, marker: isCurrentMonth ? monthPct : markerStart };
     } else {
       document.getElementById('income-bar-block').innerHTML = `<div class="income-bar-caption"><span>No income logged this month</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>`;
     }
@@ -1317,7 +1525,7 @@ function calculateAndRender() {
         labels: Array.from({ length: daysInMonth }, (_, i) => i + 1),
         datasets: [
           { label: 'This Month', data: currentMonthlyCumulativeData, borderColor: activeThisMonthLineColor, backgroundColor: 'transparent', borderWidth: 3, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: '#fff', pointBorderColor: activeThisMonthLineColor, pointBorderWidth: 2, tension: 0.1 },
-          { label: 'Last Month', data: priorMonthlyCumulativeData, borderColor: activeExpenseColor, backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.1 }
+          { label: 'Last Month', data: priorMonthlyCumulativeData, borderColor: isDarkMode ? '#ADB5BD' : '#6C757D', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.1 }
         ]
       },
       options: {

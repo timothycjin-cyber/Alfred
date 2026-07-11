@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-11 (Dashboard UX refresh vibe session — Home hero card + tiles + txn icon chips, Analytics pie/spend-pace redesign. Prior same-day work: Pipeline 2 Phase 1–3.)*
+*Last updated: 2026-07-11 (Dashboard motion/UX polish — staggered entrances, no-replay re-renders + value-inertia counters, pie callouts for every slice. Earlier same day: UX refresh vibe session, Pipeline 2 Phase 1–3.)*
 
 ---
 
@@ -181,10 +181,29 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 **Analytics:**
 - **Average Daily Spend / Forecasted Spend** — same `tile-block` system (expense-tint / neutral-tint); emoji subtitles removed.
 - **Spend card** (`#income-bar-block`) — no headline; a two-segment **"% of income spent · % left"** bar (`.income-bar-seg used/rem`) plus a **"Today" month-pace marker** (`.income-bar-marker` at month-elapsed %) and a `Day D of N · spending ahead/under/on pace` line (red/green/neutral). Marker + pace only render for the **current** month; needs `totalIncome > 0`.
-- **Expenses by Category** — **solid pie** (was donut). `pieLabelsPlugin` draws bold on-slice %s (≥8%) + name+amount callouts with elbow leader lines; `variableRadiusPlugin` scales each slice's outer radius **subtly** by share (`0.92 + 0.08 × share`) so a dominant Food category doesn't lopside the circle. Center-total (old donut hole) and the separate Category Breakdown card were both removed — callouts carry name + amount now.
+- **Expenses by Category** — **solid pie** (was donut). `pieLabelsPlugin` draws bold on-slice %s (≥8%) + name+amount callouts with elbow leader lines; `variableRadiusPlugin` scales each slice's outer radius **subtly** by share (`0.92 + 0.08 × share`) so a dominant Food category doesn't lopside the circle. Center-total (old donut hole) and the separate Category Breakdown card were both removed — callouts carry name + amount now. **Every slice gets a callout** (tooltips are disabled, so callouts are the only ID for small categories): callouts route to a left/right column by slice angle, then de-collide vertically (32px min gap, clamped to canvas) — the old `pct < 8` skip now only gates the on-slice %.
 - **Mobile centering:** every direct child of `#analytics-view` shares one `max-width:440px` + auto-center at ≤768px, so tiles/cards/charts all line up (previously tiles went full-width while charts stayed capped).
 
 ⚠️ Chart plugins (`pieLabelsPlugin`, `variableRadiusPlugin`) are gated on `chart.canvas.id === 'donut'` so they only touch the category pie, not the cumulative line. Custom callouts are drawn in Chart.js `layout.padding` — the pie renders at `radius:'90%'` inside a 380px-tall container with L/R padding for label room.
+
+**Motion polish (2026-07-11, post-refresh — DONE):**
+- **Staggered entrances:** hero lands first, tiles follow via `nth-child` `animation-delay` (70/140ms), txn rows cascade top-to-bottom (35ms apart, index capped at 10) through a per-row `--d` CSS var shared with each row's icon chip. All entrance keyframes use `backwards` fill so delayed elements stay hidden until their turn.
+- **No-replay re-renders:** `renderedKey` (per view: `year-month-dataStamp`) makes `calculateAndRender()` a no-op when switching back to a tab whose content is already current — charts/DOM persist, nothing re-animates. `dataStamp` bumps on every `init()` fetch. On a genuine re-render (month switch, post-save), `hasEntranced` adds `.no-entrance` to the view, which kills hero/tile pop-ins (rows still cascade — they're new content).
+- **Value-inertia counters:** `counterMemory` (keyed by `data-key` on each `.counter-val`) makes numbers animate **from their previous value** to the new one instead of re-counting from RM 0.00. First paint still counts up from zero.
+
+**Quick-wins pass (2026-07-11, same session — DONE):**
+- **`prefers-reduced-motion`:** zeroes the three motion tokens (collapsing every transition/animation built on them) + stagger delays; JS `REDUCED_MOTION` flag makes counters instant and sets `Chart.defaults.animation = false`. Loading spinner + refresh spin kept (status, not flourish).
+- **Chip valence:** tile chips are now `.good`/`.bad` (green/red) by whether the change is good news — expenses dropping reads green. Average Daily Spend tile went expense-tint → neutral (it's information, not a warning).
+- **Refresh feedback:** `.refresh-btn.spinning` spins the icon while `init()`'s fetch is in flight (also covers initial load); replaced the old `:active` rotate.
+- **Category palette** (validated with the dataviz six-checks script, light+dark): Food & Dining `#C2542D` (own burnt-sienna hue — semantic expense red is reserved for amounts/deltas), Transport `#0891B2` (chroma fix), Entertainment `#DB2777` (contrast fix); Other stays deliberate-neutral `#495057`. "Last month" cumulative line + legend dot are now outline gray per theme (`#6C757D`/`#ADB5BD`) — reference, not warning.
+- **Hero mini-chart negatives:** `minBarLength: 4` + `heroBaselinePlugin` (faint zero line, gated on `canvas.id === 'hero-trend'`) so negative-net months stay visible.
+
+**Physics pass (2026-07-11, same session — DONE):**
+- **Real spring easing:** `@supports (transition-timing-function: linear(0,0.5,1))` overrides the motion tokens with sampled damped-spring `linear()` curves — wobble = stiffness 320 / ζ 0.62 (~8% overshoot, 632ms), snap = stiffness 700 / ζ 0.85 (near-critical, 370ms). Old cubic-beziers remain as the fallback for pre-`linear()` browsers; the reduced-motion zeroing (later in the sheet) still wins.
+- **Shared-axis tab transition:** incoming view springs in along X via `.axis-in-left/right` (direction = tab order), applied in `switchView()` only on an actual tab change. Companion fix: `display:none → block` restarts child CSS animations, so revisited tabs were replaying pop-ins despite the no-replay render skip — `.settled` (added on the skip path, removed on real renders) pins hero/tile/row/chip animations on revisit.
+- **Spend bar actually springs now:** segments + Today marker mount at their previous state (`barMemory`, or nearly-empty on first render) and get their real `flex-grow`/`left` one frame later, so the wobble transitions fire (elements born at final state never animate). Verified overshoot: 10.1 → 19.25 → settles 18.14.
+- **Loader:** spinner replaced with a 4-bar bouncing mini bar-chart (staggered 120ms, last bar burnt-sienna); under reduced motion it becomes an opacity pulse (`loaderPulse`).
+- **Micro:** txn rows get a `scale(0.985)` press squish matching the tiles.
 
 **Potential next tie-in:** surface the shared daily-summary block ("today so far vs average") at the top of the dashboard, reusing the digest logic.
 
