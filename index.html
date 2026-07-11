@@ -461,10 +461,6 @@
     opacity: 0;
     transition: transform var(--motion-wobble), opacity var(--motion-standard);
   }
-  .modal-overlay.open .modal-sheet { 
-    transform: scale(1) translateY(0);
-    opacity: 1;
-  }
   .modal-title { 
     font-size: 18px; 
     font-weight: 700; 
@@ -550,10 +546,6 @@
   <div class="header-left">
     <div class="header-title-row" style="display: flex; align-items: center; gap: 10px;">
       <div class="header-title">Project Alfred</div>
-      <select id="view-mode-select" class="month-select" onchange="handleViewMode(this.value)" style="display: none;">
-        <option value="personal">My Data</option>
-        <option value="household">Household</option>
-      </select>
       <select id="month-select-element" class="month-select" onchange="handleMonthDropdown(this.value)"></select>
     </div>
   </div>
@@ -623,7 +615,6 @@
   </div>
 </div>
 
-<!-- Add / Edit Transaction Modal -->
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this) closeTxnModal()">
   <div class="modal-sheet">
     <div class="modal-title" id="modal-title">Add Transaction</div>
@@ -678,8 +669,6 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 // Parse User ID from URL
 const urlParams = new URLSearchParams(window.location.search);
 let activeUser = urlParams.get('user') || '';
-// Default to 'personal' if URL has a user, otherwise 'household'
-let viewMode = activeUser ? 'personal' : 'household'; 
 
 let allRows = [];
 let activeMonth = new Date().getMonth();
@@ -743,11 +732,6 @@ function animateCounters() {
   });
 }
 
-function handleViewMode(val) {
-  viewMode = val;
-  calculateAndRender();
-}
-
 async function init() {
   try {
     const res = await fetch(SHEET_URL);
@@ -781,14 +765,6 @@ async function init() {
     document.getElementById('main-loader').style.display = 'none';
     
     renderDropdownOptions();
-    
-    // Unhide view toggle if accessing via personalized Telegram link
-    if (activeUser) {
-      const viewSelect = document.getElementById('view-mode-select');
-      viewSelect.style.display = 'inline-block';
-      viewSelect.value = viewMode;
-    }
-    
     switchView(currentView);
   } catch(e) {
     console.error(e);
@@ -830,8 +806,9 @@ function calculateAndRender() {
     const d = new Date(r.Date);
     const isMonthMatch = d.getMonth() === activeMonth && d.getFullYear() === activeYear;
     
-    // If in household mode or no active user, show all. Otherwise, check user ID (with empty string legacy fallback).
-    const isUserMatch = (viewMode === 'household' || !activeUser) ? true : (r.User === activeUser || r.User === '');
+    // Strict Privacy Filter: Must have an activeUser in the URL, 
+    // and it must strictly match the row's User column.
+    const isUserMatch = activeUser ? (r.User === activeUser) : false;
     
     return isMonthMatch && isUserMatch;
   });
@@ -960,11 +937,13 @@ function calculateAndRender() {
     let lastMo = activeMonth - 1, lastYr = activeYear;
     if (lastMo < 0) { lastMo = 11; lastYr -= 1; }
     
-    // Make sure we apply the user filter to last month's data as well
+    // Make sure we apply the STRICT user filter to last month's data as well
     const lastMonthExpenseRows = allRows.filter(r => { 
       const d = new Date(r.Date); 
       const isTimeMatch = d.getMonth() === lastMo && d.getFullYear() === lastYr && r.Type !== "Income"; 
-      const isUserMatch = (viewMode === 'household' || !activeUser) ? true : (r.User === activeUser || r.User === '');
+      
+      const isUserMatch = activeUser ? (r.User === activeUser) : false;
+      
       return isTimeMatch && isUserMatch;
     });
 
