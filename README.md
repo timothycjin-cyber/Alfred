@@ -36,7 +36,7 @@ The dashboard reads from the sheet via Google's public GViz JSON endpoint (no au
 ## Related Repo
 
 **Alfred Bot** — Telegram → OpenAI → Google Sheets pipeline
-`https://github.com/timothycjin-cyber/alfred_dashboard`
+`https://github.com/timothycjin-cyber/Project-Alfred`
 
 ---
 
@@ -46,5 +46,10 @@ The dashboard reads from the sheet via Google's public GViz JSON endpoint (no au
 |---|---|
 | Read dashboard (Home + Analytics) | ✅ Done |
 | Telegram bot logging | ✅ Done |
-| Add entry from dashboard (FAB) | 🔧 In progress |
-| Edit / Delete entries from dashboard | 🔧 In progress |
+| Multi-user support (per-user filtering) | ✅ Done |
+| Add entry from dashboard (FAB) | ✅ Done |
+| Edit / Delete entries from dashboard | ✅ Done |
+| NLP array schema (multi-entry, multi-day, bill-split) | ✅ Done |
+| 10pm daily digest (bot) | ✅ Done |
+| Dashboard export function | ❌ Pending |
+| Correction handling ("make that RM20") | ❌ Pending |
