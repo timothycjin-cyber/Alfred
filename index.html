@@ -395,6 +395,12 @@
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
   .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); padding: 4px 12px; border-radius: var(--shape-full); border: 1px solid var(--outline-variant); background: var(--surface-container-low); }
   .pill-dot { width: 8px; height: 8px; border-radius: 50%; }
+  /* Matches the "This Month" line color the chart JS picks per theme —
+     the old hardcoded #1A1A1A dot was invisible on the dark card. */
+  .pill-dot-this { background: #1A1A1A; }
+  @media (prefers-color-scheme: dark) {
+    .pill-dot-this { background: #F8F9FA; }
+  }
 
   .date-group-header { font-size: 11px; font-weight: 700; color: var(--on-surface-variant); margin: 1.5rem 0 0.5rem 0.25rem; text-transform: uppercase; letter-spacing: 0.5px; }
   .txn-list { border-radius: var(--shape-lg); border: 1px solid var(--outline-variant); background: var(--surface-container-low); overflow: hidden; margin-bottom: 0.5rem; }
@@ -666,7 +672,7 @@
         </div>
         <div class="custom-pill-legend">
           <div class="pill-item">
-            <div class="pill-dot" style="background:#1A1A1A"></div>This month
+            <div class="pill-dot pill-dot-this"></div>This month
           </div>
           <div class="pill-item">
             <div class="pill-dot" style="background:var(--semantic-expense)"></div>Last month
