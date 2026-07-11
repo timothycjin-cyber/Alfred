@@ -287,9 +287,15 @@
   .hero-sub { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); margin-bottom: 14px; }
   .hero-chart-wrap { position: relative; width: 100%; height: 58px; margin: 0 -4px; }
 
-  .tile-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.5rem; width: 100%; }
+  .tile-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 1.5rem; width: 100%; }
+  /* Analytics tile row sits directly above the spend-pace card, same
+     pairing as the home hero card + income/expense tiles — keep both
+     gaps at the hero card's 12px instead of the section-break 1.5rem. */
+  #analytics-metrics { margin-bottom: 12px; }
+  #income-bar-card { margin-bottom: 12px; }
 
   .tile-block {
+    min-width: 0;
     border-radius: var(--shape-lg);
     border: 1px solid var(--outline-variant);
     padding: 1rem 1.1rem;
@@ -326,15 +332,18 @@
   }
 
   .charts-row {
-    display: grid; 
-    grid-template-columns: 1fr 1fr; 
-    gap: 16px; 
-    margin-bottom: 1.5rem; 
-    width: 100%; 
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    margin-bottom: 1.5rem;
+    width: 100%;
   }
-  
+  /* minmax(0, ..) stops a grid item's intrinsic content (canvas, nowrap legend
+     text) from blowing out past its track's width and drifting off-center. */
+  .charts-row > .card { min-width: 0; }
+
   @media (max-width: 768px) {
-    .charts-row { grid-template-columns: 1fr; }
+    .charts-row { grid-template-columns: minmax(0, 1fr); }
     /* Every analytics block shares one width + centering so nothing drifts. */
     #analytics-view > * {
       max-width: 440px;
@@ -618,7 +627,7 @@
 
   <div id="analytics-view" class="view-section">
     <div id="analytics-metrics" class="tile-row"></div>
-    <div class="card" style="margin-bottom: 16px;">
+    <div class="card" id="income-bar-card">
       <div id="income-bar-block"></div>
     </div>
     <div class="charts-row">
@@ -638,7 +647,7 @@
       </div>
       <div class="card">
         <div class="card-title">Expenses by Category</div>
-        <div id="donut-container" style="position:relative; width:100%; height:380px">
+        <div id="donut-container" style="position:relative; width:100%; height:300px">
           <canvas id="donut"></canvas>
         </div>
       </div>
@@ -747,15 +756,6 @@ function toggleHeroPrivacy() {
   const amt = document.getElementById('hero-amount');
   if (amt) amt.classList.toggle('value-hidden', heroHidden);
 }
-
-Chart.Tooltip.positioners.thisMonthOnly = function(elements) {
-  if (!elements || elements.length === 0) return false;
-  const target = elements.find(el => el.datasetIndex === 0);
-  if (target && target.element) return { x: target.element.x, y: target.element.y };
-  const first = elements[0];
-  if (first && first.element) return { x: first.element.x, y: first.element.y };
-  return false;
-};
 
 const pieLabelsPlugin = {
   id: 'pieLabels',
@@ -1174,8 +1174,8 @@ function calculateAndRender() {
           responsive: true,
           maintainAspectRatio: false,
           radius: '90%',
-          layout: { padding: { top: 48, bottom: 48, left: 58, right: 58 } },
-          plugins: { legend: { display: false } }
+          layout: { padding: { top: 36, bottom: 36, left: 52, right: 52 } },
+          plugins: { legend: { display: false }, tooltip: { enabled: false } }
         }
       });
     }
@@ -1227,8 +1227,7 @@ function calculateAndRender() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { enabled: true, position: 'thisMonthOnly', intersect: false, filter: (item) => item.datasetIndex === 0 } },
-        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
         scales: {
           x: { grid: { display: true, color: isDarkMode ? '#2D2D2D' : '#E9ECEF', lineWidth: 0.5 }, ticks: { color: isDarkMode ? '#CED4DA' : '#495057', font: { size: 10 } } },
           y: { beginAtZero: true, grid: { display: true, color: isDarkMode ? '#2D2D2D' : '#E9ECEF', lineWidth: 0.5 }, ticks: { color: isDarkMode ? '#CED4DA' : '#495057', font: { size: 10 }, callback: (val) => val.toLocaleString('en-US') } }
