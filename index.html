@@ -333,31 +333,25 @@
     width: 100%; 
   }
   
-  @media (max-width: 768px) { 
-    .charts-row { 
-      grid-template-columns: 1fr; 
-      max-width: 440px; 
-      margin: 0 auto 1.5rem auto; 
-    } 
+  @media (max-width: 768px) {
+    .charts-row { grid-template-columns: 1fr; }
+    /* Every analytics block shares one width + centering so nothing drifts. */
+    #analytics-view > * {
+      max-width: 440px;
+      margin-left: auto;
+      margin-right: auto;
+    }
   }
 
   .card { background: var(--surface-container-low); border-radius: var(--shape-lg); border: 1px solid var(--outline-variant); padding: 1.25rem; width: 100%; display: flex; flex-direction: column; }
   
-  @media (max-width: 768px) {
-    #analytics-view > .card {
-      max-width: 440px;
-      margin: 0 auto;
-    }
-  }
-  
   .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .spend-headline { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 16px; font-weight: 700; letter-spacing: -0.2px; color: var(--on-surface); margin-bottom: 12px; }
-  .spend-headline b { color: var(--semantic-expense); font-weight: 800; }
-  .spend-period { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); white-space: nowrap; }
-
-  .income-bar-caption { font-size: 12.5px; font-weight: 600; color: var(--on-surface-variant); margin: 0 0 10px; }
+  .income-bar-caption { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; color: var(--on-surface-variant); margin: 0 0 22px; }
   .income-bar-caption b { color: var(--on-surface); font-weight: 800; }
+  .income-bar-caption .cap-period { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); white-space: nowrap; }
+
+  .income-bar-wrap { position: relative; }
   .income-bar-row { display: flex; gap: 6px; }
   .income-bar-seg {
     border-radius: var(--shape-full);
@@ -370,6 +364,19 @@
   }
   .income-bar-seg.used { background: var(--semantic-expense); color: #fff; justify-content: flex-start; }
   .income-bar-seg.rem { background: var(--surface-container); color: var(--on-surface); }
+
+  /* "Today" marker overlaid on the bar at the month-elapsed position */
+  .income-bar-marker { position: absolute; top: -7px; bottom: -7px; width: 2px; background: var(--on-surface); border-radius: 2px; transform: translateX(-1px); pointer-events: none; }
+  .income-bar-marker::before {
+    content: attr(data-label);
+    position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase;
+    color: var(--on-surface); white-space: nowrap;
+  }
+  .income-bar-pace { font-size: 12px; font-weight: 600; color: var(--on-surface-variant); margin-top: 14px; }
+  .income-bar-pace b { font-weight: 800; }
+  .income-bar-pace b.ahead { color: var(--semantic-expense); }
+  .income-bar-pace b.under { color: var(--semantic-income); }
 
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
   .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); padding: 4px 12px; border-radius: var(--shape-full); border: 1px solid var(--outline-variant); background: var(--surface-container-low); }
@@ -631,7 +638,7 @@
       </div>
       <div class="card">
         <div class="card-title">Expenses by Category</div>
-        <div id="donut-container" style="position:relative; width:100%; height:320px">
+        <div id="donut-container" style="position:relative; width:100%; height:380px">
           <canvas id="donut"></canvas>
         </div>
       </div>
@@ -841,8 +848,9 @@ const pieLabelsPlugin = {
     });
   }
 };
-// Scale each slice's outer radius by its share of the largest category,
-// so the biggest expense visibly extends furthest (reference-style pie).
+// Scale each slice's outer radius slightly by its share of the largest
+// category — just enough to hint at hierarchy without an ungainly lopsided
+// circle when one category (usually Food) dominates.
 // Runs every draw frame so the values never compound.
 const variableRadiusPlugin = {
   id: 'variableRadius',
@@ -855,7 +863,7 @@ const variableRadiusPlugin = {
     if (!maxVal) return;
     const base = meta.controller.outerRadius;
     meta.data.forEach((arc, i) => {
-      arc.outerRadius = base * (0.72 + 0.28 * (data[i] / maxVal));
+      arc.outerRadius = base * (0.92 + 0.08 * (data[i] / maxVal));
     });
   }
 };
@@ -1112,24 +1120,37 @@ function calculateAndRender() {
       </div>
     `;
 
-    const spendHeadline = `
-      <div class="spend-headline">
-        <span>You have spent <b>RM ${formatCurrency(totalExpense)}</b> this month.</span>
-        <span class="spend-period">${MONTHS[activeMonth]} ${activeYear}</span>
-      </div>
-    `;
+    // How far through the month we are — the pace baseline the spend bar is read against.
+    const monthPct = isCurrentMonth ? Math.min(100, (today.getDate() / daysInMonth) * 100) : 100;
+
     if (totalIncome > 0) {
       const usedPct = Math.min(100, (totalExpense / totalIncome) * 100);
       const remPct = Math.max(0, 100 - usedPct);
-      document.getElementById('income-bar-block').innerHTML = spendHeadline + `
-        <div class="income-bar-caption"><b>${usedPct.toFixed(0)}%</b> of income spent · ${remPct.toFixed(0)}% left</div>
-        <div class="income-bar-row">
-          ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${Math.max(usedPct, 4)}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
-          ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${Math.max(remPct, 4)}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
+
+      // Marker + pace commentary only make sense for the live month.
+      let markerHtml = '', paceHtml = '';
+      if (isCurrentMonth) {
+        markerHtml = `<div class="income-bar-marker" data-label="Today" style="left:${monthPct.toFixed(1)}%"></div>`;
+        const diff = usedPct - monthPct;
+        let cls = '', word = 'on pace';
+        if (diff > 5) { cls = 'ahead'; word = 'ahead of pace'; }
+        else if (diff < -5) { cls = 'under'; word = 'under pace'; }
+        paceHtml = `<div class="income-bar-pace">Day ${today.getDate()} of ${daysInMonth} · spending <b class="${cls}">${word}</b></div>`;
+      }
+
+      document.getElementById('income-bar-block').innerHTML = `
+        <div class="income-bar-caption"><span><b>${usedPct.toFixed(0)}%</b> of income spent · ${remPct.toFixed(0)}% left</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>
+        <div class="income-bar-wrap">
+          <div class="income-bar-row">
+            ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${Math.max(usedPct, 4)}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
+            ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${Math.max(remPct, 4)}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
+          </div>
+          ${markerHtml}
         </div>
+        ${paceHtml}
       `;
     } else {
-      document.getElementById('income-bar-block').innerHTML = spendHeadline + `<div class="income-bar-caption">No income logged this month</div>`;
+      document.getElementById('income-bar-block').innerHTML = `<div class="income-bar-caption"><span>No income logged this month</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>`;
     }
 
     const donutContainer = document.getElementById('donut-container');
@@ -1152,8 +1173,8 @@ function calculateAndRender() {
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          radius: '80%',
-          layout: { padding: { top: 44, bottom: 44, left: 64, right: 64 } },
+          radius: '90%',
+          layout: { padding: { top: 48, bottom: 48, left: 58, right: 58 } },
           plugins: { legend: { display: false } }
         }
       });
