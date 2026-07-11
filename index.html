@@ -225,64 +225,11 @@
   .view-section { display: none; }
   .view-section.active { display: block; }
 
-  .metric-grid { 
-    display: grid; 
-    grid-template-columns: repeat(3, 1fr); 
-    gap: 12px; 
-    margin-bottom: 1.5rem; 
-    width: 100%; 
-  }
-  
   @media (max-width: 480px) {
     .tile-row {
       max-width: 440px;
       margin: 0 auto 1.5rem auto;
     }
-
-    .metric-grid.analytics-grid {
-      grid-template-columns: repeat(2, 1fr);
-      max-width: 440px;
-      margin: 0 auto 1.5rem auto;
-    }
-  }
-
-  .metric { 
-    background: var(--surface-container-low); 
-    border-radius: var(--shape-lg); 
-    padding: 1.25rem 1rem; 
-    border: 1px solid var(--outline-variant); 
-    text-align: center; 
-    display: flex; 
-    flex-direction: column; 
-    justify-content: center; 
-    min-height: 100px; 
-  }
-  .metric-label {
-    font-size: 11px; 
-    color: var(--on-surface-variant); 
-    margin-bottom: 6px; 
-    font-weight: 700; 
-    text-transform: uppercase; 
-    letter-spacing: 0.5px; 
-  }
-  
-  .metric-val { 
-    font-size: 18px; 
-    font-weight: 700; 
-    white-space: nowrap; 
-  }
-  
-  .metric-sub {
-    font-size: 10px; 
-    color: var(--on-surface-variant); 
-    opacity: 0.85;
-    margin-top: 4px; 
-    font-weight: 600; 
-  }
-
-  .metric.crystal-ball {
-    background: radial-gradient(circle at 85% 15%, var(--surface-container-low) 0%, var(--tertiary-container) 160%);
-    border-color: var(--outline-variant);
   }
 
   /* ────────────────────────────────────────────────────────────
@@ -356,10 +303,12 @@
   .tile-block:active { transform: scale(0.97); }
   .tile-block.income-block { background: var(--wash-income); }
   .tile-block.expense-block { background: var(--wash-expense); }
+  .tile-block.neutral-block { background: var(--surface-container); }
   .tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
   .tile-val { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
   .tile-block.income-block .tile-val { color: var(--semantic-income); }
   .tile-block.expense-block .tile-val { color: var(--semantic-expense); }
+  .tile-block.neutral-block .tile-val { color: var(--on-surface); }
   .tile-chip {
     display: inline-flex; align-items: center; gap: 3px;
     font-size: 10px; font-weight: 700; padding: 2px 8px;
@@ -661,7 +610,7 @@
   </div>
 
   <div id="analytics-view" class="view-section">
-    <div id="analytics-metrics" class="metric-grid analytics-grid"></div>
+    <div id="analytics-metrics" class="tile-row"></div>
     <div class="card" style="margin-bottom: 16px;">
       <div id="income-bar-block"></div>
     </div>
@@ -1153,15 +1102,13 @@ function calculateAndRender() {
     const dailyBurnRate = daysElapsed > 0 ? (totalExpense / daysElapsed) : 0;
 
     document.getElementById('analytics-metrics').innerHTML = `
-      <div class="metric">
-        <div class="metric-label">Average Daily Spend</div>
-        <div class="metric-val counter-val" style="color: var(--semantic-expense);" data-val="${dailyBurnRate}" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
-        <div class="metric-sub">${dailyBurnRate > 100 ? 'Splurging 💸' : 'Cooling 🧊'}</div>
+      <div class="tile-block expense-block">
+        <div class="tile-label">Average Daily Spend</div>
+        <div class="tile-val counter-val" data-val="${dailyBurnRate}" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
       </div>
-      <div class="metric crystal-ball">
-        <div class="metric-label" style="color: var(--on-surface-variant);">🔮 Forecasted Spend</div>
-        <div class="metric-val counter-val" style="color: var(--on-surface);" data-val="${dailyBurnRate * daysInMonth}" data-prefix="RM ">RM 0.00</div>
-        <div class="metric-sub">Landing trajectory</div>
+      <div class="tile-block neutral-block">
+        <div class="tile-label">Forecasted Spend</div>
+        <div class="tile-val counter-val" data-val="${dailyBurnRate * daysInMonth}" data-prefix="RM ">RM 0.00</div>
       </div>
     `;
 
