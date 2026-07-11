@@ -115,23 +115,27 @@
     outline: none; 
   }
   
-  .refresh-btn { 
-    width: 36px; 
-    height: 36px; 
-    border-radius: var(--shape-full); 
-    border: 1px solid var(--outline-variant); 
-    background: transparent; 
-    color: var(--on-surface-variant); 
-    cursor: pointer; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    transition: background var(--motion-standard), transform var(--motion-snap); 
-    padding: 0; 
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--shape-full);
+    border: 1px solid var(--outline-variant);
+    background: transparent;
+    color: var(--on-surface-variant);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--motion-standard), transform var(--motion-snap);
+    padding: 0;
     outline: none;
+    flex-shrink: 0;
   }
-  .refresh-btn:hover { background: var(--surface-container); }
+  .icon-btn:hover { background: var(--surface-container); }
   .refresh-btn:active { transform: rotate(180deg); }
+  .export-btn:active { transform: scale(0.9); }
 
   .bottom-bar {
     position: fixed;
@@ -268,22 +272,11 @@
   }
   .hero-top { display: flex; align-items: flex-start; justify-content: space-between; }
   .hero-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
-  .hero-icon-btn {
-    width: 32px; height: 32px; border-radius: var(--shape-full);
-    background: transparent; border: 1px solid var(--outline-variant);
-    color: var(--on-surface-variant); display: flex; align-items: center; justify-content: center;
-    cursor: pointer; flex-shrink: 0; outline: none;
-    transition: transform var(--motion-snap), background var(--motion-standard);
-  }
-  .hero-icon-btn:hover { background: var(--surface-container); }
-  .hero-icon-btn:active { transform: scale(0.86); }
   .hero-amount {
     font-size: 36px; font-weight: 900;
     font-variation-settings: 'wght' 850, 'wdth' 80;
     letter-spacing: -1px; line-height: 1.1; margin: 6px 0 2px;
-    filter: blur(0px); transition: filter 220ms ease;
   }
-  .hero-amount.value-hidden { filter: blur(11px); user-select: none; }
   .hero-sub { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); margin-bottom: 14px; }
   .hero-chart-wrap { position: relative; width: 100%; height: 58px; margin: 0 -4px; }
 
@@ -581,6 +574,20 @@
     display: none; background: var(--wash-expense); color: var(--semantic-expense); font-size: 12px; font-weight: 600;
     padding: 10px 12px; border-radius: var(--shape-sm); margin-bottom: 1rem; border: 1px solid rgba(229, 62, 62, 0.2);
   }
+
+  .export-sub { font-size: 12.5px; color: var(--on-surface-variant); line-height: 1.45; margin: -0.7rem 0 1.3rem; }
+  .export-choice {
+    width: 100%; display: flex; flex-direction: column; gap: 3px; text-align: left;
+    padding: 14px 16px; margin-bottom: 10px;
+    border-radius: var(--shape-md); border: 1px solid var(--outline-variant);
+    background: var(--surface-container); color: var(--on-surface); cursor: pointer;
+    transition: transform var(--motion-snap), border-color var(--motion-standard);
+    outline: none;
+  }
+  .export-choice:hover { border-color: var(--primary); }
+  .export-choice:active { transform: scale(0.97); }
+  .export-choice-main { font-size: 14px; font-weight: 700; }
+  .export-choice-sub { font-size: 12px; font-weight: 600; color: var(--on-surface-variant); }
 </style>
 </head>
 <body>
@@ -592,11 +599,18 @@
       <select id="month-select-element" class="month-select" onchange="handleMonthDropdown(this.value)"></select>
     </div>
   </div>
-  <button class="refresh-btn" onclick="init()">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 1 1 0 6M20.49 15a9 9 0 1 1 0-6"/>
-    </svg>
-  </button>
+  <div class="header-actions">
+    <button class="icon-btn export-btn" onclick="openExportModal()" aria-label="Export transactions">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    </button>
+    <button class="icon-btn refresh-btn" onclick="init()" aria-label="Refresh data">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 1 1 0 6M20.49 15a9 9 0 1 1 0-6"/>
+      </svg>
+    </button>
+  </div>
 </div>
 
 <div class="bottom-bar">
@@ -696,6 +710,27 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="export-overlay" onclick="if(event.target===this) closeExportModal()">
+  <div class="modal-sheet">
+    <div class="modal-title">Export transactions</div>
+    <div class="export-sub">Download your records as a CSV — opens in Google Sheets, Excel or Numbers.</div>
+    <div class="modal-error" id="export-error"></div>
+
+    <button type="button" class="export-choice" onclick="exportCSV('month')">
+      <div class="export-choice-main">This month</div>
+      <div class="export-choice-sub" id="export-month-label">—</div>
+    </button>
+    <button type="button" class="export-choice" onclick="exportCSV('all')">
+      <div class="export-choice-main">All transactions</div>
+      <div class="export-choice-sub">Your full history</div>
+    </button>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeExportModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const SHEET_ID = "19_C3gFlY7hDjGm87k3Uke63_Tgg6TQPl6xLiGZvuEis";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Sheet1`;
@@ -718,7 +753,6 @@ let currentView = 'home';
 let donutChart = null;
 let lineChart = null;
 let heroChart = null;
-let heroHidden = false;
 
 const CAT_ICONS = {
   "Food & Dining": "🍜",
@@ -751,10 +785,77 @@ function monthTotals(year, month) {
   return { inc, exp, net: inc - exp };
 }
 
-function toggleHeroPrivacy() {
-  heroHidden = !heroHidden;
-  const amt = document.getElementById('hero-amount');
-  if (amt) amt.classList.toggle('value-hidden', heroHidden);
+function openExportModal() {
+  document.getElementById('export-month-label').textContent = `${MONTHS[activeMonth]} ${activeYear}`;
+  document.getElementById('export-error').style.display = 'none';
+  document.body.classList.add('modal-open-state');
+  document.getElementById('export-overlay').classList.add('open');
+}
+
+function closeExportModal() {
+  document.body.classList.remove('modal-open-state');
+  document.getElementById('export-overlay').classList.remove('open');
+}
+
+// Wrap a field in quotes only when it contains a comma, quote or newline;
+// embedded quotes are doubled per RFC 4180 so descriptions never break a row.
+function csvEscape(val) {
+  const s = String(val ?? '');
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportCSV(scope) {
+  const errEl = document.getElementById('export-error');
+  errEl.style.display = 'none';
+
+  // Privacy: only ever serialize the active user's own rows.
+  let rows = allRows.filter(r => activeUser ? r.User === activeUser : false);
+  if (scope === 'month') {
+    rows = rows.filter(r => {
+      const d = new Date(r.Date);
+      return d.getMonth() === activeMonth && d.getFullYear() === activeYear;
+    });
+  }
+  rows.sort((a, b) => new Date(a.Date) - new Date(b.Date));
+
+  if (!rows.length) {
+    errEl.textContent = scope === 'month'
+      ? `No transactions logged for ${MONTHS[activeMonth]} ${activeYear}.`
+      : 'No transactions to export yet.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const headers = ['Date', 'Type', 'Category', 'Description', 'Amount'];
+  const lines = [headers.join(',')];
+  for (const r of rows) {
+    lines.push([
+      csvEscape(r.Date),
+      csvEscape(r.Type),
+      csvEscape(r.Category),
+      csvEscape(r.Description),
+      csvEscape(r.Amount.toFixed(2))
+    ].join(','));
+  }
+  const csv = lines.join('\r\n');
+
+  const scopeTag = scope === 'month'
+    ? `${MONTHS[activeMonth].toLowerCase()}-${activeYear}`
+    : 'all-transactions';
+  triggerDownload(csv, `alfred-${scopeTag}.csv`);
+  closeExportModal();
+}
+
+function triggerDownload(text, filename) {
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 const pieLabelsPlugin = {
@@ -1010,14 +1111,9 @@ function calculateAndRender() {
     document.getElementById('home-hero').innerHTML = `
       <div class="hero-card">
         <div class="hero-top">
-          <div>
-            <div class="hero-label">Net Balance</div>
-          </div>
-          <button class="hero-icon-btn" onclick="toggleHeroPrivacy()" aria-label="Toggle balance visibility">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
+          <div class="hero-label">Net Balance</div>
         </div>
-        <div class="hero-amount counter-val${heroHidden ? ' value-hidden' : ''}" id="hero-amount" style="color: ${netBalance >= 0 ? 'var(--semantic-income)' : 'var(--semantic-expense)'};" data-val="${netBalance}" data-prefix="RM ">RM 0.00</div>
+        <div class="hero-amount counter-val" id="hero-amount" style="color: ${netBalance >= 0 ? 'var(--semantic-income)' : 'var(--semantic-expense)'};" data-val="${netBalance}" data-prefix="RM ">RM 0.00</div>
         <div class="hero-sub">${netBalance >= 0 ? 'In the green' : 'Watching the leak'}</div>
         <div class="hero-chart-wrap"><canvas id="hero-trend"></canvas></div>
       </div>
