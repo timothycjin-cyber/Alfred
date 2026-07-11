@@ -234,15 +234,13 @@
   }
   
   @media (max-width: 480px) {
-    .metric-grid.home-grid { 
-      grid-template-columns: repeat(2, 1fr); 
+    .tile-row {
       max-width: 440px;
       margin: 0 auto 1.5rem auto;
     }
-    .metric-grid.home-grid .balance-card { grid-column: span 2; }
-    
-    .metric-grid.analytics-grid { 
-      grid-template-columns: repeat(2, 1fr); 
+
+    .metric-grid.analytics-grid {
+      grid-template-columns: repeat(2, 1fr);
       max-width: 440px;
       margin: 0 auto 1.5rem auto;
     }
@@ -259,15 +257,7 @@
     justify-content: center; 
     min-height: 100px; 
   }
-  .metric.income-card { background: var(--wash-income); }
-  .metric.expense-card { background: var(--wash-expense); }
-  .metric.balance-card { 
-    background: var(--wash-hero);
-    border-color: var(--outline);
-    border-radius: var(--shape-xl) var(--shape-xs) var(--shape-xl) var(--shape-xs);
-  }
-  
-  .metric-label { 
+  .metric-label {
     font-size: 11px; 
     color: var(--on-surface-variant); 
     margin-bottom: 6px; 
@@ -282,16 +272,7 @@
     white-space: nowrap; 
   }
   
-  .metric.balance-card .metric-val {
-    font-size: 34px;
-    font-weight: 900;
-    font-variation-settings: 'wght' 850, 'wdth' 80;
-    letter-spacing: -1px;
-    line-height: 1.1;
-    margin: 2px 0;
-  }
-  
-  .metric-sub { 
+  .metric-sub {
     font-size: 10px; 
     color: var(--on-surface-variant); 
     opacity: 0.85;
@@ -299,12 +280,103 @@
     font-weight: 600; 
   }
 
-  .metric.crystal-ball { 
-    background: radial-gradient(circle at 85% 15%, var(--surface-container-low) 0%, var(--tertiary-container) 160%); 
-    border-color: var(--outline-variant); 
+  .metric.crystal-ball {
+    background: radial-gradient(circle at 85% 15%, var(--surface-container-low) 0%, var(--tertiary-container) 160%);
+    border-color: var(--outline-variant);
   }
 
-  .charts-row { 
+  /* ────────────────────────────────────────────────────────────
+     HOME HERO CARD — always ink-black, independent of light/dark theme
+     ──────────────────────────────────────────────────────────── */
+  @keyframes heroPopIn {
+    from { opacity: 0; transform: scale(0.94) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes tilePopIn {
+    from { opacity: 0; transform: scale(0.9) translateY(6px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes chipPop {
+    from { opacity: 0; transform: scale(0.4); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  .hero-card {
+    background: var(--surface-container-low);
+    color: var(--on-surface);
+    border-radius: var(--shape-xl) var(--shape-xs) var(--shape-xl) var(--shape-xs);
+    border: 1px solid var(--outline-variant);
+    padding: 1.5rem 1.5rem 1.1rem;
+    margin-bottom: 12px;
+    position: relative;
+    overflow: hidden;
+    animation: heroPopIn var(--motion-wobble);
+  }
+  @media (prefers-color-scheme: dark) {
+    .hero-card {
+      background: linear-gradient(155deg, #24262B 0%, #0B0C0E 100%);
+      color: #F5F5F2;
+      border-color: rgba(255,255,255,0.1);
+    }
+  }
+  .hero-top { display: flex; align-items: flex-start; justify-content: space-between; }
+  .hero-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
+  .hero-icon-btn {
+    width: 32px; height: 32px; border-radius: var(--shape-full);
+    background: transparent; border: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; outline: none;
+    transition: transform var(--motion-snap), background var(--motion-standard);
+  }
+  .hero-icon-btn:hover { background: var(--surface-container); }
+  .hero-icon-btn:active { transform: scale(0.86); }
+  .hero-amount {
+    font-size: 36px; font-weight: 900;
+    font-variation-settings: 'wght' 850, 'wdth' 80;
+    letter-spacing: -1px; line-height: 1.1; margin: 6px 0 2px;
+    filter: blur(0px); transition: filter 220ms ease;
+  }
+  .hero-amount.value-hidden { filter: blur(11px); user-select: none; }
+  .hero-sub { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); margin-bottom: 14px; }
+  .hero-chart-wrap { position: relative; width: 100%; height: 58px; margin: 0 -4px; }
+
+  .tile-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.5rem; width: 100%; }
+
+  .tile-block {
+    border-radius: var(--shape-lg);
+    border: 1px solid var(--outline-variant);
+    padding: 1rem 1.1rem;
+    display: flex; flex-direction: column; gap: 6px;
+    min-height: 104px;
+    justify-content: center;
+    cursor: default;
+    animation: tilePopIn var(--motion-wobble);
+    transition: transform var(--motion-snap);
+  }
+  .tile-block:active { transform: scale(0.97); }
+  .tile-block.income-block { background: var(--wash-income); }
+  .tile-block.expense-block { background: var(--wash-expense); }
+  .tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
+  .tile-val { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
+  .tile-block.income-block .tile-val { color: var(--semantic-income); }
+  .tile-block.expense-block .tile-val { color: var(--semantic-expense); }
+  .tile-chip {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10px; font-weight: 700; padding: 2px 8px;
+    border-radius: var(--shape-full); border: 1px solid; background: transparent;
+    width: fit-content;
+  }
+  .tile-block.income-block .tile-chip { color: var(--semantic-income); border-color: var(--semantic-income); }
+  .tile-block.expense-block .tile-chip { color: var(--semantic-expense); border-color: var(--semantic-expense); }
+
+  .txn-icon-chip {
+    width: 36px; height: 36px; border-radius: var(--shape-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+    animation: chipPop var(--motion-wobble);
+  }
+
+  .charts-row {
     display: grid; 
     grid-template-columns: 1fr 1fr; 
     gap: 16px; 
@@ -581,7 +653,8 @@
   </div>
 
   <div id="home-view" class="view-section">
-    <div id="home-metrics" class="metric-grid home-grid"></div>
+    <div id="home-hero"></div>
+    <div id="home-tiles" class="tile-row"></div>
     <div id="home-timeline"></div>
   </div>
 
@@ -681,9 +754,44 @@ let currentView = 'home';
 
 let donutChart = null;
 let lineChart = null;
+let heroChart = null;
+let heroHidden = false;
+
+const CAT_ICONS = {
+  "Food & Dining": "🍜",
+  "Transport": "🚗",
+  "Bills & Utilities": "💡",
+  "Shopping": "🛍️",
+  "Groceries": "🛒",
+  "Entertainment": "🎬",
+  "Other": "📎"
+};
 
 function formatCurrency(num) {
   return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+function monthTotals(year, month) {
+  const monthRows = allRows.filter(r => {
+    const d = new Date(r.Date);
+    return d.getMonth() === month && d.getFullYear() === year && (activeUser ? r.User === activeUser : false);
+  });
+  const inc = monthRows.filter(r => r.Type === "Income").reduce((s, r) => s + r.Amount, 0);
+  const exp = monthRows.filter(r => r.Type !== "Income").reduce((s, r) => s + r.Amount, 0);
+  return { inc, exp, net: inc - exp };
+}
+
+function toggleHeroPrivacy() {
+  heroHidden = !heroHidden;
+  const amt = document.getElementById('hero-amount');
+  if (amt) amt.classList.toggle('value-hidden', heroHidden);
 }
 
 Chart.Tooltip.positioners.thisMonthOnly = function(elements) {
@@ -828,6 +936,7 @@ function calculateAndRender() {
   const maxCat = catData[0]?.[1] || 1;
 
   const activeExpenseColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-expense').trim() || "#E53E3E";
+  const activeIncomeColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-income').trim() || "#00A36C";
 
   const CAT_COLORS = {
     "Food & Dining":     { hex: activeExpenseColor },
@@ -840,23 +949,73 @@ function calculateAndRender() {
   };
 
   if (currentView === 'home') {
-    document.getElementById('home-metrics').innerHTML = `
-      <div class="metric income-card">
-        <div class="metric-label">Income</div>
-        <div class="metric-val counter-val" style="color: var(--semantic-income);" data-val="${totalIncome}" data-prefix="RM ">RM 0.00</div>
-        <div class="metric-sub">${rows.filter(r => r.Type === "Income").length} items</div>
-      </div>
-      <div class="metric expense-card">
-        <div class="metric-label">Expenses</div>
-        <div class="metric-val counter-val" style="color: var(--semantic-expense);" data-val="${totalExpense}" data-prefix="RM ">RM 0.00</div>
-        <div class="metric-sub">${expenseRows.length} items</div>
-      </div>
-      <div class="metric balance-card">
-        <div class="metric-label">Net Balance</div>
-        <div class="metric-val counter-val" style="color: ${netBalance >= 0 ? 'var(--semantic-income)' : 'var(--semantic-expense)'};" data-val="${netBalance}" data-prefix="RM ">RM 0.00</div>
-        <div class="metric-sub">${netBalance >= 0 ? 'In the green 🎉' : 'Watching the leak ⚠️'}</div>
+    let lastMo = activeMonth - 1, lastYr = activeYear;
+    if (lastMo < 0) { lastMo = 11; lastYr -= 1; }
+    const lastMonth = monthTotals(lastYr, lastMo);
+    const incChangePct = lastMonth.inc > 0 ? ((totalIncome - lastMonth.inc) / lastMonth.inc * 100) : (totalIncome > 0 ? 100 : 0);
+    const expChangePct = lastMonth.exp > 0 ? ((totalExpense - lastMonth.exp) / lastMonth.exp * 100) : (totalExpense > 0 ? 100 : 0);
+
+    const trendMonths = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(activeYear, activeMonth - i, 1);
+      trendMonths.push({ label: MONTHS[d.getMonth()], year: d.getFullYear(), month: d.getMonth() });
+    }
+    const trendData = trendMonths.map(m => monthTotals(m.year, m.month).net);
+
+    document.getElementById('home-hero').innerHTML = `
+      <div class="hero-card">
+        <div class="hero-top">
+          <div>
+            <div class="hero-label">Net Balance</div>
+          </div>
+          <button class="hero-icon-btn" onclick="toggleHeroPrivacy()" aria-label="Toggle balance visibility">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div class="hero-amount counter-val${heroHidden ? ' value-hidden' : ''}" id="hero-amount" style="color: ${netBalance >= 0 ? 'var(--semantic-income)' : 'var(--semantic-expense)'};" data-val="${netBalance}" data-prefix="RM ">RM 0.00</div>
+        <div class="hero-sub">${netBalance >= 0 ? 'In the green' : 'Watching the leak'}</div>
+        <div class="hero-chart-wrap"><canvas id="hero-trend"></canvas></div>
       </div>
     `;
+
+    document.getElementById('home-tiles').innerHTML = `
+      <div class="tile-block income-block">
+        <div class="tile-label">Income</div>
+        <div class="tile-val counter-val" data-val="${totalIncome}" data-prefix="RM ">RM 0.00</div>
+        <div class="tile-chip">${incChangePct >= 0 ? '▲' : '▼'} ${Math.abs(incChangePct).toFixed(0)}% vs last mo.</div>
+      </div>
+      <div class="tile-block expense-block">
+        <div class="tile-label">Expenses</div>
+        <div class="tile-val counter-val" data-val="${totalExpense}" data-prefix="RM ">RM 0.00</div>
+        <div class="tile-chip">${expChangePct >= 0 ? '▲' : '▼'} ${Math.abs(expChangePct).toFixed(0)}% vs last mo.</div>
+      </div>
+    `;
+
+    const heroTickColor = getComputedStyle(document.documentElement).getPropertyValue('--on-surface-variant').trim();
+
+    if (heroChart) heroChart.destroy();
+    heroChart = new Chart(document.getElementById('hero-trend'), {
+      type: 'bar',
+      data: {
+        labels: trendMonths.map(m => m.label),
+        datasets: [{
+          data: trendData,
+          backgroundColor: trendData.map((v, i) => i === trendData.length - 1 ? '#C2542D' : hexToRgba(v >= 0 ? activeIncomeColor : activeExpenseColor, 0.35)),
+          borderRadius: 4,
+          maxBarThickness: 16
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 750, easing: 'easeOutBack' },
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: {
+          x: { grid: { display: false }, border: { display: false }, ticks: { color: heroTickColor, font: { size: 9, weight: 700 } } },
+          y: { display: false, grid: { display: false } }
+        }
+      }
+    });
 
     if (!rows.length) {
       document.getElementById('home-timeline').innerHTML = '<div class="empty">No records found.</div>';
@@ -874,9 +1033,12 @@ function calculateAndRender() {
         timelineHtml += `<div class="date-group-header">${dateStr}</div><div class="txn-list">`;
         timelineHtml += records.map(r => {
           const isInc = r.Type === "Income";
+          const chipColor = isInc ? activeIncomeColor : (CAT_COLORS[r.Category] || CAT_COLORS["Other"]).hex;
+          const icon = isInc ? "💰" : (CAT_ICONS[r.Category] || CAT_ICONS["Other"]);
           return `
             <div class="txn-row" data-uid="${r.UID}">
               <div class="txn-left">
+                <div class="txn-icon-chip" style="background:${hexToRgba(chipColor, 0.14)}">${icon}</div>
                 <div class="txn-details">
                   <div class="txn-desc">${r.Description}</div>
                   <div class="txn-badge-container"><span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Income' : r.Category.split(' ')[0]}</span></div>
