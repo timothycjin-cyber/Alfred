@@ -338,9 +338,9 @@
 
   .tile-block {
     border-radius: var(--shape-lg);
+    border: 1px solid var(--outline-variant);
     padding: 1rem 1.1rem;
     display: flex; flex-direction: column; gap: 6px;
-    color: #fff;
     min-height: 104px;
     justify-content: center;
     cursor: default;
@@ -348,16 +348,20 @@
     transition: transform var(--motion-snap);
   }
   .tile-block:active { transform: scale(0.97); }
-  .tile-block.income-block { background: linear-gradient(155deg, var(--semantic-income) 0%, color-mix(in srgb, var(--semantic-income) 70%, black) 100%); }
-  .tile-block.expense-block { background: linear-gradient(155deg, var(--semantic-expense) 0%, color-mix(in srgb, var(--semantic-expense) 70%, black) 100%); }
-  .tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(255,255,255,0.8); }
+  .tile-block.income-block { background: var(--wash-income); }
+  .tile-block.expense-block { background: var(--wash-expense); }
+  .tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
   .tile-val { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
+  .tile-block.income-block .tile-val { color: var(--semantic-income); }
+  .tile-block.expense-block .tile-val { color: var(--semantic-expense); }
   .tile-chip {
     display: inline-flex; align-items: center; gap: 3px;
     font-size: 10px; font-weight: 700; padding: 2px 8px;
-    border-radius: var(--shape-full); background: rgba(255,255,255,0.2);
+    border-radius: var(--shape-full); border: 1px solid; background: transparent;
     width: fit-content;
   }
+  .tile-block.income-block .tile-chip { color: var(--semantic-income); border-color: var(--semantic-income); }
+  .tile-block.expense-block .tile-chip { color: var(--semantic-expense); border-color: var(--semantic-expense); }
 
   .txn-icon-chip {
     width: 36px; height: 36px; border-radius: var(--shape-sm);
@@ -963,7 +967,7 @@ function calculateAndRender() {
           </button>
         </div>
         <div class="hero-amount counter-val${heroHidden ? ' value-hidden' : ''}" id="hero-amount" data-val="${netBalance}" data-prefix="RM ">RM 0.00</div>
-        <div class="hero-sub">${netBalance >= 0 ? 'In the green 🎉' : 'Watching the leak ⚠️'}</div>
+        <div class="hero-sub">${netBalance >= 0 ? 'In the green' : 'Watching the leak'}</div>
         <div class="hero-chart-wrap"><canvas id="hero-trend"></canvas></div>
       </div>
     `;
