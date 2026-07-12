@@ -214,6 +214,8 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Deterministic engine (all in JS, free & instant):** `buildAnalyticsInsight()` collects candidate facts from six builders across the four families the user picked — `_insightPace` (MTD vs same-point-last-month for the current month; whole-month vs prior for past months), `_insightCategory` (3-month monotonic climb, or a ≥40% jump/drop vs recent average; guarded at ≥RM30), `_insightRecurring` (descriptions repeating ~once/month across ≥3 months at a stable amount — CV ≤ 0.2, occurrences ≤ 1.5×months — reported as annualized load), `_insightWeekend` (weekend-vs-weekday intensity over trailing 8 weeks), `_insightStreak` (longest no-spend run in the month), `_insightComposition` (dominant category share). Each returns `{family, score, text}`; the top 3 **distinct families** by score compose the narrative. Guards: `<5` expense rows → "log a few more days" fallback; no strong candidate → "steady month" line.
 - **Numbers are computed, never guessed** — every figure comes from the row scan, so the narrative can't misstate them. `<b>` bolds figures; `.up`/`.down` spans carry red/green valence.
 - Rendered in the analytics branch of `calculateAndRender()`, so it respects the month selector and the no-replay/`.settled` skip.
+- **Novelty rotation:** `computeInsightNarrative()` de-prioritizes families shown on recent generations (`localStorage` per user, last 5 gens; penalty `28·0.55^age` subtracted from score before the top-3 pick). Modest + decaying, so a dominant story (big pace/category swing) persists while the mid-tier rotates across days. Verified: pace stayed pinned while slots 2–3 cycled timing → recurring → timing. Only genuine renders record history (the `.settled` skip doesn't), and fallbacks record nothing.
+- **Typewriter reveal:** `typewriteInto()` sets the real innerHTML (so `<b>`/valence spans exist), then types it out over the DOM's text nodes via `requestAnimationFrame` (duration `clamp(chars·14ms, 500, 1900)`), with a blinking burnt-sienna caret (`.insight-body.typing::after`). Sells the "live analyst" feel. Reduced motion shows the full text instantly with no caret; a new render cancels the prior `_twRAF`.
 
 **Phase 2 (deferred — needs a server with the OpenAI key, i.e. the bot repo or an Apps Script change):** POST the computed facts to an `/insights`-style endpoint that runs them through gpt-4o-mini with a *use-only-these-numbers* prompt for nicer phrasing + prioritization; the Phase-1 templates stay as the free/offline fallback. The static dashboard **cannot** hold the key, so this can't be done from the `alfred-dashboard` repo alone.
 
@@ -267,7 +269,7 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - Correction handling (edit last entry from "actually make that RM20") — needs last-UID-per-chat_id memory
 - Dashboard export function ✅ DONE (CSV, PR #10)
 - Dashboard: shared daily-summary block reusing digest logic
-- Dashboard insights strip — Phase 1 (deterministic narrative) ✅ DONE; Phase 2 (LLM phrasing via bot endpoint) pending, needs the bot repo
+- Dashboard insights strip — Phase 1 (deterministic narrative + novelty rotation + typewriter reveal) ✅ DONE; Phase 2 (LLM phrasing via bot endpoint) pending, needs the bot repo
 
 ---
 

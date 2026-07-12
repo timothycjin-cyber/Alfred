@@ -421,6 +421,15 @@
   .insight-body b { font-weight: 800; }
   .insight-body .up { color: var(--semantic-expense); font-weight: 800; }
   .insight-body .down { color: var(--semantic-income); font-weight: 800; }
+  /* Blinking caret while the narrative types itself in — sells the "live" feel.
+     Sits at the end of the revealed text (trailing empty nodes add no width). */
+  .insight-body.typing::after {
+    content: ''; display: inline-block;
+    width: 2px; height: 1.05em; margin-left: 1px; vertical-align: -0.15em;
+    background: #C2542D;
+    animation: caretBlink 0.7s steps(1) infinite;
+  }
+  @keyframes caretBlink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
   
   .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
@@ -1118,19 +1127,42 @@ function _insightRecurring() {
     text: `<b>${_rm(totalMonthly)}</b> a month goes to <b>${recurring.length}</b> recurring charges — roughly <b>${_rm(totalMonthly * 12)}</b> a year.` };
 }
 
-function buildAnalyticsInsight() {
-  const sparkle = '<svg width="13" height="13" viewBox="0 0 24 24" fill="#C2542D"><path d="M12 2l1.9 6.3L20 10l-6.1 1.7L12 18l-1.9-6.3L4 10l6.1-1.7z"/></svg>';
-  const head = `<div class="insight-head">${sparkle}<span class="insight-label">What I noticed</span></div>`;
-  const wrap = body => `<div class="insight-card">${head}<div class="insight-body">${body}</div></div>`;
-
-  if (_userExpenseRows().length < 5) {
-    return wrap(`Not much to go on yet — log a few more days and patterns will start to surface here.`);
+// Novelty rotation: remember which families were shown on recent generations
+// (localStorage, per user) and softly de-prioritize them, so lower-ranked but
+// still-true insights get airtime across days. The penalty decays with age and
+// is modest — a dominant story (big pace/category swing) still persists, only
+// the mid-tier rotates.
+function _insightHistKey() { return 'alfred_insights_' + (activeUser || 'anon'); }
+function loadInsightHistory() {
+  try { return JSON.parse(localStorage.getItem(_insightHistKey())) || []; } catch (e) { return []; }
+}
+function saveInsightHistory(families) {
+  try {
+    const hist = loadInsightHistory();
+    hist.unshift(families);
+    localStorage.setItem(_insightHistKey(), JSON.stringify(hist.slice(0, 5)));
+  } catch (e) { /* private mode / no storage → rotation just no-ops */ }
+}
+function familyPenalty(family, hist) {
+  for (let i = 0; i < hist.length; i++) {
+    if (hist[i].includes(family)) return 28 * Math.pow(0.55, i); // 28 last gen, ~15 two ago…
   }
+  return 0;
+}
 
+// Returns { body: htmlString, families: [...] }. families is empty for the
+// low-data / steady-month fallbacks (nothing to rotate on those).
+function computeInsightNarrative() {
+  if (_userExpenseRows().length < 5) {
+    return { body: `Not much to go on yet — log a few more days and patterns will start to surface here.`, families: [] };
+  }
+  const hist = loadInsightHistory();
   const candidates = [
     _insightPace(), _insightCategory(), _insightRecurring(),
     _insightWeekend(), _insightStreak(), _insightComposition()
-  ].filter(Boolean).sort((a, b) => b.score - a.score);
+  ].filter(Boolean);
+  candidates.forEach(c => { c.adjScore = c.score - familyPenalty(c.family, hist); });
+  candidates.sort((a, b) => b.adjScore - a.adjScore);
 
   const picked = [];
   const usedFamilies = new Set();
@@ -1141,9 +1173,50 @@ function buildAnalyticsInsight() {
     if (picked.length === 3) break;
   }
   if (!picked.length) {
-    return wrap(`A steady month — nothing unusual jumping out of your spending just yet.`);
+    return { body: `A steady month — nothing unusual jumping out of your spending just yet.`, families: [] };
   }
-  return wrap(picked.map(p => p.text).join(' '));
+  return { body: picked.map(p => p.text).join(' '), families: picked.map(p => p.family) };
+}
+
+// Types the narrative in character-by-character over the real DOM (so <b> and
+// valence spans stay intact) — the impression of a live analyst writing it out.
+let _twRAF = null;
+function typewriteInto(el, html) {
+  el.innerHTML = html;
+  if (REDUCED_MOTION) return; // full text already shown; no caret
+  if (_twRAF) cancelAnimationFrame(_twRAF);
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let node;
+  while ((node = walker.nextNode())) nodes.push({ node, full: node.nodeValue });
+  const total = nodes.reduce((s, x) => s + x.full.length, 0);
+  if (!total) return;
+  nodes.forEach(x => { x.node.nodeValue = ''; });
+  el.classList.add('typing');
+
+  const dur = Math.min(Math.max(total * 14, 500), 1900);
+  let shown = 0, ni = 0, ci = 0;
+  const start = performance.now();
+  const step = (t) => {
+    const target = Math.round(Math.min((t - start) / dur, 1) * total);
+    while (shown < target) {
+      while (ni < nodes.length && ci >= nodes[ni].full.length) { ni++; ci = 0; }
+      if (ni >= nodes.length) break;
+      ci++; nodes[ni].node.nodeValue = nodes[ni].full.slice(0, ci); shown++;
+    }
+    if (shown < total) { _twRAF = requestAnimationFrame(step); }
+    else { el.classList.remove('typing'); _twRAF = null; }
+  };
+  _twRAF = requestAnimationFrame(step);
+}
+
+function renderAnalyticsInsight() {
+  const sparkle = '<svg width="13" height="13" viewBox="0 0 24 24" fill="#C2542D"><path d="M12 2l1.9 6.3L20 10l-6.1 1.7L12 18l-1.9-6.3L4 10l6.1-1.7z"/></svg>';
+  const { body, families } = computeInsightNarrative();
+  if (families.length) saveInsightHistory(families);
+  const wrap = document.getElementById('analytics-insight');
+  wrap.innerHTML = `<div class="insight-card"><div class="insight-head">${sparkle}<span class="insight-label">What I noticed</span></div><div class="insight-body"></div></div>`;
+  typewriteInto(wrap.querySelector('.insight-body'), body);
 }
 
 function openExportModal() {
@@ -1645,7 +1718,7 @@ function calculateAndRender() {
   }
 
   if (currentView === 'analytics') {
-    document.getElementById('analytics-insight').innerHTML = buildAnalyticsInsight();
+    renderAnalyticsInsight();
 
     const today = new Date();
     const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
