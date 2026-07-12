@@ -430,6 +430,12 @@
     animation: caretBlink 0.7s steps(1) infinite;
   }
   @keyframes caretBlink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+  /* "Thinking" dots while the bot phrases the note (Phase 2). */
+  .insight-thinking { display: inline-flex; gap: 5px; align-items: center; height: 1.55em; }
+  .insight-thinking span { width: 6px; height: 6px; border-radius: 50%; background: var(--on-surface-variant); animation: thinkPulse 1s ease-in-out infinite; }
+  .insight-thinking span:nth-child(2) { animation-delay: 0.15s; }
+  .insight-thinking span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes thinkPulse { 0%, 100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
   
   .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
@@ -890,6 +896,14 @@ const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXIWSRt1xVAbLnNPlhiHHaWpTHGB23N1wkoMU74nHifMT9prU3rM4m6/exec";
 const SECRET_KEY = "8891";
 
+// Insights strip — Phase 2 (LLM phrasing). Set to your bot's Railway endpoint,
+// e.g. "https://project-alfred-production.up.railway.app/insights", to have the
+// computed facts phrased by gpt-4o-mini. Leave "" to stay on the deterministic
+// templates. Either way the numbers are computed locally; the LLM only rewords,
+// and any failure/timeout falls back to the templates — so this is never a
+// hard dependency.
+const INSIGHTS_ENDPOINT = "";
+
 const INCOME_CATEGORIES = ["Salary", "Freelance", "Bonus", "Investment", "Side Income", "Reimbursement", "Other Income"];
 const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "Shopping", "Groceries", "Entertainment", "Other"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -1150,11 +1164,16 @@ function familyPenalty(family, hist) {
   return 0;
 }
 
-// Returns { body: htmlString, families: [...] }. families is empty for the
-// low-data / steady-month fallbacks (nothing to rotate on those).
+function _stripHtml(html) {
+  return html.replace(/<[^>]+>/g, '');
+}
+
+// Returns { body, families, facts }. body = deterministic HTML (also the LLM
+// fallback); families = for novelty rotation; facts = plain-text sentences to
+// hand the LLM for phrasing. families/facts are empty for the fallback lines.
 function computeInsightNarrative() {
   if (_userExpenseRows().length < 5) {
-    return { body: `Not much to go on yet — log a few more days and patterns will start to surface here.`, families: [] };
+    return { body: `Not much to go on yet — log a few more days and patterns will start to surface here.`, families: [], facts: [] };
   }
   const hist = loadInsightHistory();
   const candidates = [
@@ -1173,9 +1192,46 @@ function computeInsightNarrative() {
     if (picked.length === 3) break;
   }
   if (!picked.length) {
-    return { body: `A steady month — nothing unusual jumping out of your spending just yet.`, families: [] };
+    return { body: `A steady month — nothing unusual jumping out of your spending just yet.`, families: [], facts: [] };
   }
-  return { body: picked.map(p => p.text).join(' '), families: picked.map(p => p.family) };
+  return {
+    body: picked.map(p => p.text).join(' '),
+    families: picked.map(p => p.family),
+    facts: picked.map(p => _stripHtml(p.text))
+  };
+}
+
+// Re-style an LLM plain-text narrative to match the deterministic look: escape
+// it first (never trust model output as HTML), then bold amounts / percentages
+// / multipliers so the figures still pop. Styling only — the numbers are the
+// ones we sent.
+function styleInsightText(plain) {
+  const esc = plain.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return esc
+    .replace(/(RM\s?[\d,]+\.\d{2})/g, '<b>$1</b>')
+    .replace(/(\d+(?:\.\d+)?%)/g, '<b>$1</b>')
+    .replace(/(\d+(?:\.\d+)?×)/g, '<b>$1</b>');
+}
+
+// POST the computed facts to the bot for phrasing. Short timeout; any failure
+// throws and the caller falls back to the deterministic body.
+async function fetchInsightNarrative(facts) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 7000);
+  try {
+    const res = await fetch(INSIGHTS_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ key: SECRET_KEY, facts, month: `${MONTHS[activeMonth]} ${activeYear}` }),
+      signal: controller.signal
+    });
+    if (!res.ok) throw new Error('status ' + res.status);
+    const j = await res.json();
+    if (!j || !j.narrative) throw new Error('no narrative');
+    return j.narrative.trim();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Types the narrative in character-by-character over the real DOM (so <b> and
@@ -1210,13 +1266,46 @@ function typewriteInto(el, html) {
   _twRAF = requestAnimationFrame(step);
 }
 
-function renderAnalyticsInsight() {
+// Phrased-narrative cache (per user+month+data+families) so flipping months
+// back and forth doesn't re-hit the endpoint. A render token guards against a
+// stale response typing into a view the user has already moved past.
+const insightCache = {};
+let insightToken = 0;
+
+async function renderAnalyticsInsight() {
   const sparkle = '<svg width="13" height="13" viewBox="0 0 24 24" fill="#C2542D"><path d="M12 2l1.9 6.3L20 10l-6.1 1.7L12 18l-1.9-6.3L4 10l6.1-1.7z"/></svg>';
-  const { body, families } = computeInsightNarrative();
+  const { body, families, facts } = computeInsightNarrative();
   if (families.length) saveInsightHistory(families);
   const wrap = document.getElementById('analytics-insight');
   wrap.innerHTML = `<div class="insight-card"><div class="insight-head">${sparkle}<span class="insight-label">What I noticed</span></div><div class="insight-body"></div></div>`;
-  typewriteInto(wrap.querySelector('.insight-body'), body);
+  const bodyEl = wrap.querySelector('.insight-body');
+  const token = ++insightToken;
+
+  // No endpoint configured, or a fallback line (nothing to phrase) → straight
+  // to the deterministic template.
+  if (!INSIGHTS_ENDPOINT || !families.length) {
+    typewriteInto(bodyEl, body);
+    return;
+  }
+
+  const cacheKey = `${activeUser}|${activeYear}|${activeMonth}|${dataStamp}|${families.join(',')}`;
+  if (insightCache[cacheKey]) {
+    typewriteInto(bodyEl, insightCache[cacheKey]);
+    return;
+  }
+
+  // "Thinking" dots while the model phrases it (rare, thanks to the cache).
+  bodyEl.innerHTML = '<span class="insight-thinking"><span></span><span></span><span></span></span>';
+  try {
+    const narrative = await fetchInsightNarrative(facts);
+    if (token !== insightToken) return; // a newer render superseded this one
+    const styled = styleInsightText(narrative);
+    insightCache[cacheKey] = styled;
+    typewriteInto(bodyEl, styled);
+  } catch (e) {
+    if (token !== insightToken) return;
+    typewriteInto(bodyEl, body); // graceful fallback to the deterministic note
+  }
 }
 
 function openExportModal() {
