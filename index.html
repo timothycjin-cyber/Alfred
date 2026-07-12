@@ -658,6 +658,22 @@
     border: 1px solid rgba(229, 62, 62, 0.2);
   }
   .btn-danger:disabled { opacity: 0.4; }
+  /* Solid-red button for the actual destructive confirm — an escalation from
+     the outline .btn-danger trigger. */
+  .btn-danger-solid { flex: 1; background: var(--semantic-expense); color: #fff; }
+  .btn-danger-solid:disabled { opacity: 0.5; }
+
+  /* In-modal delete confirmation — replaces native confirm() so the
+     liquid-glass sheet stays intact at the most destructive moment. */
+  .modal-confirm { display: none; margin-top: 1.5rem; }
+  .modal-confirm.show { display: block; animation: confirmIn var(--motion-snap) both; }
+  .modal-confirm-text { font-size: 13px; font-weight: 600; color: var(--on-surface); text-align: center; margin-bottom: 12px; }
+  .modal-confirm-text b { font-weight: 800; }
+  .modal-confirm-actions { display: flex; gap: 8px; }
+  @keyframes confirmIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
   .modal-error {
     display: none; background: var(--wash-expense); color: var(--semantic-expense); font-size: 12px; font-weight: 600;
@@ -770,7 +786,7 @@
 </div>
 
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this) closeTxnModal()">
-  <div class="modal-sheet">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-title" id="modal-title">Add Transaction</div>
     <div class="modal-error" id="modal-error"></div>
     <input type="hidden" id="modal-uid">
@@ -802,17 +818,25 @@
       <input type="date" class="form-input" id="modal-date">
     </div>
 
-    <div class="modal-actions">
-      <button type="button" class="btn btn-danger" id="modal-delete-btn" onclick="deleteTxn()" style="display:none">Delete</button>
+    <div class="modal-actions" id="modal-main-actions">
+      <button type="button" class="btn btn-danger" id="modal-delete-btn" onclick="askDeleteConfirm()" style="display:none">Delete</button>
       <button type="button" class="btn btn-ghost" onclick="closeTxnModal()">Cancel</button>
       <button type="button" class="btn btn-primary" id="modal-save-btn" onclick="saveTxn()">Save</button>
+    </div>
+
+    <div class="modal-confirm" id="modal-confirm">
+      <div class="modal-confirm-text"><b>Delete this entry?</b> This can't be undone.</div>
+      <div class="modal-confirm-actions">
+        <button type="button" class="btn btn-ghost" onclick="cancelDeleteConfirm()">Keep</button>
+        <button type="button" class="btn btn-danger-solid" id="modal-confirm-delete-btn" onclick="deleteTxn()">Delete</button>
+      </div>
     </div>
   </div>
 </div>
 
 <div class="modal-overlay" id="export-overlay" onclick="if(event.target===this) closeExportModal()">
-  <div class="modal-sheet">
-    <div class="modal-title">Export transactions</div>
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="export-title">
+    <div class="modal-title" id="export-title">Export transactions</div>
     <div class="export-sub">Download your records as a CSV — opens in Google Sheets, Excel or Numbers.</div>
     <div class="modal-error" id="export-error"></div>
 
@@ -904,12 +928,15 @@ function openExportModal() {
   document.getElementById('export-month-label').textContent = `${MONTHS[activeMonth]} ${activeYear}`;
   document.getElementById('export-error').style.display = 'none';
   document.body.classList.add('modal-open-state');
-  document.getElementById('export-overlay').classList.add('open');
+  const overlay = document.getElementById('export-overlay');
+  overlay.classList.add('open');
+  trapModalFocus(overlay, overlay.querySelector('.export-choice'));
 }
 
 function closeExportModal() {
   document.body.classList.remove('modal-open-state');
   document.getElementById('export-overlay').classList.remove('open');
+  releaseModalFocus();
 }
 
 // Wrap a field in quotes only when it contains a comma, quote or newline;
@@ -1563,10 +1590,71 @@ function setModalType(type) {
   populateCategoryOptions(type, document.getElementById('modal-category').value);
 }
 
+// ── Modal focus management ─────────────────────────────────────────────────
+// One trap at a time. On open we remember what had focus (the trigger) and
+// confine Tab within the sheet; on close we restore focus so keyboard users
+// land back where they were.
+let modalReturnFocus = null;
+let modalTrapHandler = null;
+
+function trapModalFocus(overlay, initial) {
+  modalReturnFocus = document.activeElement;
+  const sheet = overlay.querySelector('.modal-sheet');
+  const focusable = () => [...sheet.querySelectorAll('button, input, select, textarea, [href], [tabindex]:not([tabindex="-1"])')]
+    .filter(el => !el.disabled && el.offsetParent !== null);
+  modalTrapHandler = (e) => {
+    if (e.key !== 'Tab') return;
+    const f = focusable();
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  document.addEventListener('keydown', modalTrapHandler);
+  // preventScroll so the entrance animation isn't yanked by focus scrolling.
+  if (initial) requestAnimationFrame(() => initial.focus({ preventScroll: true }));
+}
+
+function releaseModalFocus() {
+  if (modalTrapHandler) document.removeEventListener('keydown', modalTrapHandler);
+  modalTrapHandler = null;
+  if (modalReturnFocus && modalReturnFocus.focus) modalReturnFocus.focus({ preventScroll: true });
+  modalReturnFocus = null;
+}
+
+// Escape backs out of the delete confirm first (one step), then closes.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('modal-overlay').classList.contains('open')) {
+    if (document.getElementById('modal-confirm').classList.contains('show')) cancelDeleteConfirm();
+    else closeTxnModal();
+  } else if (document.getElementById('export-overlay').classList.contains('open')) {
+    closeExportModal();
+  }
+});
+
+function askDeleteConfirm() {
+  document.getElementById('modal-main-actions').style.display = 'none';
+  document.getElementById('modal-confirm').classList.add('show');
+  document.getElementById('modal-confirm-delete-btn').focus({ preventScroll: true });
+}
+
+function cancelDeleteConfirm() {
+  document.getElementById('modal-confirm').classList.remove('show');
+  document.getElementById('modal-main-actions').style.display = 'flex';
+  document.getElementById('modal-delete-btn').focus({ preventScroll: true });
+}
+
+function resetDeleteConfirm() {
+  document.getElementById('modal-confirm').classList.remove('show');
+  document.getElementById('modal-main-actions').style.display = 'flex';
+}
+
 function openTxnModal(uid) {
   const record = uid ? allRows.find(r => r.UID === uid) : null;
   const isEdit = !!record;
 
+  resetDeleteConfirm();
   document.body.classList.add('modal-open-state');
   document.getElementById('modal-error').style.display = 'none';
   document.getElementById('modal-uid').value = isEdit ? uid : '';
@@ -1581,12 +1669,16 @@ function openTxnModal(uid) {
   document.getElementById('modal-desc').value = isEdit ? record.Description : '';
   document.getElementById('modal-date').value = isEdit ? record.Date : new Date().toISOString().slice(0, 10);
 
-  document.getElementById('modal-overlay').classList.add('open');
+  const overlay = document.getElementById('modal-overlay');
+  overlay.classList.add('open');
+  trapModalFocus(overlay, document.getElementById('modal-amount'));
 }
 
 function closeTxnModal() {
   document.body.classList.remove('modal-open-state');
   document.getElementById('modal-overlay').classList.remove('open');
+  resetDeleteConfirm();
+  releaseModalFocus();
 }
 
 function showModalError(msg) {
@@ -1635,9 +1727,10 @@ async function saveTxn() {
 
 async function deleteTxn() {
   const uid = document.getElementById('modal-uid').value;
-  if (!uid || !confirm('Delete this transaction?')) return;
-  const btn = document.getElementById('modal-delete-btn');
+  if (!uid) return; // intent already confirmed via the in-modal confirm step
+  const btn = document.getElementById('modal-confirm-delete-btn');
   btn.disabled = true;
+  btn.textContent = 'Deleting…';
 
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
@@ -1653,8 +1746,10 @@ async function deleteTxn() {
     await init();
   } catch (e) {
     showModalError('Could not delete: ' + e.message);
+    cancelDeleteConfirm();
   } finally {
     btn.disabled = false;
+    btn.textContent = 'Delete';
   }
 }
 

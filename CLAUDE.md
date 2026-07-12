@@ -205,6 +205,11 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Loader:** spinner replaced with a 4-bar bouncing mini bar-chart (staggered 120ms, last bar burnt-sienna); under reduced motion it becomes an opacity pulse (`loaderPulse`).
 - **Micro:** txn rows get a `scale(0.985)` press squish matching the tiles.
 
+**Modal polish (2026-07-12 — DONE):** both overlays (`#modal-overlay`, `#export-overlay`) are now `role="dialog" aria-modal="true" aria-labelledby=…`.
+- **Focus management:** `trapModalFocus(overlay, initial)` remembers the trigger, moves focus into the sheet (amount field for txn, first export choice for export — `preventScroll` so the entrance isn't yanked), and confines Tab/Shift+Tab within it; `releaseModalFocus()` restores focus to the trigger on close.
+- **Escape-to-close:** one global `keydown` — Escape backs out of the delete confirm first (if shown), otherwise closes whichever overlay is open.
+- **In-modal delete confirm:** native `confirm()` is gone. The outline-red Delete button (`askDeleteConfirm()`) escalates to a solid-red confirm row (`.btn-danger-solid`, "Delete this entry? This can't be undone."); `cancelDeleteConfirm()`/`resetDeleteConfirm()` restore the main actions (also reset on open/close). `deleteTxn()` now assumes intent is already confirmed and drives the confirm button's `Deleting…` state.
+
 **Potential next tie-in:** surface the shared daily-summary block ("today so far vs average") at the top of the dashboard, reusing the digest logic.
 
 ---
