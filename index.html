@@ -620,6 +620,9 @@
     transform: scale(1) translateY(0);
     opacity: 1;
   }
+  /* Sheet receives initial focus (tabindex="-1") so the keyboard doesn't
+     auto-pop on mobile — no visible ring on the container itself. */
+  .modal-sheet:focus { outline: none; }
   .modal-title { 
     font-size: 18px; 
     font-weight: 700; 
@@ -821,7 +824,7 @@
 </div>
 
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this) closeTxnModal()">
-  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
     <div class="modal-title" id="modal-title">Add Transaction</div>
     <div class="modal-error" id="modal-error"></div>
     <input type="hidden" id="modal-uid">
@@ -1993,7 +1996,9 @@ function trapModalFocus(overlay, initial) {
     const f = focusable();
     if (!f.length) return;
     const first = f[0], last = f[f.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    // Initial focus can sit on the sheet itself (tabindex="-1"), which isn't
+    // in the focusable list — wrap Shift+Tab from there to the last control.
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === sheet)) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   };
   document.addEventListener('keydown', modalTrapHandler);
@@ -2057,7 +2062,9 @@ function openTxnModal(uid) {
 
   const overlay = document.getElementById('modal-overlay');
   overlay.classList.add('open');
-  trapModalFocus(overlay, document.getElementById('modal-amount'));
+  // Focus the sheet itself, not the amount field — auto-focusing an input
+  // pops the mobile keyboard over the modal before the user has seen it.
+  trapModalFocus(overlay, overlay.querySelector('.modal-sheet'));
 }
 
 function closeTxnModal() {
