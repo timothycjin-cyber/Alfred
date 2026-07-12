@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-12 (Dashboard physics pass shipped & tested in prod — real spring easing, shared-axis tab transition, live spend bar, bar-chart loader; plus quick-wins pass, straight pie leaders, and a mobile overflow/zoom bugfix. PRs #11–#13. Prior day: motion polish, UX refresh vibe session, Pipeline 2 Phase 1–3.)*
+*Last updated: 2026-07-12 (Dashboard: modal polish (focus trap, Escape, in-modal delete confirm) + Analytics insights strip Phase 1 (deterministic "what I noticed" narrative). Earlier: physics pass, quick-wins, straight pie leaders, mobile overflow/zoom bugfix — PRs #11–#15. Prior day: motion polish, UX refresh, Pipeline 2 Phase 1–3.)*
 
 ---
 
@@ -210,6 +210,13 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Escape-to-close:** one global `keydown` — Escape backs out of the delete confirm first (if shown), otherwise closes whichever overlay is open.
 - **In-modal delete confirm:** native `confirm()` is gone. The outline-red Delete button (`askDeleteConfirm()`) escalates to a solid-red confirm row (`.btn-danger-solid`, "Delete this entry? This can't be undone."); `cancelDeleteConfirm()`/`resetDeleteConfirm()` restore the main actions (also reset on open/close). `deleteTxn()` now assumes intent is already confirmed and drives the confirm button's `Deleting…` state.
 
+**Insights strip — Phase 1 (2026-07-12 — DONE):** a short-narrative "What I noticed" card at the top of `#analytics-view` (`#analytics-insight`, `.insight-card`). Grew out of the daily-summary idea into a broader pattern-spotter.
+- **Deterministic engine (all in JS, free & instant):** `buildAnalyticsInsight()` collects candidate facts from six builders across the four families the user picked — `_insightPace` (MTD vs same-point-last-month for the current month; whole-month vs prior for past months), `_insightCategory` (3-month monotonic climb, or a ≥40% jump/drop vs recent average; guarded at ≥RM30), `_insightRecurring` (descriptions repeating ~once/month across ≥3 months at a stable amount — CV ≤ 0.2, occurrences ≤ 1.5×months — reported as annualized load), `_insightWeekend` (weekend-vs-weekday intensity over trailing 8 weeks), `_insightStreak` (longest no-spend run in the month), `_insightComposition` (dominant category share). Each returns `{family, score, text}`; the top 3 **distinct families** by score compose the narrative. Guards: `<5` expense rows → "log a few more days" fallback; no strong candidate → "steady month" line.
+- **Numbers are computed, never guessed** — every figure comes from the row scan, so the narrative can't misstate them. `<b>` bolds figures; `.up`/`.down` spans carry red/green valence.
+- Rendered in the analytics branch of `calculateAndRender()`, so it respects the month selector and the no-replay/`.settled` skip.
+
+**Phase 2 (deferred — needs a server with the OpenAI key, i.e. the bot repo or an Apps Script change):** POST the computed facts to an `/insights`-style endpoint that runs them through gpt-4o-mini with a *use-only-these-numbers* prompt for nicer phrasing + prioritization; the Phase-1 templates stay as the free/offline fallback. The static dashboard **cannot** hold the key, so this can't be done from the `alfred-dashboard` repo alone.
+
 **Potential next tie-in:** surface the shared daily-summary block ("today so far vs average") at the top of the dashboard, reusing the digest logic.
 
 ---
@@ -260,6 +267,7 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - Correction handling (edit last entry from "actually make that RM20") — needs last-UID-per-chat_id memory
 - Dashboard export function ✅ DONE (CSV, PR #10)
 - Dashboard: shared daily-summary block reusing digest logic
+- Dashboard insights strip — Phase 1 (deterministic narrative) ✅ DONE; Phase 2 (LLM phrasing via bot endpoint) pending, needs the bot repo
 
 ---
 
@@ -286,3 +294,5 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Always eyeball mobile widths, not just desktop.** The "right-drift" was tiles going full-width while charts stayed `max-width`-capped between 480–768px — invisible on desktop, obvious on a phone. Screenshotted at 390 / 600 / 900 to confirm.
 - **Render-to-verify loop:** local `python3 -m http.server` + Playwright (mock the GViz response, serve Chart.js locally since the CDN is proxy-blocked) → screenshot at multiple widths & both themes before committing.
 - **A horizontal transform + `position:fixed; right:0` = a mobile zoom trap.** The shared-axis slide's `translateX` briefly widened the document; the fixed nav/modal bars then sized to that widened layout viewport and *held* the overflow open, so the browser kept zooming to fit — creeping worse each toggle. Physics/slide animations that move things along X need an ancestor with `overflow-x: clip` (not `hidden`, which would kill vertical scroll). Caught by measuring `documentElement.scrollWidth` across repeated toggles in Playwright, not by eye.
+- **Compute the numbers, let the LLM only phrase them.** The insights strip (§3a) computes every figure in JS and would hand *those facts* to an LLM purely for wording — so the model can never misstate an amount. It also means Phase 1 (deterministic templates) is a complete, free, offline-capable feature on its own, and the LLM is a phrasing upgrade, not a dependency. Ship the deterministic half first.
+- **A static site can't hold a secret.** The dashboard is public GitHub Pages, so any LLM/insight call that needs the OpenAI key must go through a server that has it (the bot on Railway, or Apps Script) — never inline in `index.html`. This is why the insights LLM layer is a separate phase gated on the bot repo, not doable from `alfred-dashboard` alone.

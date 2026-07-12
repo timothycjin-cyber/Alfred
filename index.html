@@ -402,6 +402,25 @@
   }
 
   .card { background: var(--surface-container-low); border-radius: var(--shape-lg); border: 1px solid var(--outline-variant); padding: 1.25rem; width: 100%; display: flex; flex-direction: column; }
+
+  /* Analytics insight strip — a short narrative "what I noticed" note,
+     computed deterministically in JS (Phase 1; an LLM phrasing layer slots
+     in later). Numbers are bolded; the whole thing is calm and glanceable. */
+  .insight-card {
+    background: var(--surface-container-low);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--shape-lg) var(--shape-xs) var(--shape-lg) var(--shape-xs);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 12px;
+    width: 100%;
+  }
+  .insight-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+  .insight-head svg { flex-shrink: 0; }
+  .insight-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
+  .insight-body { font-size: 13.5px; line-height: 1.55; color: var(--on-surface); font-weight: 500; }
+  .insight-body b { font-weight: 800; }
+  .insight-body .up { color: var(--semantic-expense); font-weight: 800; }
+  .insight-body .down { color: var(--semantic-income); font-weight: 800; }
   
   .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
@@ -756,6 +775,7 @@
   </div>
 
   <div id="analytics-view" class="view-section">
+    <div id="analytics-insight"></div>
     <div id="analytics-metrics" class="tile-row"></div>
     <div class="card" id="income-bar-card">
       <div id="income-bar-block"></div>
@@ -922,6 +942,208 @@ function monthTotals(year, month) {
   const inc = monthRows.filter(r => r.Type === "Income").reduce((s, r) => s + r.Amount, 0);
   const exp = monthRows.filter(r => r.Type !== "Income").reduce((s, r) => s + r.Amount, 0);
   return { inc, exp, net: inc - exp };
+}
+
+// ── Insights engine (Phase 1: deterministic) ───────────────────────────────
+// Scans the active user's rows and builds a short narrative of notable
+// patterns across four families: pace/anomaly, category trends, timing/habits,
+// and recurring charges. Every number is computed here (never guessed) — a
+// later phase can hand these same facts to an LLM purely for nicer phrasing.
+function _shiftMonth(year, month, delta) {
+  const d = new Date(year, month + delta, 1);
+  return { year: d.getFullYear(), month: d.getMonth() };
+}
+function _userExpenseRows() {
+  return allRows.filter(r => r.Type !== 'Income' && (activeUser ? r.User === activeUser : false));
+}
+function _expenseRowsFor(year, month) {
+  return _userExpenseRows().filter(r => {
+    const d = new Date(r.Date);
+    return d.getMonth() === month && d.getFullYear() === year;
+  });
+}
+function _sum(rows) { return rows.reduce((s, r) => s + r.Amount, 0); }
+function _rm(n) { return 'RM ' + formatCurrency(n); }
+
+// Pace: this month vs the same point last month (current month), or the whole
+// month vs the one before (past months).
+function _insightPace() {
+  const today = new Date();
+  const isCurrent = activeMonth === today.getMonth() && activeYear === today.getFullYear();
+  const lastM = _shiftMonth(activeYear, activeMonth, -1);
+  if (isCurrent) {
+    const dEl = today.getDate();
+    const mtd = _sum(_expenseRowsFor(activeYear, activeMonth));
+    const lastWin = _sum(_expenseRowsFor(lastM.year, lastM.month).filter(r => new Date(r.Date).getDate() <= dEl));
+    if (mtd < 1 || lastWin < 1) return null;
+    const pct = (mtd - lastWin) / lastWin;
+    if (Math.abs(pct) < 0.12) return null;
+    const faster = pct > 0;
+    return {
+      family: 'pace', score: 40 + Math.min(Math.abs(pct), 1.5) * 60,
+      text: `You're spending a little ${faster ? 'faster' : 'slower'} than last month — <b>${_rm(mtd)}</b> so far versus <b>${_rm(lastWin)}</b> at this point in ${MONTHS[lastM.month]}.`
+    };
+  }
+  const cur = _sum(_expenseRowsFor(activeYear, activeMonth));
+  const prev = _sum(_expenseRowsFor(lastM.year, lastM.month));
+  if (cur < 1 || prev < 1) return null;
+  const pct = (cur - prev) / prev;
+  if (Math.abs(pct) < 0.12) return null;
+  const up = pct > 0;
+  return {
+    family: 'pace', score: 40 + Math.min(Math.abs(pct), 1.5) * 60,
+    text: `In ${MONTHS[activeMonth]} you spent <b>${_rm(cur)}</b>, <span class="${up ? 'up' : 'down'}">${up ? 'up' : 'down'} ${Math.abs(pct * 100).toFixed(0)}%</span> from ${MONTHS[lastM.month]}.`
+  };
+}
+
+// Category trends: a 3-month monotonic climb, or a sharp jump vs recent average.
+function _insightCategory() {
+  const m1 = _shiftMonth(activeYear, activeMonth, -1);
+  const m2 = _shiftMonth(activeYear, activeMonth, -2);
+  const cats = {};
+  _expenseRowsFor(activeYear, activeMonth).forEach(r => { cats[r.Category] = true; });
+  let best = null;
+  Object.keys(cats).forEach(cat => {
+    const c0 = _sum(_expenseRowsFor(activeYear, activeMonth).filter(r => r.Category === cat));
+    const c1 = _sum(_expenseRowsFor(m1.year, m1.month).filter(r => r.Category === cat));
+    const c2 = _sum(_expenseRowsFor(m2.year, m2.month).filter(r => r.Category === cat));
+    if (c0 < 30) return;
+    const short = cat.split(' ')[0];
+    // 3-month climb
+    if (c2 > 0 && c1 > c2 && c0 > c1) {
+      const climb = (c0 - c2) / c2;
+      const score = 50 + Math.min(climb, 2) * 30;
+      if (!best || score > best.score) best = { family: 'category', score,
+        text: `${short}: <b>${_rm(c2)} → ${_rm(c1)} → ${_rm(c0)}</b> — climbing three months straight.` };
+    } else if (c1 > 0 || c2 > 0) {
+      // jump vs recent average
+      const base = (c1 + c2) / ((c1 > 0 ? 1 : 0) + (c2 > 0 ? 1 : 0) || 1);
+      if (base > 0) {
+        const jump = (c0 - base) / base;
+        if (jump >= 0.4) {
+          const score = 45 + Math.min(jump, 2) * 25;
+          if (!best || score > best.score) best = { family: 'category', score,
+            text: `${short} jumped to <b>${_rm(c0)}</b> this month, <span class="up">up ${(jump * 100).toFixed(0)}%</span> from its recent average.` };
+        } else if (jump <= -0.4) {
+          const score = 42;
+          if (!best || score > best.score) best = { family: 'category', score,
+            text: `${short} eased to <b>${_rm(c0)}</b>, <span class="down">down ${Math.abs(jump * 100).toFixed(0)}%</span> from its recent average.` };
+        }
+      }
+    }
+  });
+  return best;
+}
+
+// Composition: the dominant category's share this month (filler / context).
+function _insightComposition() {
+  const rows = _expenseRowsFor(activeYear, activeMonth);
+  const total = _sum(rows);
+  if (total < 1) return null;
+  const cats = {};
+  rows.forEach(r => { cats[r.Category] = (cats[r.Category] || 0) + r.Amount; });
+  const top = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
+  const share = top[1] / total;
+  if (share < 0.35) return null;
+  return { family: 'composition', score: 20 + share * 20,
+    text: `${top[0].split(' ')[0]} is your biggest slice at <b>${(share * 100).toFixed(0)}%</b> of the month.` };
+}
+
+// Timing: weekend vs weekday intensity over the trailing 8 weeks.
+function _insightWeekend() {
+  const today = new Date();
+  const isCurrent = activeMonth === today.getMonth() && activeYear === today.getFullYear();
+  const end = isCurrent ? today : new Date(activeYear, activeMonth + 1, 0);
+  const start = new Date(end); start.setDate(end.getDate() - 55);
+  const rows = _userExpenseRows().filter(r => { const d = new Date(r.Date); return d >= start && d <= end; });
+  if (rows.length < 8) return null;
+  let weSum = 0, wdSum = 0;
+  rows.forEach(r => { const g = new Date(r.Date).getDay(); (g === 0 || g === 6 ? (weSum += r.Amount) : (wdSum += r.Amount)); });
+  // 8 weeks ≈ 16 weekend days, 40 weekday days
+  const weAvg = weSum / 16, wdAvg = wdSum / 40;
+  if (weAvg < 1 || wdAvg < 1) return null;
+  const ratio = weAvg / wdAvg;
+  if (ratio >= 1.4) return { family: 'timing', score: 30 + Math.min(ratio - 1, 2) * 15,
+    text: `Weekends run about <b>${ratio.toFixed(1)}×</b> heavier than weekdays for you.` };
+  if (ratio <= 0.6) return { family: 'timing', score: 30,
+    text: `You keep it light on weekends — about <b>${Math.round((1 / ratio))}×</b> more goes out on weekdays.` };
+  return null;
+}
+
+// Timing: longest no-spend streak within the selected month so far.
+function _insightStreak() {
+  const today = new Date();
+  const isCurrent = activeMonth === today.getMonth() && activeYear === today.getFullYear();
+  const lastDay = isCurrent ? today.getDate() : new Date(activeYear, activeMonth + 1, 0).getDate();
+  const spendDays = new Set(_expenseRowsFor(activeYear, activeMonth).map(r => new Date(r.Date).getDate()));
+  if (!spendDays.size) return null;
+  let best = 0, run = 0;
+  for (let d = 1; d <= lastDay; d++) { if (spendDays.has(d)) run = 0; else { run++; best = Math.max(best, run); } }
+  if (best < 3) return null;
+  return { family: 'timing', score: 25 + best * 2,
+    text: `You strung together <b>${best}</b> no-spend days${isCurrent ? ' this month' : ''}.` };
+}
+
+// Recurring: descriptions that repeat ~once a month across ≥3 months at a
+// stable amount — subscriptions, bills. Reports the aggregate monthly load.
+function _insightRecurring() {
+  const groups = {};
+  _userExpenseRows().forEach(r => {
+    const key = (r.Description || '').trim().toLowerCase();
+    if (!key || key === 'unlabeled') return;
+    const d = new Date(r.Date);
+    (groups[key] = groups[key] || []).push({ ym: d.getFullYear() * 12 + d.getMonth(), amount: r.Amount, label: r.Description.trim() });
+  });
+  const recurring = [];
+  Object.values(groups).forEach(items => {
+    const months = new Set(items.map(i => i.ym));
+    if (months.size < 3) return;
+    if (items.length > months.size * 1.5) return; // filter frequent variable spend (e.g. "lunch")
+    const amts = items.map(i => i.amount);
+    const mean = amts.reduce((a, b) => a + b, 0) / amts.length;
+    if (mean < 3) return;
+    const sd = Math.sqrt(amts.reduce((a, b) => a + (b - mean) ** 2, 0) / amts.length);
+    if (sd / mean > 0.2) return; // amounts must be stable
+    recurring.push({ label: items[0].label, monthly: mean });
+  });
+  if (!recurring.length) return null;
+  recurring.sort((a, b) => b.monthly - a.monthly);
+  const totalMonthly = recurring.reduce((s, r) => s + r.monthly, 0);
+  if (recurring.length === 1) {
+    const r = recurring[0];
+    return { family: 'recurring', score: 35 + Math.min(r.monthly / 100, 1) * 15,
+      text: `<b>${_rm(r.monthly)}</b> a month quietly goes to “${r.label}” — about <b>${_rm(r.monthly * 12)}</b> a year.` };
+  }
+  return { family: 'recurring', score: 38 + Math.min(totalMonthly / 300, 1) * 15,
+    text: `<b>${_rm(totalMonthly)}</b> a month goes to <b>${recurring.length}</b> recurring charges — roughly <b>${_rm(totalMonthly * 12)}</b> a year.` };
+}
+
+function buildAnalyticsInsight() {
+  const sparkle = '<svg width="13" height="13" viewBox="0 0 24 24" fill="#C2542D"><path d="M12 2l1.9 6.3L20 10l-6.1 1.7L12 18l-1.9-6.3L4 10l6.1-1.7z"/></svg>';
+  const head = `<div class="insight-head">${sparkle}<span class="insight-label">What I noticed</span></div>`;
+  const wrap = body => `<div class="insight-card">${head}<div class="insight-body">${body}</div></div>`;
+
+  if (_userExpenseRows().length < 5) {
+    return wrap(`Not much to go on yet — log a few more days and patterns will start to surface here.`);
+  }
+
+  const candidates = [
+    _insightPace(), _insightCategory(), _insightRecurring(),
+    _insightWeekend(), _insightStreak(), _insightComposition()
+  ].filter(Boolean).sort((a, b) => b.score - a.score);
+
+  const picked = [];
+  const usedFamilies = new Set();
+  for (const c of candidates) {
+    if (usedFamilies.has(c.family)) continue;
+    usedFamilies.add(c.family);
+    picked.push(c);
+    if (picked.length === 3) break;
+  }
+  if (!picked.length) {
+    return wrap(`A steady month — nothing unusual jumping out of your spending just yet.`);
+  }
+  return wrap(picked.map(p => p.text).join(' '));
 }
 
 function openExportModal() {
@@ -1423,6 +1645,8 @@ function calculateAndRender() {
   }
 
   if (currentView === 'analytics') {
+    document.getElementById('analytics-insight').innerHTML = buildAnalyticsInsight();
+
     const today = new Date();
     const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
     const isCurrentMonth = (activeMonth === today.getMonth() && activeYear === today.getFullYear());
