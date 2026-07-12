@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-11 (Dashboard motion/UX polish — staggered entrances, no-replay re-renders + value-inertia counters, pie callouts for every slice. Earlier same day: UX refresh vibe session, Pipeline 2 Phase 1–3.)*
+*Last updated: 2026-07-12 (Dashboard physics pass shipped & tested in prod — real spring easing, shared-axis tab transition, live spend bar, bar-chart loader; plus quick-wins pass, straight pie leaders, and a mobile overflow/zoom bugfix. PRs #11–#13. Prior day: motion polish, UX refresh vibe session, Pipeline 2 Phase 1–3.)*
 
 ---
 
@@ -222,12 +222,13 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 
 **Dashboard:** Full Home + Analytics tabs; GViz date fix; month selector; dark mode; animated counters; Apps Script add/edit/delete; FAB + modal (liquid glass); M3 Expressive layer; strict per-user filtering.
 - **UX refresh (2026-07-11) — DONE.** Home Net Balance hero card (privacy toggle + 6-mo mini trend) + income/expense tiles + txn category icon chips; Analytics spend card with month-pace "Today" marker, solid variable-radius pie w/ on-slice %s + callouts (replaced donut + Category Breakdown), unified mobile centering. Shared `tile-block` system across both tabs; dead `.metric`/`.crystal-ball` CSS removed. See §3a. Shipped via PRs #6 + #7.
+- **Motion + physics pass (2026-07-11→12) — DONE & TESTED IN PROD.** From a UX review: staggered entrances, no-replay re-renders + value-inertia counters, callouts for every pie slice, dark-mode legend-dot fix; then quick-wins (prefers-reduced-motion, chip valence, refresh spin, validated category palette, visible negative months); then a physics pass (real damped-spring `linear()` easing, shared-axis tab transition, live-springing spend bar, bouncing bar-chart loader). Follow-ups: straightened pie leader lines, "Loading data…" copy, and a **mobile overflow/zoom bugfix** (`.container` `overflow-x: clip`). All detail in §3a. Shipped via PRs #11–#13.
 
 ### What's Pending ❌
 - **Stress test (in progress):** run the bot 1 month on Railway Free tier with 3 users to see if it fits within the $1/mo credit + 0.5 GB RAM ceiling. Deferred until after this: (a) RAM logging on boot/post-digest, (b) Railway billing alert at ~$0.80. Decision after test: stay Free / upgrade Hobby ($5/mo) / migrate.
 - Pipeline 2 Phase 4: validation test suite (multi-day backdate, split-bill photo)
 - Correction handling ("actually make that RM20" → edit last entry, not new row) — not yet built; fits the "natural human input" goal
-- Dashboard: export function; surface shared daily-summary block
+- Dashboard: surface shared daily-summary block (export function already shipped, PR #10)
 - Decide: Railway vs Render/Fly/other hosting (tied to stress-test result)
 
 ---
@@ -252,7 +253,7 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 
 **Candidate next features:**
 - Correction handling (edit last entry from "actually make that RM20") — needs last-UID-per-chat_id memory
-- Dashboard export function
+- Dashboard export function ✅ DONE (CSV, PR #10)
 - Dashboard: shared daily-summary block reusing digest logic
 
 ---
@@ -279,3 +280,4 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Chart.js custom canvas draws (on-slice labels, callouts, variable radius, center text) must be gated by `canvas.id`** — an ungated plugin bleeds onto every chart on the page.
 - **Always eyeball mobile widths, not just desktop.** The "right-drift" was tiles going full-width while charts stayed `max-width`-capped between 480–768px — invisible on desktop, obvious on a phone. Screenshotted at 390 / 600 / 900 to confirm.
 - **Render-to-verify loop:** local `python3 -m http.server` + Playwright (mock the GViz response, serve Chart.js locally since the CDN is proxy-blocked) → screenshot at multiple widths & both themes before committing.
+- **A horizontal transform + `position:fixed; right:0` = a mobile zoom trap.** The shared-axis slide's `translateX` briefly widened the document; the fixed nav/modal bars then sized to that widened layout viewport and *held* the overflow open, so the browser kept zooming to fit — creeping worse each toggle. Physics/slide animations that move things along X need an ancestor with `overflow-x: clip` (not `hidden`, which would kill vertical scroll). Caught by measuring `documentElement.scrollWidth` across repeated toggles in Playwright, not by eye.
