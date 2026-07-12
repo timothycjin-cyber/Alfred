@@ -240,7 +240,14 @@
   .fab:active { transform: scale(0.9); }
   body.modal-open-state .fab svg { transform: rotate(135deg); }
 
-  .container { max-width: 900px; margin: 0 auto; padding: 1.25rem 1rem; }
+  /* overflow-x: clip contains the shared-axis slide's transient translateX so
+     it never widens the document. Without it, that momentary horizontal
+     overflow makes position:fixed; right:0 bars (nav, modals) size to the
+     widened layout viewport and *sustain* the overflow — which a mobile
+     browser then zooms to fit ("page zooms in slightly after a few toggles").
+     clip (not hidden) keeps overflow-y visible, so vertical page scroll and
+     the sticky header are unaffected. */
+  .container { max-width: 900px; margin: 0 auto; padding: 1.25rem 1rem; overflow-x: clip; }
   .view-section { display: none; }
   .view-section.active { display: block; }
 
