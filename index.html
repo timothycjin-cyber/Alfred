@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Project Alfred — Dashboard</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -151,6 +156,10 @@
   /* Refresh spins while a fetch is actually in flight — feedback, not decoration. */
   @keyframes refreshSpin { to { transform: rotate(360deg); } }
   .refresh-btn.spinning svg { animation: refreshSpin 0.7s linear infinite; }
+
+  /* Digest-notification bell: filled + accent when subscribed. */
+  .push-btn.on { color: #C2542D; }
+  .push-btn.on svg { fill: currentColor; }
 
   .bottom-bar {
     position: fixed;
@@ -731,6 +740,75 @@
   .export-choice-main { font-size: 14px; font-weight: 700; }
   .export-choice-sub { font-size: 12px; font-weight: 600; color: var(--on-surface-variant); }
 
+  /* ── Capture bar (chat + camera → parsed entries) ─────────────────────────
+     Static element, deliberately no entrance animation so it can't replay on
+     tab revisits (it lives outside the render cycle). */
+  .capture-card {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 6px 6px 4px; margin-bottom: 12px;
+    border-radius: var(--shape-full); border: 1px solid var(--outline-variant);
+    background: var(--surface-container-low);
+    transition: border-color var(--motion-standard);
+  }
+  .capture-card:focus-within { border-color: var(--outline); }
+  .capture-card .icon-btn { border: none; }
+  .capture-input {
+    flex: 1; min-width: 0; border: none; background: transparent;
+    color: var(--on-surface); font-family: var(--font-body);
+    font-size: 14px; font-weight: 500; outline: none; padding: 8px 2px;
+  }
+  .capture-input::placeholder { color: var(--on-surface-variant); opacity: 0.7; }
+  .capture-send {
+    width: 36px; height: 36px; border-radius: var(--shape-full); border: none;
+    background: var(--primary); color: var(--on-primary);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; outline: none; padding: 0;
+    transition: transform var(--motion-snap), opacity var(--motion-standard);
+  }
+  .capture-send:active { transform: scale(0.9); }
+  .capture-card.busy .capture-send, .capture-card.busy .icon-btn { pointer-events: none; opacity: 0.55; }
+  .capture-card.busy .capture-input { pointer-events: none; }
+  /* Busy = spinner replaces the send arrow: status feedback, kept under reduced motion. */
+  .capture-card.busy .capture-send svg { display: none; }
+  .capture-card.busy .capture-send::after {
+    content: ''; width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.35); border-top-color: var(--on-primary);
+    animation: refreshSpin 0.7s linear infinite;
+  }
+  .capture-note {
+    display: none; font-size: 12px; font-weight: 600;
+    color: var(--on-surface-variant); margin: -4px 4px 12px; line-height: 1.45;
+  }
+  .capture-note.show { display: block; }
+  .capture-note.error { color: var(--semantic-expense); }
+
+  /* ── Review list (multi-entry confirm) ──────────────────────────────────── */
+  #review-list { max-height: 45vh; overflow-y: auto; margin-bottom: 0.5rem; }
+  .review-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--outline-variant);
+  }
+  .review-row:last-child { border-bottom: none; }
+  .review-main { flex: 1; min-width: 0; }
+  .review-desc { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .review-meta { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); margin-top: 2px; }
+  .review-meta .income-tag { color: var(--semantic-income); }
+  .review-amount {
+    width: 88px; text-align: right; font-size: 13.5px; font-weight: 700;
+    padding: 7px 8px; border-radius: var(--shape-sm);
+    border: 1px solid var(--outline-variant); background: var(--surface-container);
+    color: var(--on-surface); outline: none; font-family: var(--font-body);
+  }
+  .review-amount:focus { border-color: var(--primary); }
+  .review-remove {
+    width: 28px; height: 28px; border-radius: var(--shape-full); flex-shrink: 0;
+    border: none; background: transparent; color: var(--on-surface-variant);
+    font-size: 17px; line-height: 1; cursor: pointer; outline: none;
+    display: flex; align-items: center; justify-content: center;
+    transition: background var(--motion-standard), color var(--motion-standard);
+  }
+  .review-remove:hover { background: var(--wash-expense); color: var(--semantic-expense); }
+
   /* Zeroing the motion tokens collapses every transition/animation that uses
      them; the delay reset stops the stagger from becoming a flicker cascade.
      The loading spinner and refresh spin stay — they're status, not flourish. */
@@ -753,6 +831,11 @@
     </div>
   </div>
   <div class="header-actions">
+    <button class="icon-btn push-btn" id="push-btn" onclick="togglePush()" aria-label="Daily digest notifications" aria-pressed="false" style="display:none">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+    </button>
     <button class="icon-btn export-btn" onclick="openExportModal()" aria-label="Export transactions">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -787,6 +870,21 @@
   </div>
 
   <div id="home-view" class="view-section">
+    <div class="capture-card" id="capture-card">
+      <button type="button" class="icon-btn" id="capture-camera-btn" onclick="document.getElementById('capture-file').click()" aria-label="Snap a receipt">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+        </svg>
+      </button>
+      <input type="text" class="capture-input" id="capture-input" placeholder="&ldquo;lunch RM15&rdquo; or snap a receipt" autocomplete="off" enterkeyhint="send" aria-label="Describe a transaction">
+      <button type="button" class="capture-send" id="capture-send-btn" onclick="submitCaptureText()" aria-label="Log it">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+        </svg>
+      </button>
+      <input type="file" id="capture-file" accept="image/*" capture="environment" hidden>
+    </div>
+    <div class="capture-note" id="capture-note" aria-live="polite"></div>
     <div id="home-hero"></div>
     <div id="home-tiles" class="tile-row"></div>
     <div id="home-timeline"></div>
@@ -893,27 +991,62 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="review-overlay" onclick="if(event.target===this) closeReviewModal()">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="review-title" tabindex="-1" style="outline:none">
+    <div class="modal-title" id="review-title">Confirm entries</div>
+    <div class="export-sub" id="review-sub">—</div>
+    <div class="modal-error" id="review-error"></div>
+    <div id="review-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeReviewModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" id="review-save-btn" onclick="saveReviewAll()">Save all</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const SHEET_ID = "19_C3gFlY7hDjGm87k3Uke63_Tgg6TQPl6xLiGZvuEis";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Sheet1`;
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXIWSRt1xVAbLnNPlhiHHaWpTHGB23N1wkoMU74nHifMT9prU3rM4m6/exec";
 const SECRET_KEY = "8891";
 
-// Insights strip — Phase 2 (LLM phrasing). Set to your bot's Railway endpoint,
-// e.g. "https://project-alfred-production.up.railway.app/insights", to have the
-// computed facts phrased by gpt-4o-mini. Leave "" to stay on the deterministic
-// templates. Either way the numbers are computed locally; the LLM only rewords,
-// and any failure/timeout falls back to the templates — so this is never a
-// hard dependency.
-const INSIGHTS_ENDPOINT = "https://project-alfred-production-243d.up.railway.app/insights";
+// Insights strip — Phase 2 (LLM phrasing). Now served by the Apps Script
+// backend (action:"insights") so the dashboard has zero Railway dependency —
+// requires OPENAI_API_KEY in the script's Script Properties. Leave "" to stay
+// on the deterministic templates. Either way the numbers are computed locally;
+// the LLM only rewords, and any failure/timeout falls back to the templates —
+// so this is never a hard dependency.
+const INSIGHTS_ENDPOINT = APPS_SCRIPT_URL;
+
+// Push digest (FCM) — Phase 0 setup: create a free Firebase project →
+// Project settings → Your apps → add a Web app → paste its config object
+// here; then Cloud Messaging → Web Push certificates → Generate key pair →
+// paste the public key as FCM_VAPID_KEY. Both values are public by design
+// (they identify the project; they can't send messages). Leave null/"" and
+// the notification bell stays hidden — the feature simply doesn't exist yet.
+const FIREBASE_CONFIG = null; /* { apiKey: "…", authDomain: "…", projectId: "…", messagingSenderId: "…", appId: "…" } */
+const FCM_VAPID_KEY = "";
 
 const INCOME_CATEGORIES = ["Salary", "Freelance", "Bonus", "Investment", "Side Income", "Reimbursement", "Other Income"];
 const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "Shopping", "Groceries", "Entertainment", "Other"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-// Parse User ID from URL
+// Parse User ID from URL. The installed PWA launches from manifest start_url,
+// which can't carry a per-user query — so remember the last ?user= in
+// localStorage (per-device, same trust boundary as the URL itself) and fall
+// back to it when the param is absent. Strict privacy filtering is unchanged:
+// no user from either source still renders zero rows.
 const urlParams = new URLSearchParams(window.location.search);
-let activeUser = urlParams.get('user') || '';
+let activeUser = urlParams.get('user') || localStorage.getItem('alfred_user') || '';
+if (urlParams.get('user')) {
+  try { localStorage.setItem('alfred_user', urlParams.get('user')); } catch (e) {}
+}
+
+// PWA presence + push display. Registration is idempotent; failure (old
+// browser, file:// preview) just means no install/push — the app is unaffected.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('firebase-messaging-sw.js').catch(() => {});
+}
 
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -1220,12 +1353,14 @@ function styleInsightText(plain) {
 // throws and the caller falls back to the deterministic body.
 async function fetchInsightNarrative(facts) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 7000);
+  // 10s (was 7s against Railway): Apps Script adds 1–3s of its own before the
+  // OpenAI call. Still short enough that the fallback never feels stuck.
+  const timer = setTimeout(() => controller.abort(), 10000);
   try {
     const res = await fetch(INSIGHTS_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ key: SECRET_KEY, facts, month: `${MONTHS[activeMonth]} ${activeYear}` }),
+      body: JSON.stringify({ key: SECRET_KEY, action: 'insights', facts, month: `${MONTHS[activeMonth]} ${activeYear}` }),
       signal: controller.signal
     });
     if (!res.ok) throw new Error('status ' + res.status);
@@ -2021,6 +2156,8 @@ document.addEventListener('keydown', (e) => {
     else closeTxnModal();
   } else if (document.getElementById('export-overlay').classList.contains('open')) {
     closeExportModal();
+  } else if (document.getElementById('review-overlay').classList.contains('open')) {
+    closeReviewModal();
   }
 });
 
@@ -2045,6 +2182,7 @@ function openTxnModal(uid) {
   const record = uid ? allRows.find(r => r.UID === uid) : null;
   const isEdit = !!record;
 
+  pendingSource = null; // a plain FAB/edit open isn't a capture confirm
   resetDeleteConfirm();
   document.body.classList.add('modal-open-state');
   document.getElementById('modal-error').style.display = 'none';
@@ -2102,7 +2240,9 @@ async function saveTxn() {
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ key: SECRET_KEY, action: isEdit ? 'edit' : 'add', uid, date, amount, category, description, type, user: activeUser })
+      // source marks capture-confirmed adds as web/web-image (edits never
+      // touch the Source column; the field is simply ignored there).
+      body: JSON.stringify({ key: SECRET_KEY, action: isEdit ? 'edit' : 'add', uid, date, amount, category, description, type, user: activeUser, source: pendingSource || 'dashboard' })
     });
     const result = await res.json().catch(() => ({ success: true }));
     if (result.error) throw new Error(result.error);
@@ -2115,6 +2255,229 @@ async function saveTxn() {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Save';
+  }
+}
+
+// ── Capture bar: chat + camera → Apps Script parse → confirm ────────────────
+// The parse action only extracts (OpenAI via Apps Script, which holds the
+// key); nothing is written until the user confirms through the normal
+// saveTxn / review-save paths.
+
+let pendingSource = null;  // 'web' | 'web-image' while a capture confirm is open
+let reviewTxns = [];
+let reviewSource = 'web';
+let captureBusy = false;
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function setCaptureNote(msg, isError) {
+  const el = document.getElementById('capture-note');
+  el.textContent = msg || '';
+  el.classList.toggle('show', !!msg);
+  el.classList.toggle('error', !!isError);
+}
+
+function setCaptureBusy(busy) {
+  captureBusy = busy;
+  document.getElementById('capture-card').classList.toggle('busy', busy);
+}
+
+function submitCaptureText() {
+  const text = document.getElementById('capture-input').value.trim();
+  if (!text) return;
+  parseCapture({ text });
+}
+
+document.getElementById('capture-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.isComposing) submitCaptureText();
+});
+
+document.getElementById('capture-file').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ''; // same photo re-selectable
+  if (!file || captureBusy) return;
+  try {
+    setCaptureBusy(true);
+    const b64 = await downscaleImage(file);
+    // Text sitting in the input rides along as the photo caption, mirroring
+    // the Telegram flow ("my portion is 50%" applies to the receipt).
+    const caption = document.getElementById('capture-input').value.trim();
+    setCaptureBusy(false);
+    await parseCapture({ image_b64: b64, mime: 'image/jpeg', caption: caption || undefined });
+  } catch (err) {
+    setCaptureBusy(false);
+    setCaptureNote('Could not read that photo — try again.', true);
+  }
+});
+
+// Downscale to keep the upload small and vision cost low. Browsers apply EXIF
+// orientation when decoding into <img>, so the canvas comes out upright.
+function downscaleImage(file, maxDim = 1280, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1]);
+      } catch (e) { reject(e); }
+      finally { URL.revokeObjectURL(url); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode failed')); };
+    img.src = url;
+  });
+}
+
+async function parseCapture(payload) {
+  if (captureBusy) return;
+  if (!activeUser) {
+    setCaptureNote('Open your personal dashboard link (?user=…) before logging.', true);
+    return;
+  }
+  setCaptureNote('');
+  setCaptureBusy(true);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25000);
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ key: SECRET_KEY, action: 'parse', user: activeUser }, payload)),
+      signal: controller.signal
+    });
+    if (!res.ok) throw new Error('status ' + res.status);
+    const j = await res.json();
+    if (j.error) throw new Error(j.error);
+    handleParsedResult(j, payload.image_b64 ? 'web-image' : 'web');
+  } catch (e) {
+    setCaptureNote(e.name === 'AbortError' ? 'That took too long — try again.' : 'Could not read that: ' + e.message, true);
+  } finally {
+    clearTimeout(timer);
+    setCaptureBusy(false);
+  }
+}
+
+function handleParsedResult(j, source) {
+  const txns = j.transactions || [];
+  const dropped = j.dropped || 0;
+  if (!txns.length) {
+    // A note means the model saw a question, not a transaction.
+    setCaptureNote(j.note || (dropped ? 'Couldn’t make a usable entry out of that — try rephrasing.' : 'Nothing to log in that.'), !j.note);
+    return;
+  }
+  document.getElementById('capture-input').value = '';
+  if (dropped) setCaptureNote(`${dropped} unreadable ${dropped === 1 ? 'entry was' : 'entries were'} skipped.`);
+  if (txns.length === 1) openTxnModalPrefilled(txns[0], source);
+  else openReviewModal(txns, source);
+}
+
+// Single parsed entry → the normal txn modal, pre-filled, saving through the
+// untouched saveTxn() path.
+function openTxnModalPrefilled(txn, source) {
+  openTxnModal(null);
+  pendingSource = source;
+  document.getElementById('modal-title').textContent = 'Confirm entry';
+  setModalType(txn.type);
+  populateCategoryOptions(txn.type, txn.category);
+  document.getElementById('modal-amount').value = txn.amount;
+  document.getElementById('modal-desc').value = txn.description;
+  document.getElementById('modal-date').value = txn.date;
+}
+
+// ── Review list: N parsed entries → adjust amounts / remove rows → save all ──
+
+function openReviewModal(txns, source) {
+  reviewTxns = txns.map(t => Object.assign({}, t));
+  reviewSource = source;
+  renderReviewList();
+  document.getElementById('review-error').style.display = 'none';
+  const btn = document.getElementById('review-save-btn');
+  btn.disabled = false;
+  btn.textContent = 'Save all';
+  document.body.classList.add('modal-open-state');
+  const overlay = document.getElementById('review-overlay');
+  overlay.classList.add('open');
+  trapModalFocus(overlay, overlay.querySelector('.modal-sheet'));
+}
+
+function closeReviewModal() {
+  document.body.classList.remove('modal-open-state');
+  document.getElementById('review-overlay').classList.remove('open');
+  releaseModalFocus();
+}
+
+function renderReviewList() {
+  const wrap = document.getElementById('review-list');
+  wrap.innerHTML = reviewTxns.map((t, i) => `
+    <div class="review-row">
+      <div class="review-main">
+        <div class="review-desc">${escapeHtml(t.description)}</div>
+        <div class="review-meta">${escapeHtml(t.category)} · ${escapeHtml(t.date)}${t.type === 'Income' ? ' · <span class="income-tag">Income</span>' : ''}</div>
+      </div>
+      <input type="number" step="0.01" inputmode="decimal" class="review-amount" value="${t.amount}"
+             onchange="updateReviewAmount(${i}, this.value)" aria-label="Amount for ${escapeHtml(t.description)}">
+      <button type="button" class="review-remove" onclick="removeReviewRow(${i})" aria-label="Remove ${escapeHtml(t.description)}">×</button>
+    </div>`).join('');
+  const n = reviewTxns.length;
+  document.getElementById('review-sub').textContent =
+    `${n} ${n === 1 ? 'entry' : 'entries'} read — adjust amounts or remove rows, then save.`;
+}
+
+function updateReviewAmount(i, value) {
+  const amount = parseFloat(value);
+  if (isNaN(amount) || amount <= 0) { renderReviewList(); return; } // revert bad input
+  reviewTxns[i].amount = Math.round(amount * 100) / 100;
+}
+
+function removeReviewRow(i) {
+  reviewTxns.splice(i, 1);
+  if (!reviewTxns.length) { closeReviewModal(); return; }
+  renderReviewList();
+}
+
+// Saves sequentially through the same Apps Script add action as saveTxn().
+// On a failure the already-saved rows are removed from the list, so retrying
+// only saves the remainder — no duplicates.
+async function saveReviewAll() {
+  const btn = document.getElementById('review-save-btn');
+  const errEl = document.getElementById('review-error');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  const total = reviewTxns.length;
+
+  try {
+    while (reviewTxns.length) {
+      btn.textContent = `Saving ${total - reviewTxns.length + 1} of ${total}…`;
+      const t = reviewTxns[0];
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          key: SECRET_KEY, action: 'add', date: t.date, amount: t.amount,
+          category: t.category, description: t.description, type: t.type,
+          user: activeUser, source: reviewSource
+        })
+      });
+      const result = await res.json().catch(() => ({ success: true }));
+      if (result.error) throw new Error(result.error);
+      reviewTxns.shift();
+      renderReviewList();
+    }
+    closeReviewModal();
+    document.getElementById('main-loader').style.display = 'flex';
+    await init();
+  } catch (e) {
+    errEl.textContent = `Could not save: ${e.message}. The remaining ${reviewTxns.length} ${reviewTxns.length === 1 ? 'entry is' : 'entries are'} still listed — try again.`;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save all';
   }
 }
 
@@ -2145,6 +2508,93 @@ async function deleteTxn() {
     btn.textContent = 'Delete';
   }
 }
+
+// ── Push digest bell (FCM) ───────────────────────────────────────────────────
+// The Firebase SDK is only imported when the user actually toggles the bell —
+// people who never enable push never load it. The SDK must be handed OUR
+// service worker registration: left to itself it registers
+// /firebase-messaging-sw.js at the domain root, which 404s on a GitHub Pages
+// project site (/alfred-dashboard/).
+
+let pushBusy = false;
+let _messaging = null;
+
+function pushSupported() {
+  return 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+}
+
+function initPushUI() {
+  if (!FIREBASE_CONFIG || !FCM_VAPID_KEY || !pushSupported()) return; // bell stays hidden
+  const btn = document.getElementById('push-btn');
+  btn.style.display = 'flex';
+  setPushUIState(!!localStorage.getItem('alfred_push_token') && Notification.permission === 'granted');
+}
+
+function setPushUIState(on) {
+  const btn = document.getElementById('push-btn');
+  btn.classList.toggle('on', on);
+  btn.setAttribute('aria-pressed', String(on));
+  btn.title = on ? 'Daily digest notifications: on' : 'Get the daily digest as a notification';
+}
+
+async function loadMessaging() {
+  if (_messaging) return _messaging;
+  const [{ initializeApp }, m] = await Promise.all([
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js')
+  ]);
+  const app = initializeApp(FIREBASE_CONFIG);
+  _messaging = { messaging: m.getMessaging(app), getToken: m.getToken, deleteToken: m.deleteToken };
+  return _messaging;
+}
+
+async function postPushAction(action, token) {
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ key: SECRET_KEY, action, user: activeUser, token })
+  });
+  const j = await res.json().catch(() => ({}));
+  if (j.error) throw new Error(j.error);
+}
+
+async function togglePush() {
+  if (pushBusy) return;
+  if (!activeUser) { alert('Open your personal dashboard link (?user=…) first — notifications are per person.'); return; }
+  pushBusy = true;
+  const btn = document.getElementById('push-btn');
+  btn.style.opacity = '0.5';
+  try {
+    const stored = localStorage.getItem('alfred_push_token');
+    if (stored) {
+      // Turn off: forget server-side first, then locally.
+      try { await postPushAction('push-unsubscribe', stored); } catch (e) {}
+      try { const fm = await loadMessaging(); await fm.deleteToken(fm.messaging); } catch (e) {}
+      localStorage.removeItem('alfred_push_token');
+      setPushUIState(false);
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      alert('Notifications are blocked for this site — enable them in your browser settings to get the daily digest.');
+      return;
+    }
+    const fm = await loadMessaging();
+    const reg = await navigator.serviceWorker.ready;
+    const token = await fm.getToken(fm.messaging, { vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) throw new Error('no token');
+    await postPushAction('push-subscribe', token);
+    localStorage.setItem('alfred_push_token', token);
+    setPushUIState(true);
+  } catch (e) {
+    alert('Could not set up notifications: ' + e.message);
+  } finally {
+    pushBusy = false;
+    btn.style.opacity = '';
+  }
+}
+
+initPushUI();
 
 init();
 </script>
