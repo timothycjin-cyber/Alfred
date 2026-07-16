@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-16 (Repo decoupled from the Telegram bot: this CLAUDE.md now documents only the web app; the bot lives entirely in `project-alfred`. Same day: Phase 0 done — Firebase `project-alfred-f7575` configured [PRs #22/#23], capture bar, insights and the FCM push digest all VERIFIED LIVE on Android; nightly 10–11pm trigger set. Prior: independent-web-app build 2026-07-15 — PWA shell, capture bar, push bell, `apps-script/Code.gs` backend.)*
+*Last updated: 2026-07-16 (**Telegram bot DECOMMISSIONED** — the web app is now the whole product; `apps-script/Code.gs` is the single extraction/validation implementation. Earlier same day: repo decoupled from the bot; Phase 0 done — Firebase `project-alfred-f7575` configured [PRs #22/#23], capture bar, insights and the FCM push digest all VERIFIED LIVE on Android; nightly 10–11pm trigger set. Prior: independent-web-app build 2026-07-15.)*
 
 ---
 
@@ -10,7 +10,7 @@
 
 **Product model:** capture must be effortless (log an expense in seconds, confirm-before-save), analytics are pull-based and visual (trends, breakdowns, insights), and the digest is push (10pm notification). All three now live in this one app.
 
-**Companion capture channel:** a Telegram bot (`timothycjin-cyber/project-alfred` repo, on Railway) writes to the same Sheet — same extraction schema, same validation rules. It is documented in its own repo's CLAUDE.md and this repo does not depend on it in any way. Its long-term fate (Phase D: port to Apps Script / retire Railway) is tracked there.
+**The former Telegram bot is decommissioned (2026-07-16).** This app replaced it outright — capture, glance, and push all proved out here, so the bot and its Railway hosting were retired rather than ported (the old "Phase D" plan). Its repo (`timothycjin-cyber/project-alfred`) is a historical record; rows it wrote (Source `telegram`/`telegram-image`) remain in the Sheet as valid data.
 
 ---
 
@@ -27,28 +27,23 @@
 | 1 | Amount (MYR) | Numeric |
 | 2 | Category | String |
 | 3 | Description | String |
-| 4 | Source | `web` / `web-image` (capture bar), `dashboard` (plain FAB add), `telegram` / `telegram-image` (companion bot's rows) |
+| 4 | Source | `web` / `web-image` (capture bar), `dashboard` (plain FAB add), `telegram` / `telegram-image` (historical rows from the retired bot) |
 | 5 | Type | Expense or Income |
-| 6 | UID | Short unique id, e.g. mqx393vfm58v. Apps Script generates `Date.now().toString(36)` + random; the companion bot writes 12-char hex. Never assume a format — treat as opaque. |
+| 6 | UID | Short unique id, e.g. mqx393vfm58v. Apps Script generates `Date.now().toString(36)` + random; rows from the retired bot are 12-char hex. Never assume a format — treat as opaque. |
 | 7 | User | User id (integer stored as string; historically the Telegram chat_id — kept as the identity key). Written on every add/edit. Legacy rows backfilled via Find & Replace in col H. |
 
 **Income Categories:** Salary, Freelance, Bonus, Investment, Side Income, Reimbursement, Other Income
 **Expense Categories:** Food & Dining, Transport, Shopping, Groceries, Entertainment, Bills & Utilities, Other
 
-**Write paths into the same sheet:**
-
-- **This app** → fetch() POST → Google Apps Script Web App → appends/edits/deletes rows in Sheet1 (and `PushSubs` for push tokens)
-- Companion Telegram bot → gspread writes directly to Sheet1 (its own repo's concern)
+**Write path (the only one since the bot's retirement):** this app → fetch() POST → Google Apps Script Web App → appends/edits/deletes rows in Sheet1.
 
 There is also a **`PushSubs` tab** (User | Token | Created), auto-created by Apps Script — FCM push subscriptions, one row per device token.
 
 ---
 
-## 2. Companion Telegram Bot (separate repo — not this repo's concern)
+## 2. Former Telegram Bot — DECOMMISSIONED 2026-07-16
 
-Lives in `timothycjin-cyber/project-alfred` (Python/Flask on Railway) with its own CLAUDE.md. Shares the Sheet, the category lists, the extraction schema (array-return), and the validation philosophy — the Apps Script `parse` action in this repo (§3b) is a port of its pipeline, and the two stay behaviourally aligned on purpose. If the extraction prompt or validation rules change in either repo, mirror the change in the other.
-
-The bot's 10pm Telegram digest runs alongside this app's FCM push digest during the trial period. **Phase D** (porting the bot to Apps Script and retiring Railway) is tracked in the bot repo, pending its Railway stress-test verdict.
+Retired the same day the web app's capture/insights/push were verified live; the app made it redundant, so it was shut down instead of ported (superseding the old Phase D plan and the Railway stress test). Its repo (`timothycjin-cyber/project-alfred`, Python/Flask, formerly on Railway) remains as a historical record. The extraction prompt + validation rules it pioneered now live **solely** in `apps-script/Code.gs` — there is no second implementation to keep aligned anymore.
 
 ---
 
@@ -136,19 +131,19 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Novelty rotation:** `computeInsightNarrative()` de-prioritizes families shown on recent generations (`localStorage` per user, last 5 gens; penalty `28·0.55^age` subtracted from score before the top-3 pick). Modest + decaying, so a dominant story (big pace/category swing) persists while the mid-tier rotates across days. Verified: pace stayed pinned while slots 2–3 cycled timing → recurring → timing. Only genuine renders record history (the `.settled` skip doesn't), and fallbacks record nothing.
 - **Typewriter reveal:** `typewriteInto()` sets the real innerHTML (so `<b>`/valence spans exist), then types it out over the DOM's text nodes via `requestAnimationFrame` (duration `clamp(chars·14ms, 500, 1900)`), with a blinking burnt-sienna caret (`.insight-body.typing::after`). Sells the "live analyst" feel. Reduced motion shows the full text instantly with no caret; a new render cancels the prior `_twRAF`.
 
-**Phase 2 — LLM phrasing (2026-07-12 — LIVE; backend moved to Apps Script 2026-07-15):** `renderAnalyticsInsight()` POSTs the computed plain-text facts as `{key, action:'insights', facts, month}` → `{narrative}` (gpt-4o-mini, *use-only-these-numbers* prompt — `handleInsights` in `apps-script/Code.gs`) and types the returned narrative. `styleInsightText()` escapes the model's text then re-bolds `RM x.xx` / `%` / `×` so figures still pop (styling only — the numbers are the ones we sent). Fully guarded: on timeout (10s), non-200, or any error → falls back to the deterministic `body`; `insightCache` (per user+month+`dataStamp`+families) avoids re-hitting the endpoint; an `insightToken` drops stale responses; a `.insight-thinking` dots indicator shows while phrasing. Numbers are still computed locally, so the LLM can never misstate a figure and the feature degrades to the free/offline templates. `INSIGHTS_ENDPOINT` = `APPS_SCRIPT_URL`; blank it to force Phase-1-only. (History: originally served by a `/insights` endpoint on the companion bot — PR #18 here + `project-alfred` PR #11 — re-pointed to Apps Script when the app went serverless.)
+**Phase 2 — LLM phrasing (2026-07-12 — LIVE; backend moved to Apps Script 2026-07-15):** `renderAnalyticsInsight()` POSTs the computed plain-text facts as `{key, action:'insights', facts, month}` → `{narrative}` (gpt-4o-mini, *use-only-these-numbers* prompt — `handleInsights` in `apps-script/Code.gs`) and types the returned narrative. `styleInsightText()` escapes the model's text then re-bolds `RM x.xx` / `%` / `×` so figures still pop (styling only — the numbers are the ones we sent). Fully guarded: on timeout (10s), non-200, or any error → falls back to the deterministic `body`; `insightCache` (per user+month+`dataStamp`+families) avoids re-hitting the endpoint; an `insightToken` drops stale responses; a `.insight-thinking` dots indicator shows while phrasing. Numbers are still computed locally, so the LLM can never misstate a figure and the feature degrades to the free/offline templates. `INSIGHTS_ENDPOINT` = `APPS_SCRIPT_URL`; blank it to force Phase-1-only. (History: originally served by a `/insights` endpoint on the since-retired bot — PR #18 here + `project-alfred` PR #11 — re-pointed to Apps Script when the app went serverless.)
 
 **Potential next tie-in:** surface the shared daily-summary block ("today so far vs average") at the top of the dashboard, reusing the digest logic.
 
 ### 3b. Independent web app — Railway-free (2026-07-15 built; 2026-07-16 Phase 0 done, push digest VERIFIED LIVE)
 
-**Decision:** the dashboard grows into a standalone web app (capture + push, not just pull/visual), with **zero Railway dependency** — Google Apps Script is its entire backend. The Telegram bot stays on Railway untouched; migrating it (Phase D) is deferred until the stress test settles Railway's fate.
+**Decision:** the dashboard grows into a standalone web app (capture + push, not just pull/visual), with **zero Railway dependency** — Google Apps Script is its entire backend. (At the time the Telegram bot stayed on Railway untouched, with migration deferred as "Phase D" — a day later the app's success made the bot redundant and it was decommissioned instead; see the end of this section.)
 
 **Apps Script backend (`apps-script/Code.gs` — NEW, in-repo source of truth):**
 - The existing Web App (same URL, same `key: "8891"`) gains actions: `parse`, `insights`, `push-subscribe`, `push-unsubscribe`, `run-digest-push`. All POSTed `text/plain` like the writes. ⚠️ The add/edit/delete handlers in the file were **reconstructed from documented behavior — diff against the live script before the first paste.**
 - `parse` — `{user, text | image_b64[, mime][, caption]}` → `{transactions:[…], dropped, note?}`. Ports the bot's `EXTRACT_PROMPT` (array schema) + `validate_transactions()` (fix-quietly/drop-loudly; 36 Node tests pass). **Extract only — never writes**; saving goes through the normal confirmed add path. Guarded by the `ALLOWED_USERS` Script Property (protects OpenAI spend; the 8891 key is public in page source) + input size caps. A query object comes back as `note` for the capture UI.
 - `insights` — port of the bot's `/insights` (same prompt, max_tokens 160, temp 0.6). `INSIGHTS_ENDPOINT` in index.html now points at Apps Script (`action:'insights'`, timeout 7s→10s for script latency). The Railway `/insights` endpoint still exists but is no longer called.
-- Push digest — `PushSubs` tab (User | Token | Created, auto-created), `sendDailyDigestPush()` as the **time-driven trigger target** (daily 10–11pm; Apps Script triggers fire within the hour, not exact-minute). JS port of `build_daily_digest`/`_daily_average` produces a compact `{title, body}`; sent per token via **FCM HTTP v1** (SA JWT signed with `Utilities.computeRsaSha256Signature`, access token cached in `CacheService` 55 min; dead tokens pruned on UNREGISTERED). Runs **alongside** the Telegram 10pm digest during the trial.
+- Push digest — `PushSubs` tab (User | Token | Created, auto-created), `sendDailyDigestPush()` as the **time-driven trigger target** (daily 10–11pm; Apps Script triggers fire within the hour, not exact-minute). JS port of `build_daily_digest`/`_daily_average` produces a compact `{title, body}`; sent per token via **FCM HTTP v1** (SA JWT signed with `Utilities.computeRsaSha256Signature`, access token cached in `CacheService` 55 min; dead tokens pruned on UNREGISTERED). (Ran alongside the Telegram 10pm digest during the trial; sole digest channel since the bot's retirement.)
 - Script Properties needed: `OPENAI_API_KEY`, `ALLOWED_USERS`, `FIREBASE_SA_JSON`, `FCM_PROJECT_ID`.
 
 **Dashboard — PWA shell:** `manifest.json` (standalone, theme colors per scheme, maskable icons in `icons/`) + `firebase-messaging-sw.js` (SW at repo root: raw `push` → `showNotification`, `notificationclick` → focus/open; **deliberately no fetch handler** so GViz stays live; no Firebase SDK import in the worker). `start_url` can't carry `?user=`, so `activeUser` now falls back to `localStorage('alfred_user')` (written whenever the param is present) — the installed app keeps working; strict privacy filter unchanged.
@@ -163,7 +158,7 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 3. Add the daily trigger: `sendDailyDigestPush`, time-driven, 10pm–11pm.
 4. Test: dashboard → bell on (Android Chrome) → run `sendDailyDigestPush` from the script editor (or POST `{key, action:'run-digest-push'}`) → notification arrives.
 
-**Phase D (deferred):** move the Telegram webhook onto Apps Script (JS port of the bot) and retire Railway entirely — decision after the stress test.
+**Phase D — resolved 2026-07-16:** instead of porting the bot to Apps Script, the bot was decommissioned outright once this app's capture + push were verified live. See §2.
 
 ---
 
@@ -180,19 +175,20 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 
 - **Phase 0 setup + push digest verified live (2026-07-16) — DONE.** Firebase configured, Code.gs live, bell subscribed, test notification received on Android. Shipped via PRs #22 + #23. See §3b.
 
-- **Everything verified live (2026-07-16):** capture bar (text + photo), insights via Apps Script, push digest notification received, nightly 10–11pm trigger set. Repo decoupled from the bot the same day (README + CLAUDE.md rewritten web-app-first; §2 reduced to a pointer).
+- **Everything verified live (2026-07-16):** capture bar (text + photo), insights via Apps Script, push digest notification received, nightly 10–11pm trigger set. Repo decoupled from the bot the same day (README + CLAUDE.md rewritten web-app-first).
+- **Telegram bot decommissioned (2026-07-16):** the app replaced it outright; bot repo archived as history, Railway + Telegram teardown on the owner's checklist. `Code.gs` is now the single extraction/validation implementation.
 
 ### What's Pending ❌
+- **Owner teardown of retired services:** delete the Railway project (stops billing) and the Telegram webhook/bot; give any co-users their `?user=` dashboard links first.
 - Correction handling in the capture bar ("actually make that RM20" → edit last entry, not new row) — fits the "natural human input" goal; needs last-UID-per-user memory
 - Surface the shared daily-summary block on Home ("today so far vs average", reusing the digest math already in `Code.gs`)
 - Capture-parse validation suite (multi-day backdate, split-bill photo) — prompt-driven logic needs real-world eyeballing
-- (Tracked in the bot repo, affects the shared Sheet only: Phase D / Railway stress test)
 
 ---
 
 ## 5. Cost & Sustainability
 
-**The web app runs at ~$0/month.** GitHub Pages, Apps Script, and FCM are free; the only metered cost is OpenAI (gpt-4o-mini): ~$0.0002 per text parse, ~$0.002–0.004 per photo, ~a few hundred tokens per insights phrasing (cached client-side per month+data). Realistic total **well under $0.50/mo** against the $5 budget. Guards on the spend: `ALLOWED_USERS` allow-list on `parse`, input size caps, insights cache. Apps Script free quotas (20k UrlFetch/day, 90 min trigger runtime/day) are orders of magnitude above usage. The companion bot's Railway costs are tracked in its own repo.
+**The web app runs at ~$0/month.** GitHub Pages, Apps Script, and FCM are free; the only metered cost is OpenAI (gpt-4o-mini): ~$0.0002 per text parse, ~$0.002–0.004 per photo, ~a few hundred tokens per insights phrasing (cached client-side per month+data). Realistic total **well under $0.50/mo** against the $5 budget. Guards on the spend: `ALLOWED_USERS` allow-list on `parse`, input size caps, insights cache. Apps Script free quotas (20k UrlFetch/day, 90 min trigger runtime/day) are orders of magnitude above usage. With the bot and Railway retired, there are no other running costs anywhere in the project.
 
 ---
 
@@ -204,7 +200,7 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - Capture-parse validation suite (Phase 4 of the old NLP pipeline, now applies to the Apps Script port)
 - Per-user digest-time preference (PushSubs could grow a column)
 
-**Cross-repo:** Phase D — if the bot's Railway stress test fails, port the bot onto this same Apps Script backend and retire Railway (tracked in `project-alfred`).
+(The old cross-repo item — Phase D, porting the bot to Apps Script — was resolved 2026-07-16 by retiring the bot instead.)
 
 ---
 
@@ -214,7 +210,7 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Validation philosophy: fix quietly, drop loudly.** Silent coercion for anything fixable (currency noise, off-list category, bad date), visible drops only for genuinely unwritable rows. Keeps natural input frictionless without writing garbage.
 - Prompt-driven logic (dates, splits) needs **real-world eyeballing** — unit tests can't cover the LLM's reasoning, only the deterministic guardrails around it.
 - **Digest as pure sheet math** (no LLM) keeps it free and instant — one source of truth reusable across push (notification) + pull (future daily-summary block).
-- **Extraction/validation logic is duplicated across this repo's `Code.gs` and the companion bot** — behaviourally aligned on purpose; a change in either must be mirrored in the other (until Phase D unifies them).
+- **Extraction/validation logic now has a single implementation** (`Code.gs`) — it was briefly duplicated across this repo and the Telegram bot, which is exactly the kind of drift risk that made retiring the bot attractive once the app covered its jobs.
 - Empty-User rows are legacy owner rows — the digest's user filter keeps the empty-string fallback until they're all backfilled.
 
 **Dashboard UX (2026-07-11 vibe session):**
