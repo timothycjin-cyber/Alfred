@@ -178,8 +178,9 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Everything verified live (2026-07-16):** capture bar (text + photo), insights via Apps Script, push digest notification received, nightly 10–11pm trigger set. Repo decoupled from the bot the same day (README + CLAUDE.md rewritten web-app-first).
 - **Telegram bot decommissioned (2026-07-16):** the app replaced it outright; bot repo archived as history, Railway + Telegram teardown on the owner's checklist. `Code.gs` is now the single extraction/validation implementation.
 
+- **Teardown of retired services complete (2026-07-16):** Railway project deleted (billing ended), Telegram webhook/bot removed, co-users pointed at their `?user=` dashboard links. Nothing of the old stack runs anywhere.
+
 ### What's Pending ❌
-- **Owner teardown of retired services:** delete the Railway project (stops billing) and the Telegram webhook/bot; give any co-users their `?user=` dashboard links first.
 - Correction handling in the capture bar ("actually make that RM20" → edit last entry, not new row) — fits the "natural human input" goal; needs last-UID-per-user memory
 - Surface the shared daily-summary block on Home ("today so far vs average", reusing the digest math already in `Code.gs`)
 - Capture-parse validation suite (multi-day backdate, split-bill photo) — prompt-driven logic needs real-world eyeballing
