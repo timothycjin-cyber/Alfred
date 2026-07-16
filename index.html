@@ -174,9 +174,9 @@
   }
   .bottom-bar > * { pointer-events: auto; }
 
-  /* The FAB is docked in the middle of the pill (Home · + · Analytics), a
-     56px raised circle poking 4px above/below the 48px glass bar — dead
-     center, so it's equally reachable for a left or right thumb. */
+  /* The FAB is docked in the middle of the pill (Home · + · Analytics),
+     flush inside the 48px glass bar — dead center, so it's equally
+     reachable for a left or right thumb. */
   .floating-nav {
     position: relative;
     background: rgba(255, 255, 255, 0.75);
@@ -217,14 +217,14 @@
   .nav-btn.active { color: var(--on-primary); font-weight: 700; }
   
   /* Slider width = one tab slot: half the pill minus half the docked FAB
-     (28px) and its share of padding/gaps. The Analytics position hops over
-     the FAB: its own width (100%) + the 56px FAB + the two 4px gaps. */
+     (20px) and its share of padding/gaps. The Analytics position hops over
+     the FAB: its own width (100%) + the 40px FAB + the two 4px gaps. */
   .nav-slider {
     position: absolute;
     top: 4px;
     bottom: 4px;
     left: 4px;
-    width: calc(50% - 36px);
+    width: calc(50% - 28px);
     background: var(--primary);
     border-radius: var(--shape-full);
     transition: transform var(--motion-wobble);
@@ -233,8 +233,8 @@
   }
 
   .fab {
-    width: 56px;
-    height: 56px;
+    width: 40px;
+    height: 40px;
     border-radius: var(--shape-full);
     background: var(--primary);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -789,10 +789,36 @@
   .capture-note.show { display: block; }
   .capture-note.error { color: var(--semantic-expense); }
 
-  /* Bottom-anchored sheet variant: the capture sheet hugs the thumb zone
-     instead of centering mid-screen. */
-  .modal-overlay.align-bottom { align-items: flex-end; }
-  .modal-overlay.align-bottom .modal-sheet { max-width: 440px; }
+  /* Photo-attach preview (WhatsApp-style): the chosen receipt shows as a
+     thumbnail chip above the input so a note can be typed before sending —
+     "2 pax, only count my half" rides along as the photo caption. */
+  .capture-attach {
+    display: none; align-items: center; gap: 10px;
+    padding: 8px; margin-bottom: 10px;
+    border-radius: var(--shape-md); border: 1px solid var(--outline-variant);
+    background: var(--surface-container);
+  }
+  .capture-attach.show { display: flex; }
+  .capture-attach img { width: 44px; height: 44px; border-radius: var(--shape-sm); object-fit: cover; flex-shrink: 0; }
+  .capture-attach-label { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: var(--on-surface-variant); line-height: 1.4; }
+
+  /* Bottom-anchored sheet variant, floated just above the nav pill — right
+     where the thumb already is after tapping the FAB. Container-transform
+     entrance: the sheet starts as a small circle at the FAB's spot (origin
+     ~44px below its resting place) and springs open — the FAB visually
+     becomes the sheet. */
+  .modal-overlay.align-bottom { align-items: flex-end; padding: 1rem 1rem 96px; }
+  .modal-overlay.align-bottom .modal-sheet {
+    max-width: 440px;
+    transform-origin: 50% calc(100% + 44px);
+    transform: scale(0.08);
+    border-radius: var(--shape-full);
+    transition: transform var(--motion-wobble), border-radius var(--motion-snap), opacity var(--motion-standard);
+  }
+  .modal-overlay.align-bottom.open .modal-sheet {
+    transform: scale(1);
+    border-radius: var(--shape-xl);
+  }
 
   /* ── Review list (multi-entry confirm) ──────────────────────────────────── */
   #review-list { max-height: 45vh; overflow-y: auto; margin-bottom: 0.5rem; }
@@ -998,21 +1024,32 @@
 <div class="modal-overlay align-bottom" id="capture-overlay" onclick="if(event.target===this) closeCaptureModal()">
   <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="capture-title" tabindex="-1">
     <div class="modal-title" id="capture-title">Log a transaction</div>
+    <div class="capture-attach" id="capture-attach">
+      <img id="capture-attach-img" alt="Attached receipt photo">
+      <div class="capture-attach-label">Photo attached — add a note (&ldquo;2 pax, count my half&rdquo;) or send as is.</div>
+      <button type="button" class="review-remove" onclick="clearCaptureAttachment()" aria-label="Remove photo">×</button>
+    </div>
     <div class="capture-card" id="capture-card">
-      <button type="button" class="icon-btn" id="capture-camera-btn" onclick="document.getElementById('capture-file').click()" aria-label="Add a receipt photo — camera or gallery">
+      <button type="button" class="icon-btn" id="capture-gallery-btn" onclick="document.getElementById('capture-gallery-file').click()" aria-label="Attach from gallery or files">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+        </svg>
+      </button>
+      <input type="text" class="capture-input" id="capture-input" placeholder="&ldquo;lunch RM15&rdquo; or add a receipt" autocomplete="off" enterkeyhint="send" aria-label="Describe a transaction">
+      <button type="button" class="icon-btn" id="capture-camera-btn" onclick="document.getElementById('capture-camera-file').click()" aria-label="Take a photo">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
         </svg>
       </button>
-      <input type="text" class="capture-input" id="capture-input" placeholder="&ldquo;lunch RM15&rdquo; or add a receipt" autocomplete="off" enterkeyhint="send" aria-label="Describe a transaction">
       <button type="button" class="capture-send" id="capture-send-btn" onclick="submitCaptureText()" aria-label="Log it">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
         </svg>
       </button>
-      <!-- No capture attribute: the OS offers camera AND gallery/files, so
-           screenshots of receipts work too. -->
-      <input type="file" id="capture-file" accept="image/*" hidden>
+      <!-- Two inputs, WhatsApp-style: camera goes straight to the camera
+           (capture attr), clip opens gallery/files for screenshots. -->
+      <input type="file" id="capture-camera-file" accept="image/*" capture="environment" hidden>
+      <input type="file" id="capture-gallery-file" accept="image/*" hidden>
     </div>
     <div class="capture-note" id="capture-note" aria-live="polite"></div>
     <div class="modal-actions" style="margin-top: 0.25rem">
@@ -1775,8 +1812,8 @@ function switchView(view) {
   if (isTabChange) {
     section.classList.add(view === 'analytics' ? 'axis-in-left' : 'axis-in-right');
   }
-  // Analytics slot sits past the docked FAB: own width + 56px FAB + 2×4px gaps.
-  document.getElementById('nav-slider').style.transform = (view === 'analytics') ? 'translateX(calc(100% + 64px))' : 'translateX(0)';
+  // Analytics slot sits past the docked FAB: own width + 40px FAB + 2×4px gaps.
+  document.getElementById('nav-slider').style.transform = (view === 'analytics') ? 'translateX(calc(100% + 48px))' : 'translateX(0)';
   calculateAndRender();
 }
 
@@ -2328,33 +2365,54 @@ function setCaptureBusy(busy) {
   document.getElementById('capture-card').classList.toggle('busy', busy);
 }
 
+// A chosen photo doesn't send immediately — it parks as an attachment
+// (thumbnail chip above the input) so a note can be typed alongside it
+// ("this is for 2 people, only count my half"); send submits both together,
+// with the note as the photo caption. Persists across sheet close/reopen
+// until sent or removed.
+let pendingImageB64 = null;
+
 function submitCaptureText() {
   const text = document.getElementById('capture-input').value.trim();
-  if (!text) return;
-  parseCapture({ text });
+  if (pendingImageB64) parseCapture({ image_b64: pendingImageB64, mime: 'image/jpeg', caption: text || undefined });
+  else if (text) parseCapture({ text });
 }
 
 document.getElementById('capture-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.isComposing) submitCaptureText();
 });
 
-document.getElementById('capture-file').addEventListener('change', async (e) => {
+function showCaptureAttachment() {
+  document.getElementById('capture-attach-img').src = 'data:image/jpeg;base64,' + pendingImageB64;
+  document.getElementById('capture-attach').classList.add('show');
+  document.getElementById('capture-input').placeholder = 'Add a note, or send as is';
+}
+
+function clearCaptureAttachment() {
+  pendingImageB64 = null;
+  document.getElementById('capture-attach-img').src = '';
+  document.getElementById('capture-attach').classList.remove('show');
+  document.getElementById('capture-input').placeholder = '“lunch RM15” or add a receipt';
+}
+
+// One handler for both routes: camera (capture attr) and gallery/files (clip).
+async function handleCaptureFile(e) {
   const file = e.target.files && e.target.files[0];
   e.target.value = ''; // same photo re-selectable
   if (!file || captureBusy) return;
   try {
     setCaptureBusy(true);
-    const b64 = await downscaleImage(file);
-    // Text sitting in the input rides along as the photo caption, so split
-    // instructions ("my portion is 50%") apply to the receipt being snapped.
-    const caption = document.getElementById('capture-input').value.trim();
-    setCaptureBusy(false);
-    await parseCapture({ image_b64: b64, mime: 'image/jpeg', caption: caption || undefined });
+    pendingImageB64 = await downscaleImage(file);
+    setCaptureNote('');
+    showCaptureAttachment();
   } catch (err) {
-    setCaptureBusy(false);
     setCaptureNote('Could not read that photo — try again.', true);
+  } finally {
+    setCaptureBusy(false);
   }
-});
+}
+document.getElementById('capture-camera-file').addEventListener('change', handleCaptureFile);
+document.getElementById('capture-gallery-file').addEventListener('change', handleCaptureFile);
 
 // Downscale to keep the upload small and vision cost low. Browsers apply EXIF
 // orientation when decoding into <img>, so the canvas comes out upright.
@@ -2416,6 +2474,7 @@ function handleParsedResult(j, source) {
     return;
   }
   document.getElementById('capture-input').value = '';
+  clearCaptureAttachment();
   // Note persists into the next sheet open (parseCapture clears it on submit).
   if (dropped) setCaptureNote(`${dropped} unreadable ${dropped === 1 ? 'entry was' : 'entries were'} skipped.`);
   // Hand off from the capture sheet to the confirm step.
