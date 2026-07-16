@@ -27,7 +27,7 @@ Fully serverless and free to run:
 - **Backend** — the Sheet's own Google Apps Script Web App (`apps-script/Code.gs`): transaction writes, AI parsing (OpenAI), insights phrasing, push subscriptions, and the scheduled digest
 - **Push** — Firebase Cloud Messaging (free tier), sent by an Apps Script daily trigger
 
-The Sheet is also written to by a companion Telegram bot ([Project-Alfred](https://github.com/timothycjin-cyber/Project-Alfred)) — an alternative capture channel that shares the same data.
+(Historical note: capture originally happened through a Telegram bot — [Project-Alfred](https://github.com/timothycjin-cyber/Project-Alfred), decommissioned 2026-07-16 once this app covered everything it did. Rows it wrote remain in the Sheet.)
 
 ---
 
