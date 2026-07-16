@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-12 (Modal no longer auto-pops the mobile keyboard on open — PR #20. Earlier same day: analytics insights strip LIVE end-to-end — Phase 1 deterministic engine + novelty rotation + typewriter, Phase 2 LLM phrasing via the bot's new `/insights` endpoint; modal polish, physics pass, quick-wins, pie-leader + mobile-zoom fixes — PRs #11–#18 (dashboard) + `project-alfred` #11 (bot). Prior day: motion polish, UX refresh, Pipeline 2 Phase 1–3.)*
+*Last updated: 2026-07-15 (Independent web app — Railway-free: PWA shell, capture bar [chat + camera → parse → confirm], FCM push-digest bell, Apps Script becomes the web app's whole backend [`apps-script/Code.gs` in-repo — parse/insights/push/digest actions], insights re-pointed from Railway to Apps Script. Needs Phase 0 user setup before the new features go live — see §3b. Prior: modal keyboard fix PR #20; insights strip live end-to-end PRs #11–#18 + `project-alfred` #11.)*
 
 ---
 
@@ -223,6 +223,31 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 
 **Potential next tie-in:** surface the shared daily-summary block ("today so far vs average") at the top of the dashboard, reusing the digest logic.
 
+### 3b. Independent web app — Railway-free (2026-07-15 — BUILT, needs Phase 0 setup)
+
+**Decision:** the dashboard grows into a standalone web app (capture + push, not just pull/visual), with **zero Railway dependency** — Google Apps Script is its entire backend. The Telegram bot stays on Railway untouched; migrating it (Phase D) is deferred until the stress test settles Railway's fate.
+
+**Apps Script backend (`apps-script/Code.gs` — NEW, in-repo source of truth):**
+- The existing Web App (same URL, same `key: "8891"`) gains actions: `parse`, `insights`, `push-subscribe`, `push-unsubscribe`, `run-digest-push`. All POSTed `text/plain` like the writes. ⚠️ The add/edit/delete handlers in the file were **reconstructed from documented behavior — diff against the live script before the first paste.**
+- `parse` — `{user, text | image_b64[, mime][, caption]}` → `{transactions:[…], dropped, note?}`. Ports the bot's `EXTRACT_PROMPT` (array schema) + `validate_transactions()` (fix-quietly/drop-loudly; 36 Node tests pass). **Extract only — never writes**; saving goes through the normal confirmed add path. Guarded by the `ALLOWED_USERS` Script Property (protects OpenAI spend; the 8891 key is public in page source) + input size caps. A query object comes back as `note` for the capture UI.
+- `insights` — port of the bot's `/insights` (same prompt, max_tokens 160, temp 0.6). `INSIGHTS_ENDPOINT` in index.html now points at Apps Script (`action:'insights'`, timeout 7s→10s for script latency). The Railway `/insights` endpoint still exists but is no longer called.
+- Push digest — `PushSubs` tab (User | Token | Created, auto-created), `sendDailyDigestPush()` as the **time-driven trigger target** (daily 10–11pm; Apps Script triggers fire within the hour, not exact-minute). JS port of `build_daily_digest`/`_daily_average` produces a compact `{title, body}`; sent per token via **FCM HTTP v1** (SA JWT signed with `Utilities.computeRsaSha256Signature`, access token cached in `CacheService` 55 min; dead tokens pruned on UNREGISTERED). Runs **alongside** the Telegram 10pm digest during the trial.
+- Script Properties needed: `OPENAI_API_KEY`, `ALLOWED_USERS`, `FIREBASE_SA_JSON`, `FCM_PROJECT_ID`.
+
+**Dashboard — PWA shell:** `manifest.json` (standalone, theme colors per scheme, maskable icons in `icons/`) + `firebase-messaging-sw.js` (SW at repo root: raw `push` → `showNotification`, `notificationclick` → focus/open; **deliberately no fetch handler** so GViz stays live; no Firebase SDK import in the worker). `start_url` can't carry `?user=`, so `activeUser` now falls back to `localStorage('alfred_user')` (written whenever the param is present) — the installed app keeps working; strict privacy filter unchanged.
+
+**Dashboard — capture bar** (top of Home, static element, deliberately no entrance animation so it can't replay): text input + camera button (`capture="environment"` file input; canvas-downscale to ≤1280px JPEG q0.82 before base64) + send. POSTs `action:'parse'`; busy spinner replaces the send arrow; 25s timeout; notes/errors in `#capture-note`. Text in the input rides along as the **photo caption** (split instructions, mirroring Telegram). Confirm flow: **1 txn → the normal txn modal pre-filled** ("Confirm entry", saves via untouched `saveTxn()`); **N txns → `#review-overlay`** (editable amounts, removable rows, "Save all" saves sequentially; on failure the already-saved rows are gone from the list so retry can't duplicate). Capture-confirmed adds carry `source: 'web'` / `'web-image'` (plain FAB adds now send `'dashboard'`; `pendingSource` resets on every plain modal open).
+
+**Dashboard — push bell** (header, hidden until configured): `FIREBASE_CONFIG` + `FCM_VAPID_KEY` consts in index.html (public values; `null`/`""` hides the feature). Toggle lazily imports the Firebase SDK (gstatic, only when tapped), requests permission, `getToken({vapidKey, serviceWorkerRegistration})` — ⚠️ **must pass our SW registration** or the SDK tries to register `/firebase-messaging-sw.js` at the domain root, which 404s on a project-pages path — then `push-subscribe`. Token mirrored in `localStorage('alfred_push_token')` for state; toggle-off deletes token + unsubscribes.
+
+**Phase 0 — one-time user setup (nothing new is live until done):**
+1. Firebase: free project → add Web app (config object → `FIREBASE_CONFIG`) → Cloud Messaging → Web Push certificates → key pair (public key → `FCM_VAPID_KEY`) → Project settings → Service accounts → generate key (JSON → `FIREBASE_SA_JSON` Script Property).
+2. Apps Script: merge `apps-script/Code.gs` into the live script (diff first!), set the four Script Properties, **Deploy → Manage deployments → Edit → new version** (never a new deployment).
+3. Add the daily trigger: `sendDailyDigestPush`, time-driven, 10pm–11pm.
+4. Test: dashboard → bell on (Android Chrome) → POST `{key, action:'run-digest-push'}` to the Web App URL → notification arrives.
+
+**Phase D (deferred):** move the Telegram webhook onto Apps Script (JS port of the bot) and retire Railway entirely — decision after the stress test.
+
 ---
 
 ## 4. Status
@@ -241,8 +266,11 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Motion + physics pass (2026-07-11→12) — DONE & TESTED IN PROD.** From a UX review: staggered entrances, no-replay re-renders + value-inertia counters, callouts for every pie slice, dark-mode legend-dot fix; then quick-wins (prefers-reduced-motion, chip valence, refresh spin, validated category palette, visible negative months); then a physics pass (real damped-spring `linear()` easing, shared-axis tab transition, live-springing spend bar, bouncing bar-chart loader). Follow-ups: straightened pie leader lines, "Loading data…" copy, and a **mobile overflow/zoom bugfix** (`.container` `overflow-x: clip`). All detail in §3a. Shipped via PRs #11–#13.
 - **Analytics insights strip — DONE & LIVE (2026-07-12).** "What I noticed" narrative card: Phase 1 deterministic engine (six pattern builders across pace/category/recurring/timing, top-3 distinct families) + novelty rotation (localStorage, decaying penalty) + typewriter reveal; Phase 2 LLM phrasing via the bot's new `POST /insights` endpoint (facts computed locally, gpt-4o-mini rewords only, graceful fallback to templates). See §3a. Shipped via PRs #14, #16, #17 (dashboard) + #18 (dashboard) & `project-alfred` #11 (bot).
 - **Modal no longer auto-pops the keyboard on open (2026-07-12) — DONE.** Initial focus moves to the modal sheet (not the amount field) on open, per user feedback. See §3a. Shipped via PR #20.
+- **Independent web app (2026-07-15) — BUILT & VERIFIED (Playwright: 23 checks, 36 logic tests), pending Phase 0 setup.** PWA shell + capture bar (chat/camera → parse → confirm) + FCM push-digest bell + Apps Script backend (`apps-script/Code.gs`); insights re-pointed off Railway. See §3b.
 
 ### What's Pending ❌
+- **Phase 0 setup for the web app (user, ~30 min):** Firebase project + config consts, Apps Script merge + Script Properties + redeploy, daily trigger. See §3b — capture/insights/push don't work until this is done.
+- **Phase D (deferred):** port the Telegram bot to Apps Script and retire Railway — decide after the stress test.
 - **Stress test (in progress):** run the bot 1 month on Railway Free tier with 3 users to see if it fits within the $1/mo credit + 0.5 GB RAM ceiling. Deferred until after this: (a) RAM logging on boot/post-digest, (b) Railway billing alert at ~$0.80. Decision after test: stay Free / upgrade Hobby ($5/mo) / migrate.
 - Pipeline 2 Phase 4: validation test suite (multi-day backdate, split-bill photo)
 - Correction handling ("actually make that RM20" → edit last entry, not new row) — not yet built; fits the "natural human input" goal
@@ -302,4 +330,6 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **A horizontal transform + `position:fixed; right:0` = a mobile zoom trap.** The shared-axis slide's `translateX` briefly widened the document; the fixed nav/modal bars then sized to that widened layout viewport and *held* the overflow open, so the browser kept zooming to fit — creeping worse each toggle. Physics/slide animations that move things along X need an ancestor with `overflow-x: clip` (not `hidden`, which would kill vertical scroll). Caught by measuring `documentElement.scrollWidth` across repeated toggles in Playwright, not by eye.
 - **Compute the numbers, let the LLM only phrase them.** The insights strip (§3a) computes every figure in JS and would hand *those facts* to an LLM purely for wording — so the model can never misstate an amount. It also means Phase 1 (deterministic templates) is a complete, free, offline-capable feature on its own, and the LLM is a phrasing upgrade, not a dependency. Ship the deterministic half first.
 - **A static site can't hold a secret.** The dashboard is public GitHub Pages, so any LLM/insight call that needs the OpenAI key must go through a server that has it (the bot on Railway, or Apps Script) — never inline in `index.html`. This is why the insights LLM layer is a separate phase gated on the bot repo, not doable from `alfred-dashboard` alone.
+- **Apps Script can be the whole backend — with two crypto-shaped edges.** It holds secrets (Script Properties), calls OpenAI (UrlFetchApp), reads the Sheet natively, and schedules (time triggers) — all free. But it can't do raw Web Push (no ES256/ECDH), so push goes through FCM, whose RS256 service-account JWT it CAN sign (`computeRsaSha256Signature`). And FCM's page SDK must be handed our SW registration explicitly on a project-pages path.
+- **A manifest can't carry per-user state.** `start_url` is static, so anything identity-like (`?user=`) needs a client-side fallback (localStorage) for the installed-app launch path.
 - **Cross-origin GitHub Pages → Railway: two things or it silently fails.** (1) The Flask response needs `Access-Control-Allow-Origin` or the browser blocks *reading* it even on a 200; (2) send the request as `text/plain` (like the Apps Script writes) so it stays a "simple" request and skips the CORS preflight. And make the call **non-blocking** — computed-fact fallback + a 7s timeout + a "thinking" state — so a cold/slow/asleep Railway container degrades to the free templates instead of leaving the strip blank. A phrasing upgrade must never become a hard dependency.
