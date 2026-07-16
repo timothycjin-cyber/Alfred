@@ -1,6 +1,6 @@
-# Alfred Dashboard 📊
+# Alfred 📊
 
-A lightweight personal finance dashboard for **Project Alfred** — a Telegram-based expense and income tracker.
+**Project Alfred** — a personal finance web app. Log expenses in natural language or by snapping a receipt, see where the money goes, and get a nightly spending digest pushed to your phone.
 
 🔗 **Live:** https://timothycjin-cyber.github.io/alfred-dashboard/
 
@@ -8,35 +8,26 @@ A lightweight personal finance dashboard for **Project Alfred** — a Telegram-b
 
 ## What It Does
 
-Reads transaction data from a Google Sheet and visualises it in a clean mobile-first dashboard. No backend — fully static, runs in the browser.
+**Capture** — type "lunch RM15" (or "coffee RM3 last 3 days", "dinner RM60 my share 50%") or snap a receipt photo; the entry is parsed with AI and pre-filled for you to confirm before it's saved. Nothing is written without confirmation.
 
-**Home tab** — transaction timeline grouped by date, with daily spend totals and a net balance summary.
+**Home tab** — net balance hero with a 6-month trend, income/expense tiles, and a transaction timeline grouped by date.
 
-**Analytics tab** — cumulative spend chart (vs last month), category donut chart, burn rate, and end-of-month forecast.
+**Analytics tab** — an AI-phrased "What I noticed" insights note, spend-pace bar with a month-progress marker, cumulative spend vs last month, and a category breakdown pie.
 
----
-
-## How Data Gets In
-
-Transactions are logged via the **Alfred Telegram Bot** (separate repo) — send a text or receipt photo to the bot, and it writes a row to the Google Sheet automatically.
-
-The dashboard reads from the sheet via Google's public GViz JSON endpoint (no authentication required).
+**Push digest** — an installable PWA with a nightly (10pm) spending-summary notification via Firebase Cloud Messaging.
 
 ---
 
-## Stack
+## Architecture
 
-- Plain HTML / CSS / JS (single file)
-- Chart.js 4.4.1
-- Google Sheets (GViz endpoint for reads, Apps Script for writes — in progress)
-- GitHub Pages (hosting)
+Fully serverless and free to run:
 
----
+- **Frontend** — plain HTML/CSS/JS (single file), Chart.js, hosted on GitHub Pages
+- **Data** — one Google Sheet, read via the public GViz JSON endpoint
+- **Backend** — the Sheet's own Google Apps Script Web App (`apps-script/Code.gs`): transaction writes, AI parsing (OpenAI), insights phrasing, push subscriptions, and the scheduled digest
+- **Push** — Firebase Cloud Messaging (free tier), sent by an Apps Script daily trigger
 
-## Related Repo
-
-**Alfred Bot** — Telegram → OpenAI → Google Sheets pipeline
-`https://github.com/timothycjin-cyber/Project-Alfred`
+The Sheet is also written to by a companion Telegram bot ([Project-Alfred](https://github.com/timothycjin-cyber/Project-Alfred)) — an alternative capture channel that shares the same data.
 
 ---
 
@@ -44,12 +35,13 @@ The dashboard reads from the sheet via Google's public GViz JSON endpoint (no au
 
 | Feature | Status |
 |---|---|
-| Read dashboard (Home + Analytics) | ✅ Done |
-| Telegram bot logging | ✅ Done |
+| Home + Analytics dashboards | ✅ Done |
 | Multi-user support (per-user filtering) | ✅ Done |
-| Add entry from dashboard (FAB) | ✅ Done |
-| Edit / Delete entries from dashboard | ✅ Done |
-| NLP array schema (multi-entry, multi-day, bill-split) | ✅ Done |
-| 10pm daily digest (bot) | ✅ Done |
-| Dashboard export function | ❌ Pending |
+| Add / edit / delete entries | ✅ Done |
+| CSV export | ✅ Done |
+| AI insights strip | ✅ Done |
+| Chat + camera capture with confirm flow | ✅ Done |
+| Installable PWA | ✅ Done |
+| Nightly push digest | ✅ Done |
 | Correction handling ("make that RM20") | ❌ Pending |
+| Daily-summary block on Home | ❌ Pending |
