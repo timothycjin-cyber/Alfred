@@ -13,7 +13,7 @@
  * Script Properties required (File → Project Settings → Script Properties):
  *   OPENAI_API_KEY   — for the parse + insights actions
  *   ALLOWED_USERS    — comma-separated chat_ids; empty/absent disables the
- *                      allow-list (mirrors the bot's ALLOWED_USERS semantics)
+ *                      allow-list; empty/absent disables it
  *   FIREBASE_SA_JSON — full Firebase service-account JSON (stringified),
  *                      for FCM push. Absent = push actions error cleanly.
  *   FCM_PROJECT_ID   — the Firebase project id (e.g. "project-alfred-push")
@@ -27,7 +27,7 @@
  *                                    → {transactions:[...], dropped, note?}
  *                                    LLM-extract only; NEVER writes the sheet.
  *   insights                       — {facts:[...], month} → {narrative}
- *                                    (port of the bot's /insights)
+ *                                    (LLM phrasing of computed facts)
  *   push-subscribe / push-unsubscribe — {user, token} → PushSubs tab
  *   run-digest-push                — manual trigger for testing the push path
  */
@@ -47,7 +47,8 @@ var EXPENSE_CATEGORIES = ['Food & Dining', 'Transport', 'Shopping', 'Groceries',
 var INCOME_CATEGORIES = ['Salary', 'Freelance', 'Bonus', 'Investment',
                          'Side Income', 'Reimbursement', 'Other Income'];
 
-// Validation knobs (mirrors the bot's validate_transactions)
+// Validation knobs (shared semantics with the companion Telegram bot in the
+// project-alfred repo - keep the two implementations behaviourally aligned)
 var MAX_TRANSACTIONS = 31;      // covers "every day this month"
 var MAX_AMOUNT = 1000000;       // RM: above this is almost certainly a parse error
 var MAX_TEXT_CHARS = 1000;      // parse input caps — the key is public in the
@@ -389,7 +390,7 @@ function handleParse(data) {
   return out;
 }
 
-// ── Insights action (port of the bot's /insights) ────────────────────────────
+// ── Insights action (LLM phrasing of computed facts) ────────────────────────────
 
 function handleInsights(data) {
   if (!data.facts || !Array.isArray(data.facts) || !data.facts.length) return { error: 'no facts' };
@@ -502,7 +503,7 @@ function computeDigest(rows, todayIso, dateLabel) {
 }
 
 // Reads Sheet1 into plain row objects. Legacy rows with an empty User belong
-// to the owner (same fallback as the bot's filter_by_user).
+// to the owner (legacy rows from before multi-user; fallback kept until backfilled).
 function readAllRows() {
   var values = getSheet().getDataRange().getValues();
   var tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();

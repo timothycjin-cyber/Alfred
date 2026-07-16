@@ -1010,12 +1010,11 @@ const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXIWSRt1xVAbLnNPlhiHHaWpTHGB23N1wkoMU74nHifMT9prU3rM4m6/exec";
 const SECRET_KEY = "8891";
 
-// Insights strip — Phase 2 (LLM phrasing). Now served by the Apps Script
-// backend (action:"insights") so the dashboard has zero Railway dependency —
-// requires OPENAI_API_KEY in the script's Script Properties. Leave "" to stay
-// on the deterministic templates. Either way the numbers are computed locally;
-// the LLM only rewords, and any failure/timeout falls back to the templates —
-// so this is never a hard dependency.
+// Insights strip — Phase 2 (LLM phrasing), served by the Apps Script backend
+// (action:"insights"; requires OPENAI_API_KEY in the script's Script
+// Properties). Leave "" to stay on the deterministic templates. Either way the
+// numbers are computed locally; the LLM only rewords, and any failure/timeout
+// falls back to the templates — so this is never a hard dependency.
 const INSIGHTS_ENDPOINT = APPS_SCRIPT_URL;
 
 // Push digest (FCM) — Phase 0 setup: create a free Firebase project →
@@ -1360,8 +1359,8 @@ function styleInsightText(plain) {
 // throws and the caller falls back to the deterministic body.
 async function fetchInsightNarrative(facts) {
   const controller = new AbortController();
-  // 10s (was 7s against Railway): Apps Script adds 1–3s of its own before the
-  // OpenAI call. Still short enough that the fallback never feels stuck.
+  // 10s: Apps Script adds 1–3s of its own latency before the OpenAI call.
+  // Still short enough that the deterministic fallback never feels stuck.
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
     const res = await fetch(INSIGHTS_ENDPOINT, {
@@ -2308,8 +2307,8 @@ document.getElementById('capture-file').addEventListener('change', async (e) => 
   try {
     setCaptureBusy(true);
     const b64 = await downscaleImage(file);
-    // Text sitting in the input rides along as the photo caption, mirroring
-    // the Telegram flow ("my portion is 50%" applies to the receipt).
+    // Text sitting in the input rides along as the photo caption, so split
+    // instructions ("my portion is 50%") apply to the receipt being snapped.
     const caption = document.getElementById('capture-input').value.trim();
     setCaptureBusy(false);
     await parseCapture({ image_b64: b64, mime: 'image/jpeg', caption: caption || undefined });
