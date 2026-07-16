@@ -223,7 +223,7 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 
 **Potential next tie-in:** surface the shared daily-summary block ("today so far vs average") at the top of the dashboard, reusing the digest logic.
 
-### 3b. Independent web app — Railway-free (2026-07-15 — BUILT, needs Phase 0 setup)
+### 3b. Independent web app — Railway-free (2026-07-15 built; 2026-07-16 Phase 0 done, push digest VERIFIED LIVE)
 
 **Decision:** the dashboard grows into a standalone web app (capture + push, not just pull/visual), with **zero Railway dependency** — Google Apps Script is its entire backend. The Telegram bot stays on Railway untouched; migrating it (Phase D) is deferred until the stress test settles Railway's fate.
 
@@ -240,11 +240,11 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 
 **Dashboard — push bell** (header, hidden until configured): `FIREBASE_CONFIG` + `FCM_VAPID_KEY` consts in index.html (public values; `null`/`""` hides the feature). Toggle lazily imports the Firebase SDK (gstatic, only when tapped), requests permission, `getToken({vapidKey, serviceWorkerRegistration})` — ⚠️ **must pass our SW registration** or the SDK tries to register `/firebase-messaging-sw.js` at the domain root, which 404s on a project-pages path — then `push-subscribe`. Token mirrored in `localStorage('alfred_push_token')` for state; toggle-off deletes token + unsubscribes.
 
-**Phase 0 — one-time user setup (nothing new is live until done):**
+**Phase 0 — one-time user setup — ✅ DONE 2026-07-16.** Firebase project `project-alfred-f7575`; `FIREBASE_CONFIG` + `FCM_VAPID_KEY` wired into index.html (PRs #22/#23); Code.gs merged into the live script + Script Properties set + redeployed. **Verified live:** bell subscribed on the user's Android phone, `sendDailyDigestPush` run from the script editor, notification received. For a fresh setup the steps were:
 1. Firebase: free project → add Web app (config object → `FIREBASE_CONFIG`) → Cloud Messaging → Web Push certificates → key pair (public key → `FCM_VAPID_KEY`) → Project settings → Service accounts → generate key (JSON → `FIREBASE_SA_JSON` Script Property).
 2. Apps Script: merge `apps-script/Code.gs` into the live script (diff first!), set the four Script Properties, **Deploy → Manage deployments → Edit → new version** (never a new deployment).
 3. Add the daily trigger: `sendDailyDigestPush`, time-driven, 10pm–11pm.
-4. Test: dashboard → bell on (Android Chrome) → POST `{key, action:'run-digest-push'}` to the Web App URL → notification arrives.
+4. Test: dashboard → bell on (Android Chrome) → run `sendDailyDigestPush` from the script editor (or POST `{key, action:'run-digest-push'}`) → notification arrives.
 
 **Phase D (deferred):** move the Telegram webhook onto Apps Script (JS port of the bot) and retire Railway entirely — decision after the stress test.
 
@@ -268,8 +268,11 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Modal no longer auto-pops the keyboard on open (2026-07-12) — DONE.** Initial focus moves to the modal sheet (not the amount field) on open, per user feedback. See §3a. Shipped via PR #20.
 - **Independent web app (2026-07-15) — BUILT & VERIFIED (Playwright: 23 checks, 36 logic tests), pending Phase 0 setup.** PWA shell + capture bar (chat/camera → parse → confirm) + FCM push-digest bell + Apps Script backend (`apps-script/Code.gs`); insights re-pointed off Railway. See §3b.
 
+- **Phase 0 setup + push digest verified live (2026-07-16) — DONE.** Firebase configured, Code.gs live, bell subscribed, test notification received on Android. Shipped via PRs #22 + #23. See §3b.
+
 ### What's Pending ❌
-- **Phase 0 setup for the web app (user, ~30 min):** Firebase project + config consts, Apps Script merge + Script Properties + redeploy, daily trigger. See §3b — capture/insights/push don't work until this is done.
+- **Confirm the daily 10–11pm trigger is set** for `sendDailyDigestPush` (Triggers ⏰ in the script editor) — the manual test worked; the nightly send needs the trigger.
+- **Test the capture bar + insights live** (needs `OPENAI_API_KEY` + `ALLOWED_USERS` Script Properties): type "lunch RM15" on the dashboard → confirm modal; check the insights strip phrases via LLM.
 - **Phase D (deferred):** port the Telegram bot to Apps Script and retire Railway — decide after the stress test.
 - **Stress test (in progress):** run the bot 1 month on Railway Free tier with 3 users to see if it fits within the $1/mo credit + 0.5 GB RAM ceiling. Deferred until after this: (a) RAM logging on boot/post-digest, (b) Railway billing alert at ~$0.80. Decision after test: stay Free / upgrade Hobby ($5/mo) / migrate.
 - Pipeline 2 Phase 4: validation test suite (multi-day backdate, split-bill photo)
