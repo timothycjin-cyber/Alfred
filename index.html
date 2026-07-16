@@ -1024,8 +1024,15 @@ const INSIGHTS_ENDPOINT = APPS_SCRIPT_URL;
 // paste the public key as FCM_VAPID_KEY. Both values are public by design
 // (they identify the project; they can't send messages). Leave null/"" and
 // the notification bell stays hidden — the feature simply doesn't exist yet.
-const FIREBASE_CONFIG = null; /* { apiKey: "…", authDomain: "…", projectId: "…", messagingSenderId: "…", appId: "…" } */
-const FCM_VAPID_KEY = "";
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCMmsXYdQQvs3fXA4-BHGHGNSGF_q7ifO0",
+  authDomain: "project-alfred-f7575.firebaseapp.com",
+  projectId: "project-alfred-f7575",
+  storageBucket: "project-alfred-f7575.firebasestorage.app",
+  messagingSenderId: "597448007942",
+  appId: "1:597448007942:web:1e51f9f2a879eaad18be87"
+};
+const FCM_VAPID_KEY = ""; // pending: Project settings → Cloud Messaging → Web Push certificates → key pair
 
 const INCOME_CATEGORIES = ["Salary", "Freelance", "Bonus", "Investment", "Side Income", "Reimbursement", "Other Income"];
 const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "Shopping", "Groceries", "Entertainment", "Other"];
