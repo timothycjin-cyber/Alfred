@@ -288,7 +288,8 @@
      resets them); .settled pins already-seen content so only the section's
      own axis slide plays. */
   .view-section.settled .hero-card, .view-section.settled .tile-block,
-  .view-section.settled .txn-row, .view-section.settled .txn-icon-chip { animation: none; }
+  .view-section.settled .txn-row, .view-section.settled .txn-icon-chip,
+  .view-section.settled .hm-cell { animation: none; }
 
   @media (max-width: 480px) {
     .tile-row {
@@ -467,6 +468,70 @@
   .today-bad { color: var(--semantic-expense); font-weight: 700; }
   .today-flat { color: var(--on-surface-variant); font-weight: 700; }
   .today-empty { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
+
+  /* Month shelf — the ledger's "pages". A horizontal strip of months that hold
+     data (most recent first), tap to time-travel. Scrolls inside itself so the
+     overflow never widens the document (the .container clips overflow-x). */
+  #month-shelf { margin-bottom: 12px; }
+  .shelf-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .shelf-row::-webkit-scrollbar { display: none; }
+  .shelf-chip {
+    flex-shrink: 0; cursor: pointer; font-family: var(--font-body);
+    font-size: 12px; font-weight: 700; padding: 6px 13px;
+    border-radius: var(--shape-full); border: 1px solid var(--outline-variant);
+    background: var(--surface-container-low); color: var(--on-surface-variant);
+    white-space: nowrap; transition: transform var(--motion-snap), background var(--motion-standard), color var(--motion-standard), border-color var(--motion-standard);
+  }
+  .shelf-chip:active { transform: scale(0.94); }
+  .shelf-chip.active { background: var(--on-surface); color: var(--surface-container-low); border-color: var(--on-surface); }
+
+  /* Archive card — the closed form of the pace bar. When a past month is in
+     view it stands in the same slot with an archival, ledger voice. */
+  .archive-card { display: flex; flex-direction: column; }
+  .archive-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .archive-month { font-size: 13px; font-weight: 800; letter-spacing: -0.2px; color: var(--on-surface); }
+  .archive-badge {
+    font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px;
+    padding: 3px 8px; border-radius: var(--shape-full);
+    border: 1px solid var(--outline-variant); color: var(--on-surface-variant);
+  }
+  .archive-net { font-size: 30px; font-weight: 900; font-variation-settings: 'wght' 850, 'wdth' 80; letter-spacing: -1px; line-height: 1.05; }
+  .archive-net.arc-pos { color: var(--semantic-income); }
+  .archive-net.arc-neg { color: var(--semantic-expense); }
+  .archive-net-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); margin: 2px 0 14px; }
+  .archive-facts { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--outline-variant); padding-top: 12px; }
+  .archive-fact { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .af-label { font-size: 11.5px; font-weight: 600; color: var(--on-surface-variant); }
+  .af-val { font-size: 12.5px; font-weight: 700; color: var(--on-surface); text-align: right; }
+  .archive-verdict { margin-top: 12px; font-size: 12px; font-weight: 700; }
+  .archive-verdict .arc-good { color: var(--semantic-income); }
+  .archive-verdict .arc-bad { color: var(--semantic-expense); }
+  .archive-verdict .arc-flat { color: var(--on-surface-variant); }
+
+  /* Capture heatmap — one cell per day, tinted by how many entries were logged.
+     Sienna wash ramp only (never red/green — those stay semantic). The grid is
+     the reward for the logging habit; no streak counters, no badges. */
+  .heatmap-card .card-title { margin-bottom: 12px; }
+  .hm-weekdays, .hm-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .hm-weekdays { margin-bottom: 6px; }
+  .hm-wd { text-align: center; font-size: 9px; font-weight: 700; letter-spacing: 0.3px; color: var(--on-surface-variant); text-transform: uppercase; }
+  .hm-cell {
+    aspect-ratio: 1; border-radius: var(--shape-xs);
+    display: flex; align-items: center; justify-content: center;
+    animation: chipPop var(--motion-wobble) backwards; animation-delay: var(--d, 0ms);
+  }
+  .hm-blank { animation: none; }
+  .hm-day { font-size: 10px; font-weight: 700; color: var(--on-surface-variant); }
+  /* Sienna ramp (transparent → burnt-sienna). Day numbers flip to light ink on
+     the two darkest steps so they stay legible. */
+  .hm-l0 { background: transparent; border: 1px solid var(--outline-variant); }
+  .hm-l1 { background: rgba(194,84,45,0.18); }
+  .hm-l2 { background: rgba(194,84,45,0.36); }
+  .hm-l3 { background: rgba(194,84,45,0.55); }
+  .hm-l4 { background: rgba(194,84,45,0.78); }
+  .hm-l3 .hm-day, .hm-l4 .hm-day { color: #F5F5F2; }
+  .hm-future { background: transparent; border: 1px dashed var(--outline-variant); }
+  .hm-future .hm-day { opacity: 0.45; }
   /* Blinking caret while the narrative types itself in — sells the "live" feel.
      Sits at the end of the revealed text (trailing empty nodes add no width). */
   .insight-body.typing::after {
@@ -883,7 +948,7 @@
   @media (prefers-reduced-motion: reduce) {
     :root { --motion-wobble: 0ms; --motion-snap: 0ms; --motion-standard: 0ms; }
     .hero-card, .tile-block, .tile-row .tile-block:nth-child(1), .tile-row .tile-block:nth-child(2),
-    .txn-row, .txn-icon-chip { animation-delay: 0ms; }
+    .txn-row, .txn-icon-chip, .hm-cell { animation-delay: 0ms; }
     /* Loader still signals activity, but as a gentle pulse instead of a bounce. */
     .loader-bars span { animation: loaderPulse 1.4s ease-in-out infinite; }
   }
@@ -941,6 +1006,7 @@
   </div>
 
   <div id="analytics-view" class="view-section">
+    <div id="month-shelf"></div>
     <div id="analytics-insight"></div>
     <div id="analytics-metrics" class="tile-row"></div>
     <div class="card" id="income-bar-card">
@@ -968,6 +1034,7 @@
         </div>
       </div>
     </div>
+    <div id="capture-heatmap"></div>
   </div>
 </div>
 
@@ -1247,6 +1314,115 @@ function todayGlanceHtml() {
     <span class="today-label">Today</span>
     <span class="today-body"><b>RM ${formatCurrency(total)}</b> across ${countStr}${verdict}</span>
   </div>`;
+}
+
+// ── Month shelf (Phase 3) ───────────────────────────────────────────────────
+// The ledger's browsable "pages": every month that holds data (plus the current
+// one), most recent first. Tapping a chip time-travels the whole Analytics view
+// by moving the shared activeMonth/activeYear state. No new view, no routing.
+function renderMonthShelf() {
+  const el = document.getElementById('month-shelf');
+  if (!el) return;
+  const now = new Date();
+  const keys = new Set([`${now.getFullYear()}-${now.getMonth()}`]);
+  allRows.forEach(r => {
+    if (!(activeUser && r.User === activeUser)) return;
+    const d = new Date(r.Date);
+    keys.add(`${d.getFullYear()}-${d.getMonth()}`);
+  });
+  const months = [...keys]
+    .map(k => { const [y, m] = k.split('-').map(Number); return { y, m }; })
+    .sort((a, b) => (b.y - a.y) || (b.m - a.m))
+    .slice(0, 12);
+
+  el.innerHTML = `<div class="shelf-row">` + months.map(({ y, m }) => {
+    const active = (m === activeMonth && y === activeYear);
+    const label = (y === now.getFullYear()) ? MONTHS[m] : `${MONTHS[m]} ’${String(y).slice(2)}`;
+    return `<button class="shelf-chip${active ? ' active' : ''}" data-y="${y}" data-m="${m}">${label}</button>`;
+  }).join('') + `</div>`;
+
+  el.querySelectorAll('.shelf-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeYear = parseInt(btn.dataset.y);
+      activeMonth = parseInt(btn.dataset.m);
+      const sel = document.getElementById('month-select-element');
+      if (sel) sel.value = `${activeYear}-${activeMonth}`;
+      calculateAndRender();
+    });
+  });
+}
+
+// ── Archive card (Phase 3) ──────────────────────────────────────────────────
+// The closed form of the live pace bar, shown when a past month is in view.
+// Pure sheet math; the pace verdict reads the month against the one before it.
+function archiveCardHtml({ net, expense, topCat, topAmt, daysLogged, daysInMonth, prevExpense, monthLabel }) {
+  const netCls = net >= 0 ? 'arc-pos' : 'arc-neg';
+  const netStr = `${net >= 0 ? '+' : '−'}RM ${formatCurrency(Math.abs(net))}`;
+  let verdict = '';
+  if (prevExpense > 0) {
+    const diff = expense - prevExpense;
+    if (Math.abs(diff) < 0.005) verdict = `<span class="arc-flat">on pace with the month before</span>`;
+    else if (diff < 0) verdict = `<span class="arc-good">under pace · RM ${formatCurrency(Math.abs(diff))} kept</span>`;
+    else verdict = `<span class="arc-bad">over pace · RM ${formatCurrency(diff)} past</span>`;
+  }
+  const topStr = topCat ? `${topCat} · RM ${formatCurrency(topAmt)}` : '—';
+  return `
+    <div class="archive-card">
+      <div class="archive-top">
+        <span class="archive-month">${monthLabel}</span>
+        <span class="archive-badge">Closed</span>
+      </div>
+      <div class="archive-net ${netCls}">${netStr}</div>
+      <div class="archive-net-label">net result</div>
+      <div class="archive-facts">
+        <div class="archive-fact"><span class="af-label">Top category</span><span class="af-val">${topStr}</span></div>
+        <div class="archive-fact"><span class="af-label">Days logged</span><span class="af-val">${daysLogged} of ${daysInMonth}</span></div>
+      </div>
+      ${verdict ? `<div class="archive-verdict">${verdict}</div>` : ''}
+    </div>`;
+}
+
+// ── Capture heatmap (Phase 4) ───────────────────────────────────────────────
+// Calendar grid for the viewed month, each day tinted by how many entries were
+// logged (sienna wash ramp). Rewards the logging habit; no moralising on spend.
+function renderCaptureHeatmap() {
+  const el = document.getElementById('capture-heatmap');
+  if (!el) return;
+  const now = new Date();
+  const isCur = (activeMonth === now.getMonth() && activeYear === now.getFullYear());
+  const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
+  const firstWeekday = new Date(activeYear, activeMonth, 1).getDay(); // 0=Sun
+
+  const counts = {};
+  allRows.forEach(r => {
+    if (!(activeUser && r.User === activeUser)) return;
+    const d = new Date(r.Date);
+    if (d.getMonth() === activeMonth && d.getFullYear() === activeYear) {
+      counts[d.getDate()] = (counts[d.getDate()] || 0) + 1;
+    }
+  });
+  const loggedDays = Object.keys(counts).length;
+  const throughDay = isCur ? now.getDate() : daysInMonth;
+
+  const WD = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  let cells = '';
+  for (let i = 0; i < firstWeekday; i++) cells += `<div class="hm-cell hm-blank"></div>`;
+  let idx = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const c = counts[day] || 0;
+    const future = isCur && day > now.getDate();
+    const cls = future ? 'hm-future' : `hm-l${Math.min(c, 4)}`;
+    const delay = 60 + Math.min(idx++, 24) * 12;
+    const n = c === 1 ? 'entry' : 'entries';
+    cells += `<div class="hm-cell ${cls}" style="--d:${delay}ms" title="${MONTHS[activeMonth]} ${day} · ${c} ${n}"><span class="hm-day">${day}</span></div>`;
+  }
+
+  el.innerHTML = `
+    <div class="card heatmap-card">
+      <div class="card-title">${MONTHS[activeMonth]} capture · ${loggedDays} of ${throughDay} days logged</div>
+      <div class="hm-weekdays">${WD.map(w => `<div class="hm-wd">${w}</div>`).join('')}</div>
+      <div class="hm-grid">${cells}</div>
+    </div>`;
 }
 
 // ── Insights engine (Phase 1: deterministic) ───────────────────────────────
@@ -1565,9 +1741,12 @@ async function renderAnalyticsInsight() {
   const bodyEl = wrap.querySelector('.insight-body');
   const token = ++insightToken;
 
-  // No endpoint configured, or a fallback line (nothing to phrase) → straight
-  // to the deterministic template.
-  if (!INSIGHTS_ENDPOINT || !families.length) {
+  // No endpoint configured, a fallback line (nothing to phrase), or a closed
+  // month → straight to the deterministic template. Past-month narratives are
+  // retrospective and stable, so don't spend tokens re-phrasing history.
+  const nowD = new Date();
+  const isCurrentMonthView = (activeMonth === nowD.getMonth() && activeYear === nowD.getFullYear());
+  if (!INSIGHTS_ENDPOINT || !families.length || !isCurrentMonthView) {
     typewriteInto(bodyEl, body);
     return;
   }
@@ -2115,6 +2294,7 @@ function calculateAndRender() {
   }
 
   if (currentView === 'analytics') {
+    renderMonthShelf();
     renderAnalyticsInsight();
 
     const today = new Date();
@@ -2137,7 +2317,24 @@ function calculateAndRender() {
     // How far through the month we are — the pace baseline the spend bar is read against.
     const monthPct = isCurrentMonth ? Math.min(100, (today.getDate() / daysInMonth) * 100) : 100;
 
-    if (totalIncome > 0) {
+    if (!isCurrentMonth) {
+      // Closed month → the archive card stands in for the live pace bar.
+      let pMo = activeMonth - 1, pYr = activeYear;
+      if (pMo < 0) { pMo = 11; pYr -= 1; }
+      const prevExpense = monthTotals(pYr, pMo).exp;
+      const daysLogged = new Set(rows.map(r => new Date(r.Date).getDate())).size;
+      document.getElementById('income-bar-block').innerHTML = archiveCardHtml({
+        net: netBalance,
+        expense: totalExpense,
+        topCat: catData.length ? catData[0][0] : null,
+        topAmt: catData.length ? catData[0][1] : 0,
+        daysLogged,
+        daysInMonth,
+        prevExpense,
+        monthLabel: `${MONTHS[activeMonth]} ${activeYear}`
+      });
+      barMemory = null; // next live-month render should spring from empty, not a stale bar
+    } else if (totalIncome > 0) {
       const usedPct = Math.min(100, (totalExpense / totalIncome) * 100);
       const remPct = Math.max(0, 100 - usedPct);
 
@@ -2267,6 +2464,8 @@ function calculateAndRender() {
         }
       }
     });
+
+    renderCaptureHeatmap();
   }
   animateCounters();
 }
