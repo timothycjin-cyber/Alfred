@@ -557,6 +557,22 @@
   .hm-l3 .hm-day, .hm-l4 .hm-day { color: #F5F5F2; }
   .hm-future { background: transparent; border: 1px dashed var(--outline-variant); }
   .hm-future .hm-day { opacity: 0.45; }
+
+  /* 14-day capture strip (Today) — the heatmap's trailing-window sibling.
+     Cells for habit, bars for money: it reuses the exact hm-l* ramp above.
+     Bare cells (no day numbers — too small at 14-up); date range underneath. */
+  #today-pace .card { margin-bottom: 12px; }
+  .capture-strip-card .strip-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .strip-head .card-title { margin-bottom: 12px; }
+  .strip-link {
+    background: none; border: none; padding: 0; font-family: inherit;
+    font-size: 11px; font-weight: 700; color: var(--on-surface-variant);
+    cursor: pointer; outline: none; white-space: nowrap;
+    transition: opacity var(--motion-snap);
+  }
+  .strip-link:active { opacity: 0.6; }
+  .strip-row { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; }
+  .strip-ends { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px; font-weight: 600; color: var(--on-surface-variant); }
   /* Blinking caret while the narrative types itself in — sells the "live" feel.
      Sits at the end of the revealed text (trailing empty nodes add no width). */
   .insight-body.typing::after {
@@ -1034,6 +1050,8 @@
     <div id="today-hero"></div>
     <div id="today-tiles" class="tile-row"></div>
     <div id="today-glance"></div>
+    <div id="today-pace"></div>
+    <div id="today-capture"></div>
   </div>
 
   <div id="logs-view" class="view-section">
@@ -1261,8 +1279,10 @@ const hasEntranced = { today: false, logs: false, trends: false };
 // were (value inertia) instead of re-counting from zero on every render.
 const counterMemory = {};
 // Same idea for the spend bar: segments + Today marker spring from their
-// previous position (or from empty on first render) to the new one.
-let barMemory = null;
+// previous position (or from empty on first render) to the new one. Keyed by
+// block id — the bar renders on both Today and Trends, each with its own
+// spring state.
+const barMemory = {};
 
 let donutChart = null;
 let lineChart = null;
@@ -1350,6 +1370,99 @@ function todayGlanceHtml() {
     <span class="today-label">Today</span>
     <span class="today-body"><b>RM ${formatCurrency(total)}</b> across ${countStr}${verdict}</span>
   </div>`;
+}
+
+// ── Live spend-pace bar (shared by Today + Trends) ──────────────────────────
+// Used/left segments, the "Today" month-pace marker, and the pace verdict
+// line. Caller guarantees the active month IS the current month — closed
+// months get the archive card (Trends) or nothing (Today) instead. blockId
+// keys the spring memory so each instance springs from its own last state.
+function renderLivePaceBar(blockId, totalIncome, totalExpense) {
+  const el = document.getElementById(blockId);
+  if (!el) return;
+  if (!(totalIncome > 0)) {
+    el.innerHTML = `<div class="income-bar-caption"><span>No income logged this month</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>`;
+    barMemory[blockId] = null;
+    return;
+  }
+  const today = new Date();
+  const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
+  const monthPct = Math.min(100, (today.getDate() / daysInMonth) * 100);
+  const usedPct = Math.min(100, (totalExpense / totalIncome) * 100);
+  const remPct = Math.max(0, 100 - usedPct);
+
+  const diff = usedPct - monthPct;
+  let cls = '', word = 'on pace';
+  if (diff > 5) { cls = 'ahead'; word = 'ahead of pace'; }
+  else if (diff < -5) { cls = 'under'; word = 'under pace'; }
+
+  // Mount the bar at its previous state (or nearly-empty on first render),
+  // then set the real values a frame later so the flex-grow / left
+  // transitions actually spring — elements born at their final state
+  // never animate.
+  const mem = barMemory[blockId];
+  const usedFlex = Math.max(usedPct, 4), remFlex = Math.max(remPct, 4);
+  const startUsed = mem ? mem.used : 4;
+  const startRem = mem ? mem.rem : 96;
+  const markerStart = mem ? mem.marker : 0;
+
+  el.innerHTML = `
+    <div class="income-bar-caption"><span><b>${usedPct.toFixed(0)}%</b> of income spent · ${remPct.toFixed(0)}% left</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>
+    <div class="income-bar-wrap">
+      <div class="income-bar-row">
+        ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${startUsed}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
+        ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${startRem}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
+      </div>
+      <div class="income-bar-marker" data-label="Today" style="left:${markerStart.toFixed(1)}%"></div>
+    </div>
+    <div class="income-bar-pace">Day ${today.getDate()} of ${daysInMonth} · spending <b class="${cls}">${word}</b></div>
+  `;
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const usedEl = el.querySelector('.income-bar-seg.used');
+    const remEl = el.querySelector('.income-bar-seg.rem');
+    const markerEl = el.querySelector('.income-bar-marker');
+    if (usedEl) usedEl.style.flexGrow = usedFlex;
+    if (remEl) remEl.style.flexGrow = remFlex;
+    if (markerEl) markerEl.style.left = monthPct.toFixed(1) + '%';
+  }));
+  barMemory[blockId] = { used: usedFlex, rem: remFlex, marker: monthPct };
+}
+
+// ── 14-day capture strip (Today) ────────────────────────────────────────────
+// Trailing habit strip: one cell per day, today rightmost, tinted by entries
+// logged that day. Shares the heatmap's exact hm-l* sienna ramp (cells for
+// habit, bars for money — never mixed). No future days: it's a trailing
+// window, so there's nothing to dash out.
+function renderCaptureStrip() {
+  const el = document.getElementById('today-capture');
+  if (!el) return;
+  const counts = {};
+  allRows.forEach(r => {
+    if (!(activeUser && r.User === activeUser)) return;
+    counts[r.Date] = (counts[r.Date] || 0) + 1;
+  });
+  const pad = n => String(n).padStart(2, '0');
+  const now = new Date();
+  let cells = '', startLabel = '';
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const c = counts[iso] || 0;
+    if (i === 13) startLabel = `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+    const delay = 60 + (13 - i) * 12;
+    const n = c === 1 ? 'entry' : 'entries';
+    cells += `<div class="hm-cell hm-l${Math.min(c, 4)}" style="--d:${delay}ms" title="${MONTHS[d.getMonth()]} ${d.getDate()} · ${c} ${n}"></div>`;
+  }
+  el.innerHTML = `
+    <div class="card capture-strip-card">
+      <div class="strip-head">
+        <div class="card-title">Capture · last 14 days</div>
+        <button class="strip-link" onclick="switchView('trends')">full grid in Trends</button>
+      </div>
+      <div class="strip-row">${cells}</div>
+      <div class="strip-ends"><span>${startLabel}</span><span>Today</span></div>
+    </div>`;
 }
 
 // ── Month shelf (Phase 3) ───────────────────────────────────────────────────
@@ -2381,12 +2494,21 @@ function calculateAndRender() {
       </div>
     `;
 
-    // "Today" glance sits below the tiles. It's inherently about the real
-    // today, so only show it when the view is on the current month (same
-    // current-month-only rule the Trends pace marker follows).
+    // Glance line, pace bar, and capture strip are all about the real "now",
+    // so they only render when the view is on the current month (one shared
+    // rule) — a past month on Today is just hero + tiles.
     const nowD = new Date();
     const isCurrentMonth = activeMonth === nowD.getMonth() && activeYear === nowD.getFullYear();
     document.getElementById('today-glance').innerHTML = isCurrentMonth ? todayGlanceHtml() : '';
+    if (isCurrentMonth) {
+      document.getElementById('today-pace').innerHTML = '<div class="card"><div id="today-pace-block"></div></div>';
+      renderLivePaceBar('today-pace-block', totalIncome, totalExpense);
+      renderCaptureStrip();
+    } else {
+      document.getElementById('today-pace').innerHTML = '';
+      document.getElementById('today-capture').innerHTML = '';
+      barMemory['today-pace-block'] = null;
+    }
 
     const heroTickColor = getComputedStyle(document.documentElement).getPropertyValue('--on-surface-variant').trim();
 
@@ -2486,9 +2608,6 @@ function calculateAndRender() {
       </div>
     `;
 
-    // How far through the month we are — the pace baseline the spend bar is read against.
-    const monthPct = isCurrentMonth ? Math.min(100, (today.getDate() / daysInMonth) * 100) : 100;
-
     if (!isCurrentMonth) {
       // Closed month → the archive card stands in for the live pace bar.
       let pMo = activeMonth - 1, pYr = activeYear;
@@ -2505,54 +2624,9 @@ function calculateAndRender() {
         prevExpense,
         monthLabel: `${MONTHS[activeMonth]} ${activeYear}`
       });
-      barMemory = null; // next live-month render should spring from empty, not a stale bar
-    } else if (totalIncome > 0) {
-      const usedPct = Math.min(100, (totalExpense / totalIncome) * 100);
-      const remPct = Math.max(0, 100 - usedPct);
-
-      // Marker + pace commentary only make sense for the live month.
-      let markerHtml = '', paceHtml = '';
-      const markerStart = barMemory ? barMemory.marker : 0;
-      if (isCurrentMonth) {
-        markerHtml = `<div class="income-bar-marker" data-label="Today" style="left:${markerStart.toFixed(1)}%"></div>`;
-        const diff = usedPct - monthPct;
-        let cls = '', word = 'on pace';
-        if (diff > 5) { cls = 'ahead'; word = 'ahead of pace'; }
-        else if (diff < -5) { cls = 'under'; word = 'under pace'; }
-        paceHtml = `<div class="income-bar-pace">Day ${today.getDate()} of ${daysInMonth} · spending <b class="${cls}">${word}</b></div>`;
-      }
-
-      // Mount the bar at its previous state (or nearly-empty on first render),
-      // then set the real values a frame later so the flex-grow / left
-      // transitions actually spring — elements born at their final state
-      // never animate.
-      const usedFlex = Math.max(usedPct, 4), remFlex = Math.max(remPct, 4);
-      const startUsed = barMemory ? barMemory.used : 4;
-      const startRem = barMemory ? barMemory.rem : 96;
-
-      document.getElementById('income-bar-block').innerHTML = `
-        <div class="income-bar-caption"><span><b>${usedPct.toFixed(0)}%</b> of income spent · ${remPct.toFixed(0)}% left</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>
-        <div class="income-bar-wrap">
-          <div class="income-bar-row">
-            ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${startUsed}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
-            ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${startRem}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
-          </div>
-          ${markerHtml}
-        </div>
-        ${paceHtml}
-      `;
-
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const usedEl = document.querySelector('#income-bar-block .income-bar-seg.used');
-        const remEl = document.querySelector('#income-bar-block .income-bar-seg.rem');
-        const markerEl = document.querySelector('#income-bar-block .income-bar-marker');
-        if (usedEl) usedEl.style.flexGrow = usedFlex;
-        if (remEl) remEl.style.flexGrow = remFlex;
-        if (markerEl) markerEl.style.left = monthPct.toFixed(1) + '%';
-      }));
-      barMemory = { used: usedFlex, rem: remFlex, marker: isCurrentMonth ? monthPct : markerStart };
+      barMemory['income-bar-block'] = null; // next live-month render should spring from empty, not a stale bar
     } else {
-      document.getElementById('income-bar-block').innerHTML = `<div class="income-bar-caption"><span>No income logged this month</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>`;
+      renderLivePaceBar('income-bar-block', totalIncome, totalExpense);
     }
 
     const donutContainer = document.getElementById('donut-container');
