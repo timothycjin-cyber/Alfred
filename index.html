@@ -450,6 +450,22 @@
   #empty-state { padding-top: 2rem; }
   .empty-state-card { max-width: 440px; margin: 0 auto; }
 
+  /* Toast — the honest fallback when an optimistic write can't reach the
+     backend. Sits above the nav pill (bottom 24 + 48 pill + gap). Neutral ink,
+     no semantic red: it's a "retry", not a money figure. */
+  #toast {
+    position: fixed; left: 50%; bottom: 88px; z-index: 120;
+    transform: translate(-50%, 12px);
+    max-width: min(420px, calc(100vw - 32px));
+    padding: 0.7rem 1rem; border-radius: var(--shape-lg) var(--shape-xs) var(--shape-lg) var(--shape-xs);
+    background: var(--on-surface); color: var(--surface-container-low);
+    font-size: 0.86rem; line-height: 1.35; font-weight: 600; text-align: center;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.28);
+    opacity: 0; pointer-events: none;
+    transition: opacity var(--motion-snap), transform var(--motion-snap);
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+
   /* "Today" line on Home — a single quiet glance between the tiles and the
      timeline. Insight-strip voice, no card chrome heavier than a hairline. */
   #home-today:not(:empty) {
@@ -997,6 +1013,8 @@
   </div>
 
   <div id="empty-state" style="display:none"></div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
 
   <div id="home-view" class="view-section">
     <div id="home-hero"></div>
@@ -2021,36 +2039,43 @@ function animateCounters() {
   });
 }
 
+// Maps a parsed GViz response into our field-cased row shape. Shared by the
+// initial load and the background reconcile (see reconcileFromServer).
+function mapGvizRows(json) {
+  return json.table.rows
+    .filter(r => r.c && r.c[0]?.v && r.c[1]?.v)
+    .map(r => {
+      let rawDate = r.c[0].v;
+      let formattedDate = "";
+      if (typeof rawDate === 'string' && rawDate.includes('Date')) {
+        const dateParts = rawDate.replace("Date(", "").replace(")", "").split(",");
+        formattedDate = `${dateParts[0]}-${String(Number(dateParts[1]) + 1).padStart(2, "0")}-${String(dateParts[2]).padStart(2, "0")}`;
+      } else {
+        formattedDate = String(rawDate).replace(/^'/, "");
+      }
+      return {
+        Date: formattedDate,
+        Amount: Number(r.c[1].v),
+        Category: r.c[2]?.v || "Other",
+        Description: r.c[3]?.v || "",
+        Type: r.c[5]?.v ? String(r.c[5].v).trim() : "Expense",
+        UID: r.c[6]?.v ? String(r.c[6].v).trim() : "",
+        User: r.c[7]?.v ? String(r.c[7].v).trim() : ""
+      };
+    });
+}
+
+async function fetchServerRows() {
+  const res = await fetch(SHEET_URL);
+  if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+  const text = await res.text();
+  const jsonString = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+  return mapGvizRows(JSON.parse(jsonString));
+}
+
 async function init() {
   try {
-    const res = await fetch(SHEET_URL);
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    const text = await res.text();
-    const jsonString = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
-    const json = JSON.parse(jsonString);
-    
-    allRows = json.table.rows
-      .filter(r => r.c && r.c[0]?.v && r.c[1]?.v) 
-      .map(r => {
-        let rawDate = r.c[0].v;
-        let formattedDate = "";
-        if (typeof rawDate === 'string' && rawDate.includes('Date')) {
-          const dateParts = rawDate.replace("Date(", "").replace(")", "").split(",");
-          formattedDate = `${dateParts[0]}-${String(Number(dateParts[1]) + 1).padStart(2, "0")}-${String(dateParts[2]).padStart(2, "0")}`;
-        } else {
-          formattedDate = String(rawDate).replace(/^'/, ""); 
-        }
-        return {
-          Date: formattedDate,
-          Amount: Number(r.c[1].v),
-          Category: r.c[2]?.v || "Other",
-          Description: r.c[3]?.v || "",
-          Type: r.c[5]?.v ? String(r.c[5].v).trim() : "Expense",
-          UID: r.c[6]?.v ? String(r.c[6].v).trim() : "",
-          User: r.c[7]?.v ? String(r.c[7].v).trim() : ""
-        };
-      });
-      
+    allRows = await fetchServerRows();
     document.getElementById('main-loader').style.display = 'none';
 
     dataStamp++;
@@ -2060,6 +2085,126 @@ async function init() {
     console.error(e);
     document.getElementById('main-loader').innerHTML = `<div style="color:var(--semantic-expense); padding:15px; text-align:center;">⚠️ Failed to load data.</div>`;
   }
+}
+
+// ── Optimistic writes ────────────────────────────────────────────────────────
+// Saves/edits/deletes update allRows locally and re-render immediately, then
+// POST in the background. A debounced reconcile folds in server truth once the
+// Sheet (and its lagging GViz cache) catches up. See §Phase 1 in CLAUDE.md.
+//
+// pendingWrites: uid → { type:'add'|'edit', row } — optimistic rows not yet
+//   confirmed present-with-these-values in the server data.
+// pendingDeletes: Set<uid> — rows removed locally the server may still echo.
+const pendingWrites = new Map();
+const pendingDeletes = new Set();
+let _reconcileTimer = null;
+
+// Client UID mirrors the Apps Script format (Date.now().toString(36)+random).
+// Sent with adds so a reconcile can match by UID *iff* the backend echoes it;
+// the signature match below is the fallback that also works when it doesn't.
+function clientUID() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+// Content signature for reconcile — the render-visible fields an edit can move.
+function rowSig(r) {
+  return [
+    r.Date,
+    Math.round(Number(r.Amount) * 100),
+    (r.Category || '').trim().toLowerCase(),
+    (r.Description || '').trim().toLowerCase(),
+    (r.Type || '').trim(),
+    (r.User || '').trim()
+  ].join('|');
+}
+
+function removeRowByUID(uid) {
+  const i = allRows.findIndex(r => r.UID === uid);
+  if (i !== -1) allRows.splice(i, 1);
+}
+
+// Re-render the current view from the in-memory allRows, no full-screen loader.
+// Bumping dataStamp defeats the renderedKey skip so the change actually paints.
+function applyLocalRender() {
+  dataStamp++;
+  renderDropdownOptions();
+  calculateAndRender();
+}
+
+// One POST, shared by every write path. Throws on a non-ok body.
+async function postWrite(body) {
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ key: SECRET_KEY, ...body })
+  });
+  const result = await res.json().catch(() => ({ success: true }));
+  if (result.error) throw new Error(result.error);
+  return result;
+}
+
+function scheduleReconcile() {
+  clearTimeout(_reconcileTimer);
+  _reconcileTimer = setTimeout(reconcileFromServer, 1500);
+}
+
+// Folds server truth back into allRows while preserving optimistic rows the
+// server hasn't reflected yet (GViz cache lag), and honoring optimistic deletes.
+async function reconcileFromServer() {
+  if (!pendingWrites.size && !pendingDeletes.size) return;
+  let serverRows;
+  try { serverRows = await fetchServerRows(); }
+  catch (e) { return; } // keep optimistic state; try again after the next write
+
+  const merged = [];
+  const handledUIDs = new Set();
+  for (const sr of serverRows) {
+    if (pendingDeletes.has(sr.UID)) { handledUIDs.add(sr.UID); continue; } // deleted locally
+    const pw = pendingWrites.get(sr.UID);
+    if (pw) {
+      handledUIDs.add(sr.UID);
+      if (rowSig(sr) === rowSig(pw.row)) {   // server caught up to our write
+        merged.push(sr);
+        pendingWrites.delete(sr.UID);
+      } else {                                // server still stale — show ours, hide its stale copy
+        merged.push(pw.row);
+      }
+    } else {
+      merged.push(sr);
+    }
+  }
+  // Clear delete-pending the server has already dropped.
+  for (const uid of [...pendingDeletes]) {
+    if (!serverRows.some(r => r.UID === uid)) pendingDeletes.delete(uid);
+  }
+  // Optimistic rows with no matching server UID: either the server saved them
+  // under its own UID (backend not echoing ours) — detect by signature and drop
+  // the dup — or GViz simply hasn't surfaced them yet — keep showing them.
+  const sigCount = new Map();
+  for (const m of merged) { const s = rowSig(m); sigCount.set(s, (sigCount.get(s) || 0) + 1); }
+  for (const [uid, pw] of pendingWrites) {
+    if (handledUIDs.has(uid)) continue;
+    const s = rowSig(pw.row);
+    if ((sigCount.get(s) || 0) > 0) {         // already represented under another UID
+      sigCount.set(s, sigCount.get(s) - 1);
+      pendingWrites.delete(uid);
+    } else {
+      merged.push(pw.row);                     // GViz lag — retain optimistic row
+    }
+  }
+
+  allRows = merged;
+  applyLocalRender();
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+let _toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 4200);
 }
 
 function switchView(view) {
@@ -2603,29 +2748,41 @@ async function saveTxn() {
     return;
   }
 
-  const btn = document.getElementById('modal-save-btn');
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
+  // source marks capture-confirmed adds as web/web-image (edits never touch
+  // the Source column). Captured before the async gap since closeTxnModal and
+  // a later openTxnModal both reset pendingSource.
+  const source = pendingSource || 'dashboard';
+  const rowUID = isEdit ? uid : clientUID();
+  const row = { Date: date, Amount: amount, Category: category, Description: description, Type: type, UID: rowUID, User: activeUser };
+
+  // Optimistic: apply locally and render before the round-trip.
+  let original = null;
+  if (isEdit) {
+    const idx = allRows.findIndex(r => r.UID === uid);
+    if (idx !== -1) { original = { ...allRows[idx] }; allRows[idx] = row; }
+    pendingWrites.set(rowUID, { type: 'edit', row });
+  } else {
+    allRows.push(row);
+    pendingWrites.set(rowUID, { type: 'add', row });
+  }
+  closeTxnModal();
+  applyLocalRender();
 
   try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      // source marks capture-confirmed adds as web/web-image (edits never
-      // touch the Source column; the field is simply ignored there).
-      body: JSON.stringify({ key: SECRET_KEY, action: isEdit ? 'edit' : 'add', uid, date, amount, category, description, type, user: activeUser, source: pendingSource || 'dashboard' })
-    });
-    const result = await res.json().catch(() => ({ success: true }));
-    if (result.error) throw new Error(result.error);
-
-    closeTxnModal();
-    document.getElementById('main-loader').style.display = 'flex';
-    await init();
+    await postWrite({ action: isEdit ? 'edit' : 'add', uid: rowUID, date, amount, category, description, type, user: activeUser, source });
+    scheduleReconcile();
   } catch (e) {
-    showModalError('Could not save: ' + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Save';
+    // Roll back the optimistic change and surface it — the input is gone, so a
+    // toast is the honest signal that nothing was saved.
+    pendingWrites.delete(rowUID);
+    if (isEdit) {
+      const idx = allRows.findIndex(r => r.UID === rowUID);
+      if (idx !== -1 && original) allRows[idx] = original;
+    } else {
+      removeRowByUID(rowUID);
+    }
+    applyLocalRender();
+    showToast('Could not save that entry — check your connection and try again.');
   }
 }
 
@@ -2859,71 +3016,62 @@ function removeReviewRow(i) {
   renderReviewList();
 }
 
-// Saves sequentially through the same Apps Script add action as saveTxn().
-// On a failure the already-saved rows are removed from the list, so retrying
-// only saves the remainder — no duplicates.
+// Inserts every reviewed row optimistically, closes the list, then POSTs them
+// sequentially through the same Apps Script add action as saveTxn(). Any that
+// fail are rolled back out of allRows and reported via a toast.
 async function saveReviewAll() {
-  const btn = document.getElementById('review-save-btn');
-  const errEl = document.getElementById('review-error');
-  errEl.style.display = 'none';
-  btn.disabled = true;
-  const total = reviewTxns.length;
+  const txns = reviewTxns.slice();
+  const source = reviewSource;
 
-  try {
-    while (reviewTxns.length) {
-      btn.textContent = `Saving ${total - reviewTxns.length + 1} of ${total}…`;
-      const t = reviewTxns[0];
-      const res = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          key: SECRET_KEY, action: 'add', date: t.date, amount: t.amount,
-          category: t.category, description: t.description, type: t.type,
-          user: activeUser, source: reviewSource
-        })
-      });
-      const result = await res.json().catch(() => ({ success: true }));
-      if (result.error) throw new Error(result.error);
-      reviewTxns.shift();
-      renderReviewList();
+  const items = txns.map(t => {
+    const uid = clientUID();
+    const row = { Date: t.date, Amount: t.amount, Category: t.category, Description: t.description, Type: t.type, UID: uid, User: activeUser };
+    allRows.push(row);
+    pendingWrites.set(uid, { type: 'add', row });
+    return { uid, t };
+  });
+  reviewTxns = [];
+  closeReviewModal();
+  applyLocalRender();
+
+  let failed = 0;
+  for (const { uid, t } of items) {
+    try {
+      await postWrite({ action: 'add', uid, date: t.date, amount: t.amount, category: t.category, description: t.description, type: t.type, user: activeUser, source });
+    } catch (e) {
+      pendingWrites.delete(uid);
+      removeRowByUID(uid);
+      failed++;
     }
-    closeReviewModal();
-    document.getElementById('main-loader').style.display = 'flex';
-    await init();
-  } catch (e) {
-    errEl.textContent = `Could not save: ${e.message}. The remaining ${reviewTxns.length} ${reviewTxns.length === 1 ? 'entry is' : 'entries are'} still listed — try again.`;
-    errEl.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Save all';
   }
+  if (failed) {
+    applyLocalRender();
+    showToast(`${failed} ${failed === 1 ? 'entry' : 'entries'} could not be saved — try again.`);
+  }
+  scheduleReconcile();
 }
 
 async function deleteTxn() {
   const uid = document.getElementById('modal-uid').value;
   if (!uid) return; // intent already confirmed via the in-modal confirm step
-  const btn = document.getElementById('modal-confirm-delete-btn');
-  btn.disabled = true;
-  btn.textContent = 'Deleting…';
+
+  // Optimistic: drop the row locally and render before the round-trip.
+  const idx = allRows.findIndex(r => r.UID === uid);
+  const original = idx !== -1 ? { ...allRows[idx] } : null;
+  if (idx !== -1) allRows.splice(idx, 1);
+  pendingWrites.delete(uid);   // supersede any in-flight optimistic edit/add
+  pendingDeletes.add(uid);
+  closeTxnModal();
+  applyLocalRender();
 
   try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ key: SECRET_KEY, action: 'delete', uid })
-    });
-    const result = await res.json().catch(() => ({ success: true }));
-    if (result.error) throw new Error(result.error);
-
-    closeTxnModal();
-    document.getElementById('main-loader').style.display = 'flex';
-    await init();
+    await postWrite({ action: 'delete', uid });
+    scheduleReconcile();
   } catch (e) {
-    showModalError('Could not delete: ' + e.message);
-    cancelDeleteConfirm();
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Delete';
+    pendingDeletes.delete(uid);
+    if (original) allRows.push(original);
+    applyLocalRender();
+    showToast('Could not delete that entry — check your connection and try again.');
   }
 }
 

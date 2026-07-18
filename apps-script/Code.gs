@@ -201,6 +201,9 @@ function findRowByUID(uid) {
 
 function handleAdd(data) {
   // Columns: Date | Amount (MYR) | Category | Description | Source | Type | UID | User
+  // Honor a client-supplied UID when present (optimistic-save reconcile matches
+  // on it); fall back to a server UID for older clients. Backward-compatible.
+  var uid = (data.uid && String(data.uid).trim()) ? String(data.uid).trim() : generateUID();
   getSheet().appendRow([
     data.date,
     Number(data.amount),
@@ -208,10 +211,10 @@ function handleAdd(data) {
     data.description,
     data.source || 'dashboard',
     data.type,
-    generateUID(),
+    uid,
     String(data.user || '')
   ]);
-  return { success: true };
+  return { success: true, uid: uid };
 }
 
 function handleEdit(data) {
