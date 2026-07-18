@@ -127,18 +127,6 @@
     letter-spacing: -0.4px; 
   }
   
-  .month-select { 
-    font-size: 13px; 
-    padding: 5px 10px; 
-    border-radius: var(--shape-sm); 
-    border: 1px solid var(--outline-variant); 
-    background: var(--surface-container-low); 
-    color: var(--on-surface); 
-    cursor: pointer; 
-    font-weight: 600; 
-    outline: none; 
-  }
-  
   .header-actions { display: flex; align-items: center; gap: 8px; }
 
   .icon-btn {
@@ -498,25 +486,25 @@
   .today-flat { color: var(--on-surface-variant); font-weight: 700; }
   .today-empty { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
 
-  /* Trends month navigation — the ‹ month › chip at the top of Trends.
-     Steps viewMonth; ends disable at the earliest data month / the present. */
-  #trends-monthnav { display: flex; justify-content: center; margin-bottom: 12px; }
+  /* Contextual header month chip (Phase B) — the ONE month selector, shown
+     only on Trends and Logs. Steps the shared viewMonth; ends disable at the
+     earliest data month / the present. Today always shows the real now. */
   .monthnav {
     display: inline-flex; align-items: center; gap: 2px;
     background: var(--surface-container-low); border: 1px solid var(--outline-variant);
     border-radius: var(--shape-full); padding: 3px;
   }
   .monthnav-btn {
-    width: 30px; height: 30px; border-radius: var(--shape-full);
+    width: 28px; height: 28px; border-radius: var(--shape-full);
     border: none; background: transparent; color: var(--on-surface);
-    font-size: 16px; line-height: 1; font-family: inherit; cursor: pointer;
+    font-size: 15px; line-height: 1; font-family: inherit; cursor: pointer;
     transition: background var(--motion-standard), transform var(--motion-snap);
     outline: none;
   }
   .monthnav-btn:not(:disabled):active { transform: scale(0.9); background: var(--surface-container); }
   .monthnav-btn:disabled { opacity: 0.3; cursor: default; }
   .monthnav-label {
-    min-width: 128px; text-align: center;
+    min-width: 52px; text-align: center; white-space: nowrap;
     font-size: 12.5px; font-weight: 800; letter-spacing: -0.2px;
   }
 
@@ -711,6 +699,10 @@
     font-size: 13.5px;
     font-weight: 700;
   }
+
+  /* Logs toolbar — slim right-aligned row above the ledger; holds the export
+     trigger since it moved out of the header (Phase B). */
+  .logs-toolbar { display: flex; justify-content: flex-end; margin-bottom: 2px; }
 
   /* Logs week index — the ledger as an accordion of Mon–Sun weeks under
      month headers. Bars for money on this tab (no cell grids): each closed
@@ -1050,20 +1042,13 @@
 
 <div class="header">
   <div class="header-left">
-    <div class="header-title-row" style="display: flex; align-items: center; gap: 10px;">
-      <div class="header-title">Project Alfred</div>
-      <select id="month-select-element" class="month-select" onchange="handleMonthDropdown(this.value)"></select>
-    </div>
+    <div class="header-title">Project Alfred</div>
   </div>
   <div class="header-actions">
+    <div id="header-monthnav" style="display:none"></div>
     <button class="icon-btn push-btn" id="push-btn" onclick="togglePush()" aria-label="Daily digest notifications" aria-pressed="false" style="display:none">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-      </svg>
-    </button>
-    <button class="icon-btn export-btn" onclick="openExportModal()" aria-label="Export transactions">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
     </button>
   </div>
@@ -1101,11 +1086,17 @@
   </div>
 
   <div id="logs-view" class="view-section">
+    <div class="logs-toolbar">
+      <button class="icon-btn export-btn" onclick="openExportModal()" aria-label="Export transactions">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+      </button>
+    </div>
     <div id="logs-ledger"></div>
   </div>
 
   <div id="trends-view" class="view-section">
-    <div id="trends-monthnav"></div>
     <div id="trends-insight"></div>
     <div id="trends-metrics" class="tile-row"></div>
     <div class="card" id="income-bar-card">
@@ -1312,13 +1303,16 @@ if ('serviceWorker' in navigator) {
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let allRows = [];
+// Pinned to the real current month since refinement Phase B (the header
+// dropdown is gone) — Today always shows now. Today's render path still
+// reads these; nothing changes them after load.
 let activeMonth = new Date().getMonth();
 let activeYear = new Date().getFullYear();
 
-// Trends month navigation (roadmap Phase 5): Trends reads its own view-month
-// state, moved by the ‹ month › chip and the archive shelf — independent of
-// the header month selector (which drives Today) and of Logs (which ignores
-// months entirely).
+// The shared view-month state (roadmap v2 Phase 5, generalized in refinement
+// Phase B): moved by the contextual header ‹ month › chip and the archive
+// shelf. Trends renders it; Logs scrolls to it (never filters); Today
+// ignores it.
 let viewMonth = new Date().getMonth();
 let viewYear = new Date().getFullYear();
 let currentView = 'today';
@@ -1348,6 +1342,8 @@ let logsMonthsShown = 2;
 let logsSeeded = false;      // current week auto-expands once, on first render
 let _logsObserver = null;
 let _logsWeekRows = {};      // mondayIso → that week's rows, set each render
+let _logsTotalMonths = 0;    // months holding data, set each render — lets the
+                             // header chip grow the window to reach one
 
 let donutChart = null;
 let lineChart = null;
@@ -1568,6 +1564,7 @@ function renderLogsLedger() {
     monthsMap.get(key).weeks.push(wk);
   });
   const months = [...monthsMap.values()];
+  _logsTotalMonths = months.length;
   const shown = months.slice(0, logsMonthsShown);
 
   // One scale for every rendered bar so lengths are comparable down the page.
@@ -1576,7 +1573,7 @@ function renderLogsLedger() {
 
   let html = '';
   shown.forEach(mo => {
-    html += `<div class="month-header"><span class="month-name">${MONTHS_FULL[mo.m]} ${mo.y}</span></div>`;
+    html += `<div class="month-header" data-ym="${mo.y}-${mo.m}"><span class="month-name">${MONTHS_FULL[mo.m]} ${mo.y}</span></div>`;
     mo.weeks.forEach(wk => {
       const rows = _logsWeekRows[wk];
       const spend = _weekSpend(wk);
@@ -1668,10 +1665,13 @@ function toggleWeek(wk) {
 }
 
 // ── Trends month navigation + archive shelf (roadmap Phase 5) ───────────────
-// The ‹ month › chip at the top of Trends steps viewMonth within
-// [earliest data month … current month]; the archive shelf at the bottom is a
-// chip row of PAST months that hold data — tapping one time-travels Trends by
-// setting viewMonth. Both leave the header month selector (Today's) alone.
+// The contextual ‹ month › chip in the header (Phase B — the single month
+// selector) steps viewMonth within [earliest data month … current month]. It
+// renders only on Trends and Logs; Today always shows the real current month.
+// On Trends a step re-renders the tab; on Logs it scrolls the continuous
+// ledger to that month's header (no filtering). The archive shelf at the
+// bottom of Trends is a chip row of PAST months that hold data — tapping one
+// time-travels by setting the same viewMonth.
 
 function earliestDataMonth() {
   let best = null;
@@ -1684,7 +1684,7 @@ function earliestDataMonth() {
   return best; // year*12+month, or null with no data
 }
 
-function trendsNavMonth(delta) {
+function headerNavMonth(delta) {
   const now = new Date();
   const cur = now.getFullYear() * 12 + now.getMonth();
   const earliest = earliestDataMonth();
@@ -1692,24 +1692,56 @@ function trendsNavMonth(delta) {
   key = Math.min(cur, Math.max(earliest === null ? cur : earliest, key));
   viewYear = Math.floor(key / 12);
   viewMonth = key % 12;
-  calculateAndRender();
+  renderHeaderMonthNav();
+  if (currentView === 'logs') {
+    // Logs never filters by month — the chip scrolls the week-scroll there.
+    logsScrollToMonth(viewYear, viewMonth);
+  } else {
+    calculateAndRender();
+  }
 }
 
-function renderTrendsMonthNav() {
-  const el = document.getElementById('trends-monthnav');
+function renderHeaderMonthNav() {
+  const el = document.getElementById('header-monthnav');
   if (!el) return;
+  const earliest = earliestDataMonth();
+  if ((currentView !== 'trends' && currentView !== 'logs') || earliest === null) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
   const now = new Date();
   const cur = now.getFullYear() * 12 + now.getMonth();
-  const earliest = earliestDataMonth();
   const key = viewYear * 12 + viewMonth;
-  const backDisabled = earliest === null || key <= earliest;
+  const backDisabled = key <= earliest;
   const fwdDisabled = key >= cur;
+  const label = viewYear === now.getFullYear()
+    ? MONTHS[viewMonth]
+    : `${MONTHS[viewMonth]} ’${String(viewYear).slice(2)}`;
+  el.style.display = 'flex';
   el.innerHTML = `
     <div class="monthnav">
-      <button type="button" class="monthnav-btn" onclick="trendsNavMonth(-1)" aria-label="Earlier month" ${backDisabled ? 'disabled' : ''}>‹</button>
-      <span class="monthnav-label">${MONTHS_FULL[viewMonth]} ${viewYear}</span>
-      <button type="button" class="monthnav-btn" onclick="trendsNavMonth(1)" aria-label="Later month" ${fwdDisabled ? 'disabled' : ''}>›</button>
+      <button type="button" class="monthnav-btn" onclick="headerNavMonth(-1)" aria-label="Earlier month" ${backDisabled ? 'disabled' : ''}>‹</button>
+      <span class="monthnav-label">${label}</span>
+      <button type="button" class="monthnav-btn" onclick="headerNavMonth(1)" aria-label="Later month" ${fwdDisabled ? 'disabled' : ''}>›</button>
     </div>`;
+}
+
+// Scroll the Logs week-scroll to a month's header, growing the lazy window
+// until that month is rendered. A month with no logged weeks has no header —
+// then this is a quiet no-op.
+function logsScrollToMonth(y, m) {
+  const sel = `#logs-ledger .month-header[data-ym="${y}-${m}"]`;
+  let guard = 0;
+  while (!document.querySelector(sel) && logsMonthsShown < _logsTotalMonths && guard++ < 120) {
+    logsMonthsShown++;
+    renderLogsLedger();
+  }
+  const target = document.querySelector(sel);
+  if (!target) return;
+  const headerH = document.querySelector('.header').offsetHeight;
+  const top = target.getBoundingClientRect().top + window.scrollY - headerH - 8;
+  window.scrollTo({ top: Math.max(0, top), behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
 }
 
 function renderArchiveShelf() {
@@ -2167,7 +2199,9 @@ async function renderTrendsInsight() {
 }
 
 function openExportModal() {
-  document.getElementById('export-month-label').textContent = `${MONTHS[activeMonth]} ${activeYear}`;
+  // Month scope follows the shared chip state (Phase B), not the pinned
+  // activeMonth — exporting from Logs exports the month the chip shows.
+  document.getElementById('export-month-label').textContent = `${MONTHS[viewMonth]} ${viewYear}`;
   document.getElementById('export-error').style.display = 'none';
   document.body.classList.add('modal-open-state');
   const overlay = document.getElementById('export-overlay');
@@ -2197,14 +2231,14 @@ function exportCSV(scope) {
   if (scope === 'month') {
     rows = rows.filter(r => {
       const d = new Date(r.Date);
-      return d.getMonth() === activeMonth && d.getFullYear() === activeYear;
+      return d.getMonth() === viewMonth && d.getFullYear() === viewYear;
     });
   }
   rows.sort((a, b) => new Date(a.Date) - new Date(b.Date));
 
   if (!rows.length) {
     errEl.textContent = scope === 'month'
-      ? `No transactions logged for ${MONTHS[activeMonth]} ${activeYear}.`
+      ? `No transactions logged for ${MONTHS[viewMonth]} ${viewYear}.`
       : 'No transactions to export yet.';
     errEl.style.display = 'block';
     return;
@@ -2224,7 +2258,7 @@ function exportCSV(scope) {
   const csv = lines.join('\r\n');
 
   const scopeTag = scope === 'month'
-    ? `${MONTHS[activeMonth].toLowerCase()}-${activeYear}`
+    ? `${MONTHS[viewMonth].toLowerCase()}-${viewYear}`
     : 'all-transactions';
   triggerDownload(csv, `alfred-${scopeTag}.csv`);
   closeExportModal();
@@ -2456,7 +2490,6 @@ async function init() {
     document.getElementById('main-loader').style.display = 'none';
 
     dataStamp++;
-    renderDropdownOptions();
     switchView(currentView);
   } catch(e) {
     console.error(e);
@@ -2504,7 +2537,6 @@ function removeRowByUID(uid) {
 // Bumping dataStamp defeats the renderedKey skip so the change actually paints.
 function applyLocalRender() {
   dataStamp++;
-  renderDropdownOptions();
   calculateAndRender();
 }
 
@@ -2605,24 +2637,9 @@ function switchView(view) {
   }
   // Slider slot n = n × (own width + 4px gap); see the .nav-slider CSS note.
   document.getElementById('nav-slider').style.transform = `translateX(calc(${toIdx * 100}% + ${toIdx * 4}px))`;
-  calculateAndRender();
-}
-
-function renderDropdownOptions() {
-  const now = new Date();
-  let dropdownHtml = '';
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const valString = `${d.getFullYear()}-${d.getMonth()}`;
-    dropdownHtml += `<option value="${valString}" ${(d.getMonth() === activeMonth && d.getFullYear() === activeYear) ? 'selected' : ''}>${MONTHS[d.getMonth()]} ${d.getFullYear()}</option>`;
-  }
-  document.getElementById('month-select-element').innerHTML = dropdownHtml;
-}
-
-function handleMonthDropdown(val) {
-  const parts = val.split('-');
-  activeYear = parseInt(parts[0]);
-  activeMonth = parseInt(parts[1]);
+  // The contextual month chip lives in the header, outside the view panes —
+  // it must follow every tab change, including renders the key-skip elides.
+  renderHeaderMonthNav();
   calculateAndRender();
 }
 
@@ -2650,8 +2667,10 @@ function calculateAndRender() {
   // Skip entirely if this view already shows the current month + data —
   // switching back to a tab should reveal it as-is, not replay everything.
   // (.settled pins child animations, since display:none → block restarts them.)
-  // Trends keys on its own viewMonth (Phase 5); the other tabs key on the
-  // header month state.
+  // Trends keys on the shared viewMonth (chip + shelf bust it); Today/Logs key
+  // on activeMonth, constant within a session since Phase B — only dataStamp
+  // busts them. Logs month-chip taps scroll instead of re-rendering, so the
+  // skip is exactly right there.
   const viewKey = currentView === 'trends'
     ? `${viewYear}-${viewMonth}-${dataStamp}`
     : `${activeYear}-${activeMonth}-${dataStamp}`;
@@ -2777,11 +2796,12 @@ function calculateAndRender() {
   // reads all the user's rows, not the month-filtered set, so the accordion
   // spans months regardless of the header month selector.
   if (currentView === 'logs') {
+    renderHeaderMonthNav();
     renderLogsLedger();
   }
 
   if (currentView === 'trends') {
-    renderTrendsMonthNav();
+    renderHeaderMonthNav();
     renderTrendsInsight();
     renderArchiveShelf();
 
@@ -3416,6 +3436,7 @@ function pushSupported() {
 }
 
 function initPushUI() {
+  return; // Phase B: bell hidden — full push-digest teardown is roadmap Phase F
   if (!FIREBASE_CONFIG || !FCM_VAPID_KEY || !pushSupported()) return; // bell stays hidden
   const btn = document.getElementById('push-btn');
   btn.style.display = 'flex';
