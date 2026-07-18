@@ -494,10 +494,36 @@
   .today-flat { color: var(--on-surface-variant); font-weight: 700; }
   .today-empty { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
 
+  /* Trends month navigation — the ‹ month › chip at the top of Trends.
+     Steps viewMonth; ends disable at the earliest data month / the present. */
+  #trends-monthnav { display: flex; justify-content: center; margin-bottom: 12px; }
+  .monthnav {
+    display: inline-flex; align-items: center; gap: 2px;
+    background: var(--surface-container-low); border: 1px solid var(--outline-variant);
+    border-radius: var(--shape-full); padding: 3px;
+  }
+  .monthnav-btn {
+    width: 30px; height: 30px; border-radius: var(--shape-full);
+    border: none; background: transparent; color: var(--on-surface);
+    font-size: 16px; line-height: 1; font-family: inherit; cursor: pointer;
+    transition: background var(--motion-standard), transform var(--motion-snap);
+    outline: none;
+  }
+  .monthnav-btn:not(:disabled):active { transform: scale(0.9); background: var(--surface-container); }
+  .monthnav-btn:disabled { opacity: 0.3; cursor: default; }
+  .monthnav-label {
+    min-width: 128px; text-align: center;
+    font-size: 12.5px; font-weight: 800; letter-spacing: -0.2px;
+  }
+
   /* Month shelf — the ledger's "pages". A horizontal strip of months that hold
      data (most recent first), tap to time-travel. Scrolls inside itself so the
      overflow never widens the document (the .container clips overflow-x). */
-  #month-shelf { margin-bottom: 12px; }
+  #month-shelf:not(:empty) { margin-top: 4px; }
+  .shelf-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--on-surface-variant); margin: 0 0.25rem 8px;
+  }
   .shelf-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .shelf-row::-webkit-scrollbar { display: none; }
   .shelf-chip {
@@ -1104,7 +1130,7 @@
   </div>
 
   <div id="trends-view" class="view-section">
-    <div id="month-shelf"></div>
+    <div id="trends-monthnav"></div>
     <div id="trends-insight"></div>
     <div id="trends-metrics" class="tile-row"></div>
     <div class="card" id="income-bar-card">
@@ -1133,6 +1159,7 @@
       </div>
     </div>
     <div id="capture-heatmap"></div>
+    <div id="month-shelf"></div>
   </div>
 </div>
 
@@ -1312,6 +1339,13 @@ const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').mat
 let allRows = [];
 let activeMonth = new Date().getMonth();
 let activeYear = new Date().getFullYear();
+
+// Trends month navigation (roadmap Phase 5): Trends reads its own view-month
+// state, moved by the ‹ month › chip and the archive shelf — independent of
+// the header month selector (which drives Today) and of Logs (which ignores
+// months entirely).
+let viewMonth = new Date().getMonth();
+let viewYear = new Date().getFullYear();
 let currentView = 'today';
 const VIEW_ORDER = ['today', 'logs', 'trends'];
 
@@ -1450,13 +1484,13 @@ function todayGlanceHtml() {
 function renderLivePaceBar(blockId, totalIncome, totalExpense) {
   const el = document.getElementById(blockId);
   if (!el) return;
+  const today = new Date();
   if (!(totalIncome > 0)) {
-    el.innerHTML = `<div class="income-bar-caption"><span>No income logged this month</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>`;
+    el.innerHTML = `<div class="income-bar-caption"><span>No income logged this month</span><span class="cap-period">${MONTHS[today.getMonth()]} ${today.getFullYear()}</span></div>`;
     barMemory[blockId] = null;
     return;
   }
-  const today = new Date();
-  const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const monthPct = Math.min(100, (today.getDate() / daysInMonth) * 100);
   const usedPct = Math.min(100, (totalExpense / totalIncome) * 100);
   const remPct = Math.max(0, 100 - usedPct);
@@ -1477,7 +1511,7 @@ function renderLivePaceBar(blockId, totalIncome, totalExpense) {
   const markerStart = mem ? mem.marker : 0;
 
   el.innerHTML = `
-    <div class="income-bar-caption"><span><b>${usedPct.toFixed(0)}%</b> of income spent · ${remPct.toFixed(0)}% left</span><span class="cap-period">${MONTHS[activeMonth]} ${activeYear}</span></div>
+    <div class="income-bar-caption"><span><b>${usedPct.toFixed(0)}%</b> of income spent · ${remPct.toFixed(0)}% left</span><span class="cap-period">${MONTHS[today.getMonth()]} ${today.getFullYear()}</span></div>
     <div class="income-bar-wrap">
       <div class="income-bar-row">
         ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${startUsed}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
@@ -1723,37 +1757,79 @@ function toggleWeek(wk) {
   }
 }
 
-// ── Month shelf (Phase 3) ───────────────────────────────────────────────────
-// The ledger's browsable "pages": every month that holds data (plus the current
-// one), most recent first. Tapping a chip time-travels the whole Analytics view
-// by moving the shared activeMonth/activeYear state. No new view, no routing.
-function renderMonthShelf() {
+// ── Trends month navigation + archive shelf (roadmap Phase 5) ───────────────
+// The ‹ month › chip at the top of Trends steps viewMonth within
+// [earliest data month … current month]; the archive shelf at the bottom is a
+// chip row of PAST months that hold data — tapping one time-travels Trends by
+// setting viewMonth. Both leave the header month selector (Today's) alone.
+
+function earliestDataMonth() {
+  let best = null;
+  allRows.forEach(r => {
+    if (!(activeUser && r.User === activeUser) || !r.Date) return;
+    const d = new Date(r.Date);
+    const key = d.getFullYear() * 12 + d.getMonth();
+    if (best === null || key < best) best = key;
+  });
+  return best; // year*12+month, or null with no data
+}
+
+function trendsNavMonth(delta) {
+  const now = new Date();
+  const cur = now.getFullYear() * 12 + now.getMonth();
+  const earliest = earliestDataMonth();
+  let key = viewYear * 12 + viewMonth + delta;
+  key = Math.min(cur, Math.max(earliest === null ? cur : earliest, key));
+  viewYear = Math.floor(key / 12);
+  viewMonth = key % 12;
+  calculateAndRender();
+}
+
+function renderTrendsMonthNav() {
+  const el = document.getElementById('trends-monthnav');
+  if (!el) return;
+  const now = new Date();
+  const cur = now.getFullYear() * 12 + now.getMonth();
+  const earliest = earliestDataMonth();
+  const key = viewYear * 12 + viewMonth;
+  const backDisabled = earliest === null || key <= earliest;
+  const fwdDisabled = key >= cur;
+  el.innerHTML = `
+    <div class="monthnav">
+      <button type="button" class="monthnav-btn" onclick="trendsNavMonth(-1)" aria-label="Earlier month" ${backDisabled ? 'disabled' : ''}>‹</button>
+      <span class="monthnav-label">${MONTHS_FULL[viewMonth]} ${viewYear}</span>
+      <button type="button" class="monthnav-btn" onclick="trendsNavMonth(1)" aria-label="Later month" ${fwdDisabled ? 'disabled' : ''}>›</button>
+    </div>`;
+}
+
+function renderArchiveShelf() {
   const el = document.getElementById('month-shelf');
   if (!el) return;
   const now = new Date();
-  const keys = new Set([`${now.getFullYear()}-${now.getMonth()}`]);
+  const curKey = `${now.getFullYear()}-${now.getMonth()}`;
+  const keys = new Set();
   allRows.forEach(r => {
     if (!(activeUser && r.User === activeUser)) return;
     const d = new Date(r.Date);
-    keys.add(`${d.getFullYear()}-${d.getMonth()}`);
+    const k = `${d.getFullYear()}-${d.getMonth()}`;
+    if (k !== curKey) keys.add(k);
   });
   const months = [...keys]
     .map(k => { const [y, m] = k.split('-').map(Number); return { y, m }; })
     .sort((a, b) => (b.y - a.y) || (b.m - a.m))
     .slice(0, 12);
+  if (!months.length) { el.innerHTML = ''; return; }
 
-  el.innerHTML = `<div class="shelf-row">` + months.map(({ y, m }) => {
-    const active = (m === activeMonth && y === activeYear);
+  el.innerHTML = `<div class="shelf-title">Archive</div><div class="shelf-row">` + months.map(({ y, m }) => {
+    const active = (m === viewMonth && y === viewYear);
     const label = (y === now.getFullYear()) ? MONTHS[m] : `${MONTHS[m]} ’${String(y).slice(2)}`;
     return `<button class="shelf-chip${active ? ' active' : ''}" data-y="${y}" data-m="${m}">${label}</button>`;
   }).join('') + `</div>`;
 
   el.querySelectorAll('.shelf-chip').forEach(btn => {
     btn.addEventListener('click', () => {
-      activeYear = parseInt(btn.dataset.y);
-      activeMonth = parseInt(btn.dataset.m);
-      const sel = document.getElementById('month-select-element');
-      if (sel) sel.value = `${activeYear}-${activeMonth}`;
+      viewYear = parseInt(btn.dataset.y);
+      viewMonth = parseInt(btn.dataset.m);
       calculateAndRender();
     });
   });
@@ -1796,15 +1872,15 @@ function renderCaptureHeatmap() {
   const el = document.getElementById('capture-heatmap');
   if (!el) return;
   const now = new Date();
-  const isCur = (activeMonth === now.getMonth() && activeYear === now.getFullYear());
-  const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
-  const firstWeekday = new Date(activeYear, activeMonth, 1).getDay(); // 0=Sun
+  const isCur = (viewMonth === now.getMonth() && viewYear === now.getFullYear());
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstWeekday = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
 
   const counts = {};
   allRows.forEach(r => {
     if (!(activeUser && r.User === activeUser)) return;
     const d = new Date(r.Date);
-    if (d.getMonth() === activeMonth && d.getFullYear() === activeYear) {
+    if (d.getMonth() === viewMonth && d.getFullYear() === viewYear) {
       counts[d.getDate()] = (counts[d.getDate()] || 0) + 1;
     }
   });
@@ -1821,12 +1897,12 @@ function renderCaptureHeatmap() {
     const cls = future ? 'hm-future' : `hm-l${Math.min(c, 4)}`;
     const delay = 60 + Math.min(idx++, 24) * 12;
     const n = c === 1 ? 'entry' : 'entries';
-    cells += `<div class="hm-cell ${cls}" style="--d:${delay}ms" title="${MONTHS[activeMonth]} ${day} · ${c} ${n}"><span class="hm-day">${day}</span></div>`;
+    cells += `<div class="hm-cell ${cls}" style="--d:${delay}ms" title="${MONTHS[viewMonth]} ${day} · ${c} ${n}"><span class="hm-day">${day}</span></div>`;
   }
 
   el.innerHTML = `
     <div class="card heatmap-card">
-      <div class="card-title">${MONTHS[activeMonth]} capture · ${loggedDays} of ${throughDay} days logged</div>
+      <div class="card-title">${MONTHS[viewMonth]} capture · ${loggedDays} of ${throughDay} days logged</div>
       <div class="hm-weekdays">${WD.map(w => `<div class="hm-wd">${w}</div>`).join('')}</div>
       <div class="hm-grid">${cells}</div>
     </div>`;
@@ -1857,11 +1933,11 @@ function _rm(n) { return 'RM ' + formatCurrency(n); }
 // month vs the one before (past months).
 function _insightPace() {
   const today = new Date();
-  const isCurrent = activeMonth === today.getMonth() && activeYear === today.getFullYear();
-  const lastM = _shiftMonth(activeYear, activeMonth, -1);
+  const isCurrent = viewMonth === today.getMonth() && viewYear === today.getFullYear();
+  const lastM = _shiftMonth(viewYear, viewMonth, -1);
   if (isCurrent) {
     const dEl = today.getDate();
-    const mtd = _sum(_expenseRowsFor(activeYear, activeMonth));
+    const mtd = _sum(_expenseRowsFor(viewYear, viewMonth));
     const lastWin = _sum(_expenseRowsFor(lastM.year, lastM.month).filter(r => new Date(r.Date).getDate() <= dEl));
     if (mtd < 1 || lastWin < 1) return null;
     const pct = (mtd - lastWin) / lastWin;
@@ -1872,7 +1948,7 @@ function _insightPace() {
       text: `You're spending a little ${faster ? 'faster' : 'slower'} than last month — <b>${_rm(mtd)}</b> so far versus <b>${_rm(lastWin)}</b> at this point in ${MONTHS[lastM.month]}.`
     };
   }
-  const cur = _sum(_expenseRowsFor(activeYear, activeMonth));
+  const cur = _sum(_expenseRowsFor(viewYear, viewMonth));
   const prev = _sum(_expenseRowsFor(lastM.year, lastM.month));
   if (cur < 1 || prev < 1) return null;
   const pct = (cur - prev) / prev;
@@ -1880,19 +1956,19 @@ function _insightPace() {
   const up = pct > 0;
   return {
     family: 'pace', score: 40 + Math.min(Math.abs(pct), 1.5) * 60,
-    text: `In ${MONTHS[activeMonth]} you spent <b>${_rm(cur)}</b>, <span class="${up ? 'up' : 'down'}">${up ? 'up' : 'down'} ${Math.abs(pct * 100).toFixed(0)}%</span> from ${MONTHS[lastM.month]}.`
+    text: `In ${MONTHS[viewMonth]} you spent <b>${_rm(cur)}</b>, <span class="${up ? 'up' : 'down'}">${up ? 'up' : 'down'} ${Math.abs(pct * 100).toFixed(0)}%</span> from ${MONTHS[lastM.month]}.`
   };
 }
 
 // Category trends: a 3-month monotonic climb, or a sharp jump vs recent average.
 function _insightCategory() {
-  const m1 = _shiftMonth(activeYear, activeMonth, -1);
-  const m2 = _shiftMonth(activeYear, activeMonth, -2);
+  const m1 = _shiftMonth(viewYear, viewMonth, -1);
+  const m2 = _shiftMonth(viewYear, viewMonth, -2);
   const cats = {};
-  _expenseRowsFor(activeYear, activeMonth).forEach(r => { cats[r.Category] = true; });
+  _expenseRowsFor(viewYear, viewMonth).forEach(r => { cats[r.Category] = true; });
   let best = null;
   Object.keys(cats).forEach(cat => {
-    const c0 = _sum(_expenseRowsFor(activeYear, activeMonth).filter(r => r.Category === cat));
+    const c0 = _sum(_expenseRowsFor(viewYear, viewMonth).filter(r => r.Category === cat));
     const c1 = _sum(_expenseRowsFor(m1.year, m1.month).filter(r => r.Category === cat));
     const c2 = _sum(_expenseRowsFor(m2.year, m2.month).filter(r => r.Category === cat));
     if (c0 < 30) return;
@@ -1925,7 +2001,7 @@ function _insightCategory() {
 
 // Composition: the dominant category's share this month (filler / context).
 function _insightComposition() {
-  const rows = _expenseRowsFor(activeYear, activeMonth);
+  const rows = _expenseRowsFor(viewYear, viewMonth);
   const total = _sum(rows);
   if (total < 1) return null;
   const cats = {};
@@ -1940,8 +2016,8 @@ function _insightComposition() {
 // Timing: weekend vs weekday intensity over the trailing 8 weeks.
 function _insightWeekend() {
   const today = new Date();
-  const isCurrent = activeMonth === today.getMonth() && activeYear === today.getFullYear();
-  const end = isCurrent ? today : new Date(activeYear, activeMonth + 1, 0);
+  const isCurrent = viewMonth === today.getMonth() && viewYear === today.getFullYear();
+  const end = isCurrent ? today : new Date(viewYear, viewMonth + 1, 0);
   const start = new Date(end); start.setDate(end.getDate() - 55);
   const rows = _userExpenseRows().filter(r => { const d = new Date(r.Date); return d >= start && d <= end; });
   if (rows.length < 8) return null;
@@ -1961,9 +2037,9 @@ function _insightWeekend() {
 // Timing: longest no-spend streak within the selected month so far.
 function _insightStreak() {
   const today = new Date();
-  const isCurrent = activeMonth === today.getMonth() && activeYear === today.getFullYear();
-  const lastDay = isCurrent ? today.getDate() : new Date(activeYear, activeMonth + 1, 0).getDate();
-  const spendDays = new Set(_expenseRowsFor(activeYear, activeMonth).map(r => new Date(r.Date).getDate()));
+  const isCurrent = viewMonth === today.getMonth() && viewYear === today.getFullYear();
+  const lastDay = isCurrent ? today.getDate() : new Date(viewYear, viewMonth + 1, 0).getDate();
+  const spendDays = new Set(_expenseRowsFor(viewYear, viewMonth).map(r => new Date(r.Date).getDate()));
   if (!spendDays.size) return null;
   let best = 0, run = 0;
   for (let d = 1; d <= lastDay; d++) { if (spendDays.has(d)) run = 0; else { run++; best = Math.max(best, run); } }
@@ -2089,7 +2165,7 @@ async function fetchInsightNarrative(facts) {
     const res = await fetch(INSIGHTS_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ key: SECRET_KEY, action: 'insights', facts, month: `${MONTHS[activeMonth]} ${activeYear}` }),
+      body: JSON.stringify({ key: SECRET_KEY, action: 'insights', facts, month: `${MONTHS[viewMonth]} ${viewYear}` }),
       signal: controller.signal
     });
     if (!res.ok) throw new Error('status ' + res.status);
@@ -2141,8 +2217,12 @@ let insightToken = 0;
 
 async function renderTrendsInsight() {
   const sparkle = '<svg width="13" height="13" viewBox="0 0 24 24" fill="#C2542D"><path d="M12 2l1.9 6.3L20 10l-6.1 1.7L12 18l-1.9-6.3L4 10l6.1-1.7z"/></svg>';
+  const nowD = new Date();
+  const isCurrentMonthView = (viewMonth === nowD.getMonth() && viewYear === nowD.getFullYear());
   const { body, families, facts } = computeInsightNarrative();
-  if (families.length) saveInsightHistory(families);
+  // Only live-month generations feed the novelty rotation — browsing the
+  // archive shouldn't burn a family's freshness.
+  if (families.length && isCurrentMonthView) saveInsightHistory(families);
   const wrap = document.getElementById('trends-insight');
   wrap.innerHTML = `<div class="insight-card"><div class="insight-head">${sparkle}<span class="insight-label">What I noticed</span></div><div class="insight-body"></div></div>`;
   const bodyEl = wrap.querySelector('.insight-body');
@@ -2151,14 +2231,12 @@ async function renderTrendsInsight() {
   // No endpoint configured, a fallback line (nothing to phrase), or a closed
   // month → straight to the deterministic template. Past-month narratives are
   // retrospective and stable, so don't spend tokens re-phrasing history.
-  const nowD = new Date();
-  const isCurrentMonthView = (activeMonth === nowD.getMonth() && activeYear === nowD.getFullYear());
   if (!INSIGHTS_ENDPOINT || !families.length || !isCurrentMonthView) {
     typewriteInto(bodyEl, body);
     return;
   }
 
-  const cacheKey = `${activeUser}|${activeYear}|${activeMonth}|${dataStamp}|${families.join(',')}`;
+  const cacheKey = `${activeUser}|${viewYear}|${viewMonth}|${dataStamp}|${families.join(',')}`;
   if (insightCache[cacheKey]) {
     typewriteInto(bodyEl, insightCache[cacheKey]);
     return;
@@ -2662,7 +2740,11 @@ function calculateAndRender() {
   // Skip entirely if this view already shows the current month + data —
   // switching back to a tab should reveal it as-is, not replay everything.
   // (.settled pins child animations, since display:none → block restarts them.)
-  const viewKey = `${activeYear}-${activeMonth}-${dataStamp}`;
+  // Trends keys on its own viewMonth (Phase 5); the other tabs key on the
+  // header month state.
+  const viewKey = currentView === 'trends'
+    ? `${viewYear}-${viewMonth}-${dataStamp}`
+    : `${activeYear}-${activeMonth}-${dataStamp}`;
   const viewEl = document.getElementById(`${currentView}-view`);
   if (renderedKey[currentView] === viewKey) {
     viewEl.classList.add('settled');
@@ -2791,59 +2873,91 @@ function calculateAndRender() {
   }
 
   if (currentView === 'trends') {
-    renderMonthShelf();
+    renderTrendsMonthNav();
     renderTrendsInsight();
+    renderArchiveShelf();
 
+    // Trends reads its own viewMonth (Phase 5), never the header month state —
+    // so it filters its own row set instead of using the shared `rows`.
     const today = new Date();
-    const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
-    const isCurrentMonth = (activeMonth === today.getMonth() && activeYear === today.getFullYear());
-    const daysElapsed = isCurrentMonth ? today.getDate() : daysInMonth;
-    const dailyBurnRate = daysElapsed > 0 ? (totalExpense / daysElapsed) : 0;
+    const vRows = allRows.filter(r => {
+      const d = new Date(r.Date);
+      return d.getMonth() === viewMonth && d.getFullYear() === viewYear && (activeUser ? r.User === activeUser : false);
+    });
+    const vIncome = vRows.filter(r => r.Type === 'Income').reduce((s, r) => s + r.Amount, 0);
+    const vExpenseRows = vRows.filter(r => r.Type !== 'Income');
+    const vExpense = vExpenseRows.reduce((s, r) => s + r.Amount, 0);
+    const vCatTotals = {};
+    vExpenseRows.forEach(r => { vCatTotals[r.Category] = (vCatTotals[r.Category] || 0) + r.Amount; });
+    const vCatData = Object.entries(vCatTotals).sort((a, b) => b[1] - a[1]);
 
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const isCurrentMonth = (viewMonth === today.getMonth() && viewYear === today.getFullYear());
+    const daysElapsed = isCurrentMonth ? today.getDate() : daysInMonth;
+    const dailyBurnRate = daysElapsed > 0 ? (vExpense / daysElapsed) : 0;
+
+    // Second tile: the live month forecasts forward ("on track for ~RM x",
+    // verdict colored against income); a closed month just states actuals.
+    let secondTile;
+    if (isCurrentMonth) {
+      const forecast = dailyBurnRate * daysInMonth;
+      const verdictChip = vIncome > 0
+        ? (forecast <= vIncome ? '<div class="tile-chip good">on track</div>' : '<div class="tile-chip bad">over income</div>')
+        : '';
+      secondTile = `
+        <div class="tile-block neutral-block">
+          <div class="tile-label">Forecast</div>
+          <div class="tile-val counter-val" data-val="${forecast}" data-key="an-fc" data-prefix="~RM ">~RM 0.00</div>
+          ${verdictChip}
+        </div>`;
+    } else {
+      secondTile = `
+        <div class="tile-block neutral-block">
+          <div class="tile-label">Total Spent</div>
+          <div class="tile-val counter-val" data-val="${vExpense}" data-key="an-actual" data-prefix="RM ">RM 0.00</div>
+        </div>`;
+    }
     document.getElementById('trends-metrics').innerHTML = `
       <div class="tile-block neutral-block">
         <div class="tile-label">Average Daily Spend</div>
         <div class="tile-val counter-val" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
       </div>
-      <div class="tile-block neutral-block">
-        <div class="tile-label">Forecasted Spend</div>
-        <div class="tile-val counter-val" data-val="${dailyBurnRate * daysInMonth}" data-key="an-fc" data-prefix="RM ">RM 0.00</div>
-      </div>
+      ${secondTile}
     `;
 
     if (!isCurrentMonth) {
       // Closed month → the archive card stands in for the live pace bar.
-      let pMo = activeMonth - 1, pYr = activeYear;
+      let pMo = viewMonth - 1, pYr = viewYear;
       if (pMo < 0) { pMo = 11; pYr -= 1; }
       const prevExpense = monthTotals(pYr, pMo).exp;
-      const daysLogged = new Set(rows.map(r => new Date(r.Date).getDate())).size;
+      const daysLogged = new Set(vRows.map(r => new Date(r.Date).getDate())).size;
       document.getElementById('income-bar-block').innerHTML = archiveCardHtml({
-        net: netBalance,
-        expense: totalExpense,
-        topCat: catData.length ? catData[0][0] : null,
-        topAmt: catData.length ? catData[0][1] : 0,
+        net: vIncome - vExpense,
+        expense: vExpense,
+        topCat: vCatData.length ? vCatData[0][0] : null,
+        topAmt: vCatData.length ? vCatData[0][1] : 0,
         daysLogged,
         daysInMonth,
         prevExpense,
-        monthLabel: `${MONTHS[activeMonth]} ${activeYear}`
+        monthLabel: `${MONTHS[viewMonth]} ${viewYear}`
       });
       barMemory['income-bar-block'] = null; // next live-month render should spring from empty, not a stale bar
     } else {
-      renderLivePaceBar('income-bar-block', totalIncome, totalExpense);
+      renderLivePaceBar('income-bar-block', vIncome, vExpense);
     }
 
     const donutContainer = document.getElementById('donut-container');
     if (donutContainer) donutContainer.innerHTML = '<canvas id="donut"></canvas>';
 
     if (donutChart) donutChart.destroy();
-    if (catData.length) {
+    if (vCatData.length) {
       donutChart = new Chart(document.getElementById('donut'), {
         type: 'pie',
         data: {
-          labels: catData.map(d => d[0]),
+          labels: vCatData.map(d => d[0]),
           datasets: [{
-            data: catData.map(d => d[1]),
-            backgroundColor: catData.map(([cat]) => (CAT_COLORS[cat] || CAT_COLORS["Other"]).hex),
+            data: vCatData.map(d => d[1]),
+            backgroundColor: vCatData.map(([cat]) => (CAT_COLORS[cat] || CAT_COLORS["Other"]).hex),
             borderWidth: 1,
             borderColor: 'var(--surface-container-low)',
             offset: 0
@@ -2859,16 +2973,16 @@ function calculateAndRender() {
       });
     }
 
-    let lastMo = activeMonth - 1, lastYr = activeYear;
+    let lastMo = viewMonth - 1, lastYr = viewYear;
     if (lastMo < 0) { lastMo = 11; lastYr -= 1; }
-    
+
     // Make sure we apply the STRICT user filter to last month's data as well
-    const lastMonthExpenseRows = allRows.filter(r => { 
-      const d = new Date(r.Date); 
-      const isTimeMatch = d.getMonth() === lastMo && d.getFullYear() === lastYr && r.Type !== "Income"; 
-      
+    const lastMonthExpenseRows = allRows.filter(r => {
+      const d = new Date(r.Date);
+      const isTimeMatch = d.getMonth() === lastMo && d.getFullYear() === lastYr && r.Type !== "Income";
+
       const isUserMatch = activeUser ? (r.User === activeUser) : false;
-      
+
       return isTimeMatch && isUserMatch;
     });
 
@@ -2878,7 +2992,7 @@ function calculateAndRender() {
 
     for (let day = 1; day <= daysInMonth; day++) {
       if (!isCurrentMonth || day <= today.getDate()) {
-        currentSum += expenseRows.filter(r => new Date(r.Date).getDate() === day).reduce((s, r) => s + r.Amount, 0);
+        currentSum += vExpenseRows.filter(r => new Date(r.Date).getDate() === day).reduce((s, r) => s + r.Amount, 0);
         currentMonthlyCumulativeData.push(currentSum);
       }
       if (day <= daysInLastMonth) {
