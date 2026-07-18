@@ -381,6 +381,21 @@
   .tile-block.income-block .tile-val { color: var(--semantic-income); }
   .tile-block.expense-block .tile-val { color: var(--semantic-expense); }
   .tile-block.neutral-block .tile-val { color: var(--on-surface); }
+  /* Overspend warning (Phase C): when the live forecast overshoots the
+     month's income, the Trends figures (and the Today stats-line forecast)
+     go semantic-red with a soft glow — a legitimate semantic-red use per the
+     design language (overspend, not decoration). */
+  .tile-block.neutral-block .tile-val.overspend,
+  .income-bar-stats b.overspend {
+    color: var(--semantic-expense);
+    text-shadow: 0 0 12px rgba(229, 62, 62, 0.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    .tile-block.neutral-block .tile-val.overspend,
+    .income-bar-stats b.overspend {
+      text-shadow: 0 0 12px rgba(255, 77, 77, 0.35);
+    }
+  }
   .tile-chip {
     display: inline-flex; align-items: center; gap: 3px;
     font-size: 10px; font-weight: 700; padding: 2px 8px;
@@ -622,10 +637,11 @@
     font-size: 9px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase;
     color: var(--on-surface); white-space: nowrap;
   }
-  .income-bar-pace { font-size: 12px; font-weight: 600; color: var(--on-surface-variant); margin-top: 14px; }
-  .income-bar-pace b { font-weight: 800; }
-  .income-bar-pace b.ahead { color: var(--semantic-expense); }
-  .income-bar-pace b.under { color: var(--semantic-income); }
+  /* Quiet stats line under the bar (Phase C): avg daily · forecast, same
+     definitions as the Trends tiles. The forecast bold goes semantic-red
+     with a soft glow when it overshoots the month's income. */
+  .income-bar-stats { font-size: 12px; font-weight: 600; color: var(--on-surface-variant); margin-top: 14px; }
+  .income-bar-stats b { font-weight: 800; color: var(--on-surface); }
 
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
   .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); padding: 4px 12px; border-radius: var(--shape-full); border: 1px solid var(--outline-variant); background: var(--surface-container-low); }
@@ -1327,11 +1343,10 @@ const hasEntranced = { today: false, logs: false, trends: false };
 // Last value each counter displayed, so numbers animate from where they
 // were (value inertia) instead of re-counting from zero on every render.
 const counterMemory = {};
-// Same idea for the spend bar: segments + Today marker spring from their
-// previous position (or from empty on first render) to the new one. Keyed by
-// block id — the bar renders on both Today and Trends, each with its own
-// spring state.
-const barMemory = {};
+// Same idea for the pace bar: segments + Today marker spring from their
+// previous position (or from empty on first render) to the new one. A single
+// state since refinement Phase C — the bar lives only on Today now.
+let paceBarMemory = null;
 
 // Logs week-index state — lives outside the render so an optimistic edit's
 // re-render doesn't collapse the accordion. Weeks are keyed by their Monday's
@@ -1447,18 +1462,20 @@ function todayGlanceHtml() {
   </div>`;
 }
 
-// ── Live spend-pace bar (shared by Today + Trends) ──────────────────────────
-// Used/left segments, the "Today" month-pace marker, and the pace verdict
-// line. Caller guarantees the active month IS the current month — closed
-// months get the archive card (Trends) or nothing (Today) instead. blockId
-// keys the spring memory so each instance springs from its own last state.
-function renderLivePaceBar(blockId, totalIncome, totalExpense) {
-  const el = document.getElementById(blockId);
+// ── Live budget-pace card (Today only since refinement Phase C) ─────────────
+// The single pace surface: caption (% spent · % left), the used/left bar with
+// the "Today" month-pace marker, and a quiet stats line (avg daily · forecast,
+// same definitions as the Trends tiles — MTD ÷ elapsed days, × days in month).
+// The forecast figure turns semantic-red when it overshoots the month's
+// income. Caller guarantees the viewed month IS the current month — Trends
+// shows the archive card for closed months and nothing live.
+function renderLivePaceBar(totalIncome, totalExpense) {
+  const el = document.getElementById('today-pace-block');
   if (!el) return;
   const today = new Date();
   if (!(totalIncome > 0)) {
     el.innerHTML = `<div class="income-bar-caption"><span>No income logged this month</span><span class="cap-period">${MONTHS[today.getMonth()]} ${today.getFullYear()}</span></div>`;
-    barMemory[blockId] = null;
+    paceBarMemory = null;
     return;
   }
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
@@ -1466,16 +1483,15 @@ function renderLivePaceBar(blockId, totalIncome, totalExpense) {
   const usedPct = Math.min(100, (totalExpense / totalIncome) * 100);
   const remPct = Math.max(0, 100 - usedPct);
 
-  const diff = usedPct - monthPct;
-  let cls = '', word = 'on pace';
-  if (diff > 5) { cls = 'ahead'; word = 'ahead of pace'; }
-  else if (diff < -5) { cls = 'under'; word = 'under pace'; }
+  const avgDaily = totalExpense / today.getDate();
+  const forecast = avgDaily * daysInMonth;
+  const over = forecast > totalIncome;
 
   // Mount the bar at its previous state (or nearly-empty on first render),
   // then set the real values a frame later so the flex-grow / left
   // transitions actually spring — elements born at their final state
   // never animate.
-  const mem = barMemory[blockId];
+  const mem = paceBarMemory;
   const usedFlex = Math.max(usedPct, 4), remFlex = Math.max(remPct, 4);
   const startUsed = mem ? mem.used : 4;
   const startRem = mem ? mem.rem : 96;
@@ -1490,7 +1506,7 @@ function renderLivePaceBar(blockId, totalIncome, totalExpense) {
       </div>
       <div class="income-bar-marker" data-label="Today" style="left:${markerStart.toFixed(1)}%"></div>
     </div>
-    <div class="income-bar-pace">Day ${today.getDate()} of ${daysInMonth} · spending <b class="${cls}">${word}</b></div>
+    <div class="income-bar-stats">Avg daily <b>RM ${formatCurrency(avgDaily)}</b> · Forecast <b class="${over ? 'overspend' : ''}">~RM ${formatCurrency(forecast)}</b></div>
   `;
 
   requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1501,7 +1517,7 @@ function renderLivePaceBar(blockId, totalIncome, totalExpense) {
     if (remEl) remEl.style.flexGrow = remFlex;
     if (markerEl) markerEl.style.left = monthPct.toFixed(1) + '%';
   }));
-  barMemory[blockId] = { used: usedFlex, rem: remFlex, marker: monthPct };
+  paceBarMemory = { used: usedFlex, rem: remFlex, marker: monthPct };
 }
 
 // ── Logs week index (roadmap Phase 4; simplified in refinement Phase A) ─────
@@ -2757,10 +2773,10 @@ function calculateAndRender() {
     document.getElementById('today-glance').innerHTML = isCurrentMonth ? todayGlanceHtml() : '';
     if (isCurrentMonth) {
       document.getElementById('today-pace').innerHTML = '<div class="card"><div id="today-pace-block"></div></div>';
-      renderLivePaceBar('today-pace-block', totalIncome, totalExpense);
+      renderLivePaceBar(totalIncome, totalExpense);
     } else {
       document.getElementById('today-pace').innerHTML = '';
-      barMemory['today-pace-block'] = null;
+      paceBarMemory = null;
     }
 
     const heroTickColor = getComputedStyle(document.documentElement).getPropertyValue('--on-surface-variant').trim();
@@ -2824,19 +2840,19 @@ function calculateAndRender() {
     const daysElapsed = isCurrentMonth ? today.getDate() : daysInMonth;
     const dailyBurnRate = daysElapsed > 0 ? (vExpense / daysElapsed) : 0;
 
-    // Second tile: the live month forecasts forward ("on track for ~RM x",
-    // verdict colored against income); a closed month just states actuals.
+    // Second tile: the live month forecasts forward; a closed month just
+    // states actuals. When the live forecast overshoots the month's income,
+    // both tile figures go semantic-red with a soft glow (Phase C) — the
+    // overspend warning, replacing the old on-track/over-income chip.
+    const forecast = dailyBurnRate * daysInMonth;
+    const overspend = isCurrentMonth && vIncome > 0 && forecast > vIncome;
+    const valCls = `tile-val counter-val${overspend ? ' overspend' : ''}`;
     let secondTile;
     if (isCurrentMonth) {
-      const forecast = dailyBurnRate * daysInMonth;
-      const verdictChip = vIncome > 0
-        ? (forecast <= vIncome ? '<div class="tile-chip good">on track</div>' : '<div class="tile-chip bad">over income</div>')
-        : '';
       secondTile = `
         <div class="tile-block neutral-block">
           <div class="tile-label">Forecast</div>
-          <div class="tile-val counter-val" data-val="${forecast}" data-key="an-fc" data-prefix="~RM ">~RM 0.00</div>
-          ${verdictChip}
+          <div class="${valCls}" data-val="${forecast}" data-key="an-fc" data-prefix="~RM ">~RM 0.00</div>
         </div>`;
     } else {
       secondTile = `
@@ -2848,13 +2864,16 @@ function calculateAndRender() {
     document.getElementById('trends-metrics').innerHTML = `
       <div class="tile-block neutral-block">
         <div class="tile-label">Average Daily Spend</div>
-        <div class="tile-val counter-val" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM ">RM 0.00</div>
+        <div class="${valCls}" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM ">RM 0.00</div>
       </div>
       ${secondTile}
     `;
 
+    // The live pace bar left Trends in Phase C (it lives on Today). Closed
+    // months keep the archive card in this slot; the live month hides it.
+    const incomeBarCard = document.getElementById('income-bar-card');
     if (!isCurrentMonth) {
-      // Closed month → the archive card stands in for the live pace bar.
+      incomeBarCard.style.display = '';
       let pMo = viewMonth - 1, pYr = viewYear;
       if (pMo < 0) { pMo = 11; pYr -= 1; }
       const prevExpense = monthTotals(pYr, pMo).exp;
@@ -2869,9 +2888,9 @@ function calculateAndRender() {
         prevExpense,
         monthLabel: `${MONTHS[viewMonth]} ${viewYear}`
       });
-      barMemory['income-bar-block'] = null; // next live-month render should spring from empty, not a stale bar
     } else {
-      renderLivePaceBar('income-bar-block', vIncome, vExpense);
+      incomeBarCard.style.display = 'none';
+      document.getElementById('income-bar-block').innerHTML = '';
     }
 
     const donutContainer = document.getElementById('donut-container');
