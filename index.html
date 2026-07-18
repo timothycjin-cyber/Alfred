@@ -51,6 +51,9 @@
     --shape-xl: 28px;
     --shape-full: 999px;
     --motion-wobble: 420ms cubic-bezier(0.34, 1.85, 0.4, 0.85);
+    /* Nav-only wobble ≈ 20% shorter — the tab slider + text pop should feel
+       snappier than content entrances. Same spring curve, scaled duration. */
+    --motion-wobble-nav: 335ms cubic-bezier(0.34, 1.85, 0.4, 0.85);
     --motion-snap: 220ms cubic-bezier(0.25, 1, 0.3, 1);
     --motion-standard: 250ms cubic-bezier(0.2, 0, 0, 1);
     --font-body: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -64,6 +67,7 @@
   @supports (transition-timing-function: linear(0, 0.5, 1)) {
     :root {
       --motion-wobble: 632ms linear(0.0003, 0.0924 4.0%, 0.2917 8.0%, 0.5096 12.0%, 0.7087 16.0%, 0.8667 20.0%, 0.9806 24.0%, 1.0455 28.0%, 1.0756 32.0%, 1.0812 36.0%, 1.0716 40.0%, 1.0553 44.0%, 1.0375 48.0%, 1.0211 52.0%, 1.0089 56.0%, 1.0006 60.0%, 0.9958 64.0%, 0.9936 68.0%, 0.9934 72.0%, 0.9943 76.0%, 0.9958 80.0%, 0.9972 84.0%, 0.9984 88.0%, 0.9994 92.0%, 1 96.0%, 1.0004);
+      --motion-wobble-nav: 505ms linear(0.0003, 0.0924 4.0%, 0.2917 8.0%, 0.5096 12.0%, 0.7087 16.0%, 0.8667 20.0%, 0.9806 24.0%, 1.0455 28.0%, 1.0756 32.0%, 1.0812 36.0%, 1.0716 40.0%, 1.0553 44.0%, 1.0375 48.0%, 1.0211 52.0%, 1.0089 56.0%, 1.0006 60.0%, 0.9958 64.0%, 0.9936 68.0%, 0.9934 72.0%, 0.9943 76.0%, 0.9958 80.0%, 0.9972 84.0%, 0.9984 88.0%, 0.9994 92.0%, 1 96.0%, 1.0004);
       --motion-snap: 370ms linear(0.0007, 0.0756 4.0%, 0.2194 8.0%, 0.3704 12.0%, 0.5238 16.0%, 0.6553 20.0%, 0.7609 24.0%, 0.8413 28.0%, 0.8965 32.0%, 0.9384 36.0%, 0.9665 40.0%, 0.9844 44.0%, 0.9952 48.0%, 1.0009 52.0%, 1.0039 56.0%, 1.005 60.0%, 1.0049 64.0%, 1.0043 68.0%, 1.0036 72.0%, 1.0028 76.0%, 1.0021 80.0%, 1.0015 84.0%, 1.001 88.0%, 1.0007 92.0%, 1.0004 96.0%, 1.0002);
     }
   }
@@ -186,7 +190,7 @@
     background: rgba(255, 255, 255, 0.75);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.16);
     border-radius: var(--shape-full);
     display: flex;
     align-items: center;
@@ -200,7 +204,7 @@
   @media (prefers-color-scheme: dark) {
     .floating-nav {
       background: rgba(30, 30, 30, 0.75);
-      border-color: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.12);
       box-shadow: 0 12px 32px rgba(0,0,0,0.25);
     }
   }
@@ -216,9 +220,9 @@
     height: 100%; 
     z-index: 2; 
     outline: none; 
-    transition: color var(--motion-standard);
+    transition: transform var(--motion-wobble-nav), color var(--motion-standard);
   }
-  .nav-btn.active { color: var(--on-primary); font-weight: 700; }
+  .nav-btn.active { color: var(--on-primary); font-weight: 700; transform: scale(1.1); }
   
   /* Slider width = one tab slot: pill inner width (100% is the padding box,
      so subtract the 2×4px padding) minus the two 4px gaps, over three tabs.
@@ -232,7 +236,7 @@
     width: calc((100% - 16px) / 3);
     background: var(--primary);
     border-radius: var(--shape-full);
-    transition: transform var(--motion-wobble);
+    transition: transform var(--motion-wobble-nav);
     z-index: 1;
     pointer-events: none;
   }
@@ -250,7 +254,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 10px 28px rgba(194, 84, 45, 0.38), 0 4px 12px rgba(0, 0, 0, 0.16);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
     cursor: pointer;
     flex-shrink: 0;
     outline: none;
@@ -584,21 +588,6 @@
   .hm-future { background: transparent; border: 1px dashed var(--outline-variant); }
   .hm-future .hm-day { opacity: 0.45; }
 
-  /* 14-day capture strip (Today) — the heatmap's trailing-window sibling.
-     Cells for habit, bars for money: it reuses the exact hm-l* ramp above.
-     Bare cells (no day numbers — too small at 14-up); date range underneath. */
-  #today-pace .card { margin-bottom: 12px; }
-  .capture-strip-card .strip-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-  .strip-head .card-title { margin-bottom: 12px; }
-  .strip-link {
-    background: none; border: none; padding: 0; font-family: inherit;
-    font-size: 11px; font-weight: 700; color: var(--on-surface-variant);
-    cursor: pointer; outline: none; white-space: nowrap;
-    transition: opacity var(--motion-snap);
-  }
-  .strip-link:active { opacity: 0.6; }
-  .strip-row { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; }
-  .strip-ends { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px; font-weight: 600; color: var(--on-surface-variant); }
   /* Blinking caret while the narrative types itself in — sells the "live" feel.
      Sits at the end of the revealed text (trailing empty nodes add no width). */
   .insight-body.typing::after {
@@ -617,7 +606,7 @@
   
   .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .income-bar-caption { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; color: var(--on-surface-variant); margin: 0 0 22px; }
+  .income-bar-caption { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; color: var(--on-surface-variant); margin: 0 0 30px; }
   .income-bar-caption b { color: var(--on-surface); font-weight: 800; }
   .income-bar-caption .cap-period { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); white-space: nowrap; }
 
@@ -638,7 +627,7 @@
   /* "Today" marker overlaid on the bar at the month-elapsed position;
      springs from 0 to its position alongside the segments' flex-grow spring
      (both start values are set in markup, finals applied a frame later). */
-  .income-bar-marker { position: absolute; top: -7px; bottom: -7px; width: 2px; background: var(--on-surface); border-radius: 2px; transform: translateX(-1px); pointer-events: none; transition: left var(--motion-wobble); }
+  .income-bar-marker { position: absolute; top: -7px; bottom: -7px; width: 4px; background: var(--on-surface); border-radius: 2px; transform: translateX(-2px); pointer-events: none; transition: left var(--motion-wobble); }
   .income-bar-marker::before {
     content: attr(data-label);
     position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
@@ -725,14 +714,10 @@
 
   /* Logs week index — the ledger as an accordion of Mon–Sun weeks under
      month headers. Bars for money on this tab (no cell grids): each closed
-     row carries a spend bar on a shared scale, sienna marker = the trailing
-     8-week average. */
+     row carries a spend bar on a shared scale. */
   .month-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 1.5rem 0.25rem 0.6rem; }
   #logs-ledger .month-header:first-child { margin-top: 0.25rem; }
   .month-name { font-size: 13px; font-weight: 800; letter-spacing: -0.2px; color: var(--on-surface); }
-  .month-net { font-size: 11px; font-weight: 700; }
-  .month-net.pos { color: var(--semantic-income); }
-  .month-net.neg { color: var(--semantic-expense); }
 
   .week-row {
     border: 1px solid var(--outline-variant); border-radius: var(--shape-lg);
@@ -747,11 +732,6 @@
   @media (prefers-color-scheme: dark) { .week-head:active { background: rgba(255, 255, 255, 0.04); } }
   .week-top { display: flex; align-items: baseline; gap: 8px; }
   .week-range { font-size: 13.5px; font-weight: 800; letter-spacing: -0.2px; }
-  .week-now {
-    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
-    color: var(--sienna); border: 1px solid currentColor; border-radius: var(--shape-full);
-    padding: 1px 6px; align-self: center;
-  }
   .week-count { flex: 1; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
   .week-total { font-size: 13.5px; font-weight: 800; color: var(--semantic-expense); }
   .week-chev { color: var(--on-surface-variant); align-self: center; flex-shrink: 0; transition: transform var(--motion-wobble); }
@@ -760,10 +740,6 @@
   .week-bar-fill {
     height: 100%; border-radius: var(--shape-full);
     background: var(--semantic-expense); opacity: 0.5;
-  }
-  .week-bar-avg {
-    position: absolute; top: -3px; bottom: -3px; width: 2px; border-radius: 2px;
-    background: var(--sienna); transform: translateX(-1px); pointer-events: none;
   }
   .week-row.open .week-body { border-top: 1px solid var(--outline-variant); }
   .txn-date { font-size: 10px; font-weight: 600; color: var(--on-surface-variant); margin-left: 6px; align-self: center; }
@@ -1062,7 +1038,7 @@
      them; the delay reset stops the stagger from becoming a flicker cascade.
      The loading bars and capture busy spinner stay — status, not flourish. */
   @media (prefers-reduced-motion: reduce) {
-    :root { --motion-wobble: 0ms; --motion-snap: 0ms; --motion-standard: 0ms; }
+    :root { --motion-wobble: 0ms; --motion-wobble-nav: 0ms; --motion-snap: 0ms; --motion-standard: 0ms; }
     .hero-card, .tile-block, .tile-row .tile-block:nth-child(1), .tile-row .tile-block:nth-child(2),
     .txn-row, .txn-icon-chip, .hm-cell { animation-delay: 0ms; }
     /* Loader still signals activity, but as a gentle pulse instead of a bounce. */
@@ -1122,7 +1098,6 @@
     <div id="today-tiles" class="tile-row"></div>
     <div id="today-glance"></div>
     <div id="today-pace"></div>
-    <div id="today-capture"></div>
   </div>
 
   <div id="logs-view" class="view-section">
@@ -1260,7 +1235,7 @@
           <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
         </svg>
       </button>
-      <input type="text" class="capture-input" id="capture-input" placeholder="&ldquo;lunch RM15&rdquo; or add a receipt" autocomplete="off" enterkeyhint="send" aria-label="Describe a transaction">
+      <input type="text" class="capture-input" id="capture-input" placeholder="&ldquo;Coffee RM8&rdquo;" autocomplete="off" enterkeyhint="send" aria-label="Describe a transaction">
       <button type="button" class="icon-btn" id="capture-camera-btn" onclick="document.getElementById('capture-camera-file').click()" aria-label="Take a photo">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
@@ -1533,49 +1508,12 @@ function renderLivePaceBar(blockId, totalIncome, totalExpense) {
   barMemory[blockId] = { used: usedFlex, rem: remFlex, marker: monthPct };
 }
 
-// ── 14-day capture strip (Today) ────────────────────────────────────────────
-// Trailing habit strip: one cell per day, today rightmost, tinted by entries
-// logged that day. Shares the heatmap's exact hm-l* sienna ramp (cells for
-// habit, bars for money — never mixed). No future days: it's a trailing
-// window, so there's nothing to dash out.
-function renderCaptureStrip() {
-  const el = document.getElementById('today-capture');
-  if (!el) return;
-  const counts = {};
-  allRows.forEach(r => {
-    if (!(activeUser && r.User === activeUser)) return;
-    counts[r.Date] = (counts[r.Date] || 0) + 1;
-  });
-  const pad = n => String(n).padStart(2, '0');
-  const now = new Date();
-  let cells = '', startLabel = '';
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-    const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    const c = counts[iso] || 0;
-    if (i === 13) startLabel = `${MONTHS[d.getMonth()]} ${d.getDate()}`;
-    const delay = 60 + (13 - i) * 12;
-    const n = c === 1 ? 'entry' : 'entries';
-    cells += `<div class="hm-cell hm-l${Math.min(c, 4)}" style="--d:${delay}ms" title="${MONTHS[d.getMonth()]} ${d.getDate()} · ${c} ${n}"></div>`;
-  }
-  el.innerHTML = `
-    <div class="card capture-strip-card">
-      <div class="strip-head">
-        <div class="card-title">Capture · last 14 days</div>
-        <button class="strip-link" onclick="switchView('trends')">full grid in Trends</button>
-      </div>
-      <div class="strip-row">${cells}</div>
-      <div class="strip-ends"><span>${startLabel}</span><span>Today</span></div>
-    </div>`;
-}
-
-// ── Logs week index (roadmap Phase 4) ───────────────────────────────────────
+// ── Logs week index (roadmap Phase 4; simplified in refinement Phase A) ─────
 // The ledger: Mon–Sun week rows grouped under month headers, expanding in
 // place into the classic transaction rows. Bars for money (no cell grids on
 // this tab): each closed row carries a spend bar on a scale shared across all
-// rendered weeks, with a sienna marker at the trailing-8-week average. A week
-// lives under the month containing its Monday, so a week that spans two
-// months appears exactly once.
+// rendered weeks. A week lives under the month containing its Monday, so a
+// week that spans two months appears exactly once.
 
 function isoDateOf(d) {
   const pad = n => String(n).padStart(2, '0');
@@ -1594,25 +1532,6 @@ function weekRangeLabel(mondayIso) {
   return a.getMonth() === b.getMonth()
     ? `${MONTHS[a.getMonth()]} ${a.getDate()} – ${b.getDate()}`
     : `${MONTHS[a.getMonth()]} ${a.getDate()} – ${MONTHS[b.getMonth()]} ${b.getDate()}`;
-}
-
-// Mean weekly spend over the trailing 8 completed weeks (this week excluded),
-// averaged only over weeks that actually had spend — same philosophy as the
-// glance line's daily average. Needs ≥2 spend-weeks, else null (marker hides).
-function weeklyAverageSpend() {
-  const curMon = new Date(weekMondayIso(isoDateOf(new Date())) + 'T00:00:00').getTime();
-  const WEEK_MS = 7 * 86400000;
-  const sums = new Array(8).fill(0);
-  allRows.forEach(r => {
-    if (!(activeUser && r.User === activeUser) || r.Type === 'Income' || !r.Amount || !r.Date) return;
-    const t = new Date(r.Date + 'T00:00:00').getTime();
-    if (isNaN(t) || t >= curMon) return;
-    const weeksBack = Math.floor((curMon - t - 1) / WEEK_MS); // 0 = last week
-    if (weeksBack < 8) sums[weeksBack] += r.Amount;
-  });
-  const spendWeeks = sums.filter(s => s > 0);
-  if (spendWeeks.length < 2) return null;
-  return spendWeeks.reduce((a, b) => a + b, 0) / spendWeeks.length;
 }
 
 function _weekSpend(wk) {
@@ -1651,38 +1570,29 @@ function renderLogsLedger() {
   const months = [...monthsMap.values()];
   const shown = months.slice(0, logsMonthsShown);
 
-  // One scale for every rendered bar (and the average marker) so lengths are
-  // comparable down the page.
-  const avg = weeklyAverageSpend();
-  let scaleMax = avg || 0;
+  // One scale for every rendered bar so lengths are comparable down the page.
+  let scaleMax = 0;
   shown.forEach(mo => mo.weeks.forEach(wk => { scaleMax = Math.max(scaleMax, _weekSpend(wk)); }));
 
   let html = '';
   shown.forEach(mo => {
-    const net = monthTotals(mo.y, mo.m).net;
-    const netStr = `${net >= 0 ? '+' : '−'}RM ${formatCurrency(Math.abs(net))}`;
-    html += `<div class="month-header"><span class="month-name">${MONTHS_FULL[mo.m]} ${mo.y}</span><span class="month-net ${net >= 0 ? 'pos' : 'neg'}">net ${netStr}</span></div>`;
+    html += `<div class="month-header"><span class="month-name">${MONTHS_FULL[mo.m]} ${mo.y}</span></div>`;
     mo.weeks.forEach(wk => {
       const rows = _logsWeekRows[wk];
       const spend = _weekSpend(wk);
       const open = expandedWeeks.has(wk);
       const fillPct = scaleMax > 0 ? Math.min(100, (spend / scaleMax) * 100) : 0;
-      const markerHtml = (avg !== null && scaleMax > 0)
-        ? `<div class="week-bar-avg" style="left:${Math.min(100, (avg / scaleMax) * 100).toFixed(1)}%" title="Weekly average RM ${formatCurrency(avg)}"></div>`
-        : '';
       html += `
         <div class="week-row${open ? ' open' : ''}" data-wk="${wk}">
           <button type="button" class="week-head" aria-expanded="${open}" onclick="toggleWeek('${wk}')">
             <div class="week-top">
               <span class="week-range">${weekRangeLabel(wk)}</span>
-              ${wk === curWeekKey ? '<span class="week-now">this week</span>' : ''}
               <span class="week-count">${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}</span>
               <span class="week-total">RM ${formatCurrency(spend)}</span>
               <svg class="week-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
             <div class="week-bar">
               <div class="week-bar-fill" style="width:${fillPct.toFixed(1)}%"></div>
-              ${markerHtml}
             </div>
           </button>
           <div class="week-body">${open ? weekBodyHtml(wk) : ''}</div>
@@ -2820,19 +2730,17 @@ function calculateAndRender() {
       </div>
     `;
 
-    // Glance line, pace bar, and capture strip are all about the real "now",
-    // so they only render when the view is on the current month (one shared
-    // rule) — a past month on Today is just hero + tiles.
+    // Glance line and pace bar are about the real "now", so they only render
+    // when the view is on the current month (one shared rule) — a past month
+    // on Today is just hero + tiles.
     const nowD = new Date();
     const isCurrentMonth = activeMonth === nowD.getMonth() && activeYear === nowD.getFullYear();
     document.getElementById('today-glance').innerHTML = isCurrentMonth ? todayGlanceHtml() : '';
     if (isCurrentMonth) {
       document.getElementById('today-pace').innerHTML = '<div class="card"><div id="today-pace-block"></div></div>';
       renderLivePaceBar('today-pace-block', totalIncome, totalExpense);
-      renderCaptureStrip();
     } else {
       document.getElementById('today-pace').innerHTML = '';
-      document.getElementById('today-capture').innerHTML = '';
       barMemory['today-pace-block'] = null;
     }
 
@@ -2920,7 +2828,7 @@ function calculateAndRender() {
     document.getElementById('trends-metrics').innerHTML = `
       <div class="tile-block neutral-block">
         <div class="tile-label">Average Daily Spend</div>
-        <div class="tile-val counter-val" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
+        <div class="tile-val counter-val" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM ">RM 0.00</div>
       </div>
       ${secondTile}
     `;
@@ -3279,7 +3187,7 @@ function clearCaptureAttachment() {
   pendingImageB64 = null;
   document.getElementById('capture-attach-img').src = '';
   document.getElementById('capture-attach').classList.remove('show');
-  document.getElementById('capture-input').placeholder = '“lunch RM15” or add a receipt';
+  document.getElementById('capture-input').placeholder = '“Coffee RM8”';
 }
 
 // One handler for both routes: camera (capture attr) and gallery/files (clip).
