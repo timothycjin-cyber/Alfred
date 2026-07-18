@@ -266,6 +266,9 @@
   .container { max-width: 900px; margin: 0 auto; padding: 1.25rem 1rem; overflow-x: clip; }
   .view-section { display: none; }
   .view-section.active { display: block; }
+  /* When there is no ledger to show (no personal link, or a link with no rows
+     yet) the empty-state block stands in for the whole view. */
+  .container.is-empty .view-section { display: none !important; }
 
   /* M3 shared-axis: the incoming view springs in along X, direction matching
      tab order (Home ← → Analytics), so the pill and content move as one
@@ -417,7 +420,10 @@
     }
   }
 
-  .card { background: var(--surface-container-low); border-radius: var(--shape-lg); border: 1px solid var(--outline-variant); padding: 1.25rem; width: 100%; display: flex; flex-direction: column; }
+  /* Asymmetric "notched" corner is the shared surface signature (hero + insight
+     cards use it too) — apply it to plain cards so every surface reads as one
+     family. Small enough (xs = 6px) not to clip the charts that sit inside. */
+  .card { background: var(--surface-container-low); border-radius: var(--shape-lg) var(--shape-xs) var(--shape-lg) var(--shape-xs); border: 1px solid var(--outline-variant); padding: 1.25rem; width: 100%; display: flex; flex-direction: column; }
 
   /* Analytics insight strip — a short narrative "what I noticed" note,
      computed deterministically in JS (Phase 1; an LLM phrasing layer slots
@@ -437,6 +443,30 @@
   .insight-body b { font-weight: 800; }
   .insight-body .up { color: var(--semantic-expense); font-weight: 800; }
   .insight-body .down { color: var(--semantic-income); font-weight: 800; }
+
+  /* Empty state — calm explainer shown in place of the loader/cards when
+     there's no ledger to render. Same notched insight-card silhouette. */
+  #empty-state { padding-top: 2rem; }
+  .empty-state-card { max-width: 440px; margin: 0 auto; }
+
+  /* "Today" line on Home — a single quiet glance between the tiles and the
+     timeline. Insight-strip voice, no card chrome heavier than a hairline. */
+  #home-today:not(:empty) {
+    margin: -0.6rem 2px 1.25rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--outline-variant);
+  }
+  .today-line { display: flex; align-items: baseline; gap: 9px; }
+  .today-label {
+    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--on-surface-variant); flex-shrink: 0; line-height: 1.6;
+  }
+  .today-body { font-size: 13px; font-weight: 600; line-height: 1.55; color: var(--on-surface); }
+  .today-body b { font-weight: 800; }
+  .today-good { color: var(--semantic-income); font-weight: 700; }
+  .today-bad { color: var(--semantic-expense); font-weight: 700; }
+  .today-flat { color: var(--on-surface-variant); font-weight: 700; }
+  .today-empty { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
   /* Blinking caret while the narrative types itself in — sells the "live" feel.
      Sits at the end of the revealed text (trailing empty nodes add no width). */
   .insight-body.typing::after {
@@ -901,9 +931,12 @@
     Loading data...
   </div>
 
+  <div id="empty-state" style="display:none"></div>
+
   <div id="home-view" class="view-section">
     <div id="home-hero"></div>
     <div id="home-tiles" class="tile-row"></div>
+    <div id="home-today"></div>
     <div id="home-timeline"></div>
   </div>
 
@@ -1161,6 +1194,59 @@ function monthTotals(year, month) {
   const inc = monthRows.filter(r => r.Type === "Income").reduce((s, r) => s + r.Amount, 0);
   const exp = monthRows.filter(r => r.Type !== "Income").reduce((s, r) => s + r.Amount, 0);
   return { inc, exp, net: inc - exp };
+}
+
+// ── "Today" glance (client port of Code.gs computeDigest / dailyAverage) ─────
+// Pure sheet math over allRows for the active user — no backend call, no LLM,
+// same "digest as one source of truth" principle. Uses the dashboard's STRICT
+// user filter (no empty-User fallback the push digest carries) so the figure
+// matches everything else on screen. "Today" is the local date.
+const DIGEST_AVG_WINDOW_DAYS = 30;
+function computeTodayGlance() {
+  const pad = n => String(n).padStart(2, '0');
+  const isoOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const todayIso = isoOf(new Date());
+  const isExpense = r => String(r.Type || 'Expense').trim().toLowerCase() !== 'income';
+  const userRows = allRows.filter(r => activeUser && r.User === activeUser);
+
+  const todays = userRows.filter(r => r.Date === todayIso && r.Amount && isExpense(r));
+  const total = todays.reduce((s, r) => s + r.Amount, 0);
+  const n = todays.length;
+
+  // Mean daily spend over the 30 days strictly before today, averaged only over
+  // days that actually had spend (matches Code.gs dailyAverage exactly).
+  const refMs = new Date(todayIso + 'T00:00:00').getTime();
+  const startMs = refMs - DIGEST_AVG_WINDOW_DAYS * 86400000;
+  const perDay = {};
+  userRows.forEach(r => {
+    if (!r.Date || !r.Amount || !isExpense(r)) return;
+    const t = new Date(r.Date + 'T00:00:00').getTime();
+    if (isNaN(t) || t < startMs || t >= refMs) return;
+    perDay[r.Date] = (perDay[r.Date] || 0) + r.Amount;
+  });
+  const days = Object.keys(perDay);
+  const avg = days.length ? days.reduce((s, d) => s + perDay[d], 0) / days.length : null;
+
+  return { n, total, avg };
+}
+
+function todayGlanceHtml() {
+  const { n, total, avg } = computeTodayGlance();
+  if (!n) {
+    return `<div class="today-line"><span class="today-label">Today</span><span class="today-empty">Nothing logged today yet.</span></div>`;
+  }
+  const countStr = `${n} ${n === 1 ? 'entry' : 'entries'}`;
+  let verdict = '';
+  if (avg !== null) {
+    const diff = total - avg;
+    if (Math.abs(diff) < 0.005) verdict = ` · <span class="today-flat">on your RM ${formatCurrency(avg)} daily average</span>`;
+    else if (diff < 0) verdict = ` · <span class="today-good">RM ${formatCurrency(Math.abs(diff))} under your RM ${formatCurrency(avg)} average</span>`;
+    else verdict = ` · <span class="today-bad">RM ${formatCurrency(diff)} over your RM ${formatCurrency(avg)} average</span>`;
+  }
+  return `<div class="today-line">
+    <span class="today-label">Today</span>
+    <span class="today-body"><b>RM ${formatCurrency(total)}</b> across ${countStr}${verdict}</span>
+  </div>`;
 }
 
 // ── Insights engine (Phase 1: deterministic) ───────────────────────────────
@@ -1836,6 +1922,26 @@ function handleMonthDropdown(val) {
 }
 
 function calculateAndRender() {
+  // Empty state: no personal link (or a link whose user has no rows yet) can't
+  // render a meaningful ledger — show a calm explainer in place of the views
+  // instead of zeroed-out cards. Runs before the render-skip guard so a settled
+  // view can't strand it.
+  const container = document.querySelector('.container');
+  const emptyEl = document.getElementById('empty-state');
+  const userHasData = activeUser && allRows.some(r => r.User === activeUser);
+  if (!userHasData) {
+    emptyEl.innerHTML = `
+      <div class="insight-card empty-state-card">
+        <div class="insight-head"><span class="insight-label">No data for this view</span></div>
+        <div class="insight-body">Open your personal link (<b>?user=…</b>) to see your ledger.</div>
+      </div>`;
+    emptyEl.style.display = 'block';
+    container.classList.add('is-empty');
+    return;
+  }
+  emptyEl.style.display = 'none';
+  container.classList.remove('is-empty');
+
   // Skip entirely if this view already shows the current month + data —
   // switching back to a tab should reveal it as-is, not replay everything.
   // (.settled pins child animations, since display:none → block restarts them.)
@@ -1928,6 +2034,13 @@ function calculateAndRender() {
         <div class="tile-chip ${expChangePct <= 0 ? 'good' : 'bad'}">${expChangePct >= 0 ? '▲' : '▼'} ${Math.abs(expChangePct).toFixed(0)}% vs last mo.</div>
       </div>
     `;
+
+    // "Today" glance sits between the tiles and the timeline. It's inherently
+    // about the real today, so only show it when Home is on the current month
+    // (same current-month-only rule the analytics pace marker follows).
+    const nowD = new Date();
+    const isCurrentMonth = activeMonth === nowD.getMonth() && activeYear === nowD.getFullYear();
+    document.getElementById('home-today').innerHTML = isCurrentMonth ? todayGlanceHtml() : '';
 
     const heroTickColor = getComputedStyle(document.documentElement).getPropertyValue('--on-surface-variant').trim();
 
