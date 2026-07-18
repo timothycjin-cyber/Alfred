@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-16 (later same day: **one-handed ergonomics pass** — capture bar moved into a FAB-opened bottom sheet, FAB docked center of the nav pill, camera input also offers gallery, refresh icon removed; see §3a. Earlier: **Telegram bot DECOMMISSIONED** — the web app is now the whole product; `apps-script/Code.gs` is the single extraction/validation implementation. Earlier same day: repo decoupled from the bot; Phase 0 done — Firebase `project-alfred-f7575` configured [PRs #22/#23], capture bar, insights and the FCM push digest all VERIFIED LIVE on Android; nightly 10–11pm trigger set. Prior: independent-web-app build 2026-07-15.)*
+*Last updated: 2026-07-18 (**restructure Phase 2 — three-tab nav**: tabs are now **Today · Logs · Trends** with a detached 56px sienna FAB above the pill; see §3a "Nav restructure". Roadmap: `ALFRED_RESTRUCTURE_ROADMAP_v2.md` in-repo. Earlier same day: optimistic writes. Prior 2026-07-16: **one-handed ergonomics pass** — capture bar moved into a FAB-opened bottom sheet, FAB docked center of the nav pill, camera input also offers gallery, refresh icon removed; see §3a. Earlier: **Telegram bot DECOMMISSIONED** — the web app is now the whole product; `apps-script/Code.gs` is the single extraction/validation implementation. Earlier same day: repo decoupled from the bot; Phase 0 done — Firebase `project-alfred-f7575` configured [PRs #22/#23], capture bar, insights and the FCM push digest all VERIFIED LIVE on Android; nightly 10–11pm trigger set. Prior: independent-web-app build 2026-07-15.)*
 
 ---
 
@@ -139,6 +139,13 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 - **Photo + comment:** a chosen photo no longer sends immediately — it parks as `pendingImageB64` with a thumbnail chip (`.capture-attach`, removable ×) above the input, so a note ("2 pax, only count my half") can be typed; send submits both, note as the photo `caption`. Attachment survives sheet close/reopen until sent or removed; cleared on successful parse.
 - **Refresh icon removed** (pull-to-refresh reloads the page anyway); `init()` no longer touches `.refresh-btn`; bell + export remain right-aligned in the header. `@keyframes refreshSpin` kept — the capture-send busy spinner uses it.
 
+**Nav restructure — Phase 2 of `ALFRED_RESTRUCTURE_ROADMAP_v2.md` (2026-07-18 — DONE).** Three tabs **Today · Logs · Trends** (Today is the default landing tab) + a **detached FAB**. ⚠️ This supersedes every docked-FAB geometry number in the ergonomics-pass notes above.
+- **Pill:** still 280×48px glass, 4px padding, 4px gaps — but three equal text tabs, no FAB inside. Slider width `calc((100% - 16px) / 3)` (100% is the padding box: subtract 2×4 padding + 2×4 gaps, over 3); slot n = `translateX(calc(n·100% + n·4px))`, set in `switchView()` from `VIEW_ORDER = ['today','logs','trends']`. Shared-axis slide direction generalized: moving right in tab order → `axis-in-left`, so 1→3 slides the same way as 1→2.
+- **FAB:** 56px sienna (`--sienna: #C2542D`, new token) circle floating 12px above the pill, centered — `.bottom-bar` is now a column stack anchored `bottom: calc(24px + env(safe-area-inset-bottom))`. Sienna-tinted drop shadow; white icon; `body.modal-open-state` rotate kept.
+- **⚠️ Derived numbers (re-derive all if the cluster moves):** FAB center = **112px** + safe-area above the viewport bottom (24 bar + 48 pill + 12 gap + 28 half-FAB). Capture-sheet overlay `padding-bottom: calc(150px + env(safe-area-inset-bottom))`; bloom `transform-origin: 50% calc(100% + 38px)` (150 − 112). `body` `padding-bottom: calc(164px + inset)` clears the cluster; toast sits at `bottom: calc(152px + inset)`.
+- **Temporary tab composition** (real Today/Logs builds are roadmap Phases 3–4): **Today** = hero + income/expense tiles + today-glance line; **Logs** = the flat month timeline (`#logs-timeline`, moved off Home — cascade base delay now 0, no hero above it); **Trends** = everything Analytics had (shelf, insight, tiles, pace/archive card, charts, heatmap). Renames: panes `#today-view/#logs-view/#trends-view`, `#today-hero/#today-tiles/#today-glance`, `#trends-insight/#trends-metrics`, `renderAnalyticsInsight()` → `renderTrendsInsight()`; `renderedKey`/`hasEntranced` keyed by the three new names. "Home"/"Analytics" no longer exist in code.
+- Verified with the Playwright loop (36 checks, 390/900 × light/dark: pixel-exact slider alignment on all three tabs incl. after a live theme flip, FAB geometry, bloom origin landing on the FAB center, 1→3 slide direction, no overflow-x creep over repeated toggles, Logs row → edit modal, Escape closes the sheet).
+
 **Phase 2 — LLM phrasing (2026-07-12 — LIVE; backend moved to Apps Script 2026-07-15):** `renderAnalyticsInsight()` POSTs the computed plain-text facts as `{key, action:'insights', facts, month}` → `{narrative}` (gpt-4o-mini, *use-only-these-numbers* prompt — `handleInsights` in `apps-script/Code.gs`) and types the returned narrative. `styleInsightText()` escapes the model's text then re-bolds `RM x.xx` / `%` / `×` so figures still pop (styling only — the numbers are the ones we sent). Fully guarded: on timeout (10s), non-200, or any error → falls back to the deterministic `body`; `insightCache` (per user+month+`dataStamp`+families) avoids re-hitting the endpoint; an `insightToken` drops stale responses; a `.insight-thinking` dots indicator shows while phrasing. Numbers are still computed locally, so the LLM can never misstate a figure and the feature degrades to the free/offline templates. `INSIGHTS_ENDPOINT` = `APPS_SCRIPT_URL`; blank it to force Phase-1-only. (History: originally served by a `/insights` endpoint on the since-retired bot — PR #18 here + `project-alfred` PR #11 — re-pointed to Apps Script when the app went serverless.)
 
 **Potential next tie-in:** surface the shared daily-summary block ("today so far vs average") at the top of the dashboard, reusing the digest logic.
@@ -192,9 +199,11 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 
 - **Optimistic writes (2026-07-18) — DONE & VERIFIED.** Add / edit / delete / review-save now mutate `allRows` locally and re-render instantly (no full-screen loader, no blocking GViz round-trip), then POST in the background and fold in server truth via a **debounced reconcile** (`reconcileFromServer`, 1.5s after the POST). Reconcile keeps optimistic rows the GViz cache hasn't surfaced yet, honors optimistic deletes the cache still echoes, and de-dups on **UID first, content-signature second** — so it's correct whether or not the backend echoes the client UID. Failures roll the change back out of `allRows` and surface a neutral **toast** (`#toast`, inverse-surface, above the nav pill — not semantic red). Client sends a `clientUID()` with every add; `handleAdd` in `Code.gs` now honors a supplied `uid` (backward-compatible — older clients still get a server UID). ⚠️ The UID-exact reconcile path only kicks in after the Apps Script is **redeployed** (Manage deployments → Edit → new version); until then the signature fallback covers it, so no redeploy is *required*, only a precision upgrade. Verified with the render loop (72 checks, 390/900 × light/dark: instant paint, reconcile confirm/dedup/lag, edit, delete, delete-under-lag, failure rollback + toast). See §3a.
 
+- **Restructure Phase 2 — three-tab nav + detached FAB (2026-07-18) — DONE & VERIFIED.** Tabs are now Today · Logs · Trends (Today lands first), FAB is its own 56px sienna circle above the pill, flat timeline moved to Logs. Full geometry + rename detail in §3a "Nav restructure". Roadmap file `ALFRED_RESTRUCTURE_ROADMAP_v2.md` added to the repo (supersedes the old UX roadmap; Phases 0–1 were already live before this session).
+
 ### What's Pending ❌
+- **`ALFRED_RESTRUCTURE_ROADMAP_v2.md` Phases 3–7** (one per session, in order): Today-tab real composition (daily summary line, pace bar, 14-day capture strip), Logs week index accordion, Trends month navigation/forecast/archive rework, full capture heatmap by `viewMonth`, optional FAB long-press
 - Correction handling in the capture bar ("actually make that RM20" → edit last entry, not new row) — fits the "natural human input" goal; needs last-UID-per-user memory
-- Surface the shared daily-summary block on Home ("today so far vs average", reusing the digest math already in `Code.gs`)
 - Capture-parse validation suite (multi-day backdate, split-bill photo) — prompt-driven logic needs real-world eyeballing
 
 ---
@@ -207,9 +216,10 @@ Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** sy
 
 ## 6. Roadmap
 
-**Candidate next features (this repo):**
+**The active roadmap is `ALFRED_RESTRUCTURE_ROADMAP_v2.md`** (Today · Logs · Trends restructure; Phases 3–7 remain, one per session, in order — it supersedes the old UX roadmap where they disagree).
+
+**Other candidate features (this repo):**
 - Correction handling in the capture bar ("actually make that RM20")
-- Daily-summary block on Home reusing `computeDigest()` from `Code.gs`
 - Capture-parse validation suite (Phase 4 of the old NLP pipeline, now applies to the Apps Script port)
 - Per-user digest-time preference (PushSubs could grow a column)
 

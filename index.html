@@ -20,7 +20,8 @@
   :root {
     --semantic-income: #00A36C;
     --semantic-expense: #E53E3E;
-    --primary: #1A1A1A; 
+    --sienna: #C2542D;
+    --primary: #1A1A1A;
     --on-primary: #FFFFFF;
     --primary-container: #E9ECEF; 
     --on-primary-container: #1A1A1A;
@@ -96,8 +97,10 @@
     font-variation-settings: 'wght' 400, 'wdth' 100;
     background: var(--surface); 
     color: var(--on-surface); 
-    min-height: 100vh; 
-    padding-bottom: 115px; 
+    min-height: 100vh;
+    /* Clear the full nav cluster: 24 bar offset + 48 pill + 12 gap + 56 FAB
+       + breathing room, so the last list rows scroll out from under it. */
+    padding-bottom: calc(164px + env(safe-area-inset-bottom, 0px));
   }
 
   .header { 
@@ -160,23 +163,24 @@
   .push-btn.on { color: #C2542D; }
   .push-btn.on svg { fill: currentColor; }
 
+  /* Nav cluster: a detached FAB floating 12px above the three-tab pill
+     (Today · Logs · Trends). Column stack, both centered, anchored 24px
+     (+ safe-area inset) off the viewport bottom. */
   .bottom-bar {
     position: fixed;
-    bottom: 24px;
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
     left: 0;
     right: 0;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 16px;
+    gap: 12px;
     z-index: 100;
     pointer-events: none;
   }
   .bottom-bar > * { pointer-events: auto; }
 
-  /* The FAB is docked in the middle of the pill (Home · + · Analytics),
-     flush inside the 48px glass bar — dead center, so it's equally
-     reachable for a left or right thumb. */
   .floating-nav {
     position: relative;
     background: rgba(255, 255, 255, 0.75);
@@ -216,15 +220,16 @@
   }
   .nav-btn.active { color: var(--on-primary); font-weight: 700; }
   
-  /* Slider width = one tab slot: half the pill minus half the docked FAB
-     (20px) and its share of padding/gaps. The Analytics position hops over
-     the FAB: its own width (100%) + the 40px FAB + the two 4px gaps. */
+  /* Slider width = one tab slot: pill inner width (100% is the padding box,
+     so subtract the 2×4px padding) minus the two 4px gaps, over three tabs.
+     Slot n sits at translateX(n·100% + n·4px) — its own width per step plus
+     one gap. Keep this in sync if pill width/padding/gap change. */
   .nav-slider {
     position: absolute;
     top: 4px;
     bottom: 4px;
     left: 4px;
-    width: calc(50% - 28px);
+    width: calc((100% - 16px) / 3);
     background: var(--primary);
     border-radius: var(--shape-full);
     transition: transform var(--motion-wobble);
@@ -232,17 +237,20 @@
     pointer-events: none;
   }
 
+  /* Detached FAB — its own 56px sienna circle above the pill, not part of
+     the tab row. Sienna (not --primary ink) so the one action button is the
+     one accent-colored thing on screen. */
   .fab {
-    width: 40px;
-    height: 40px;
+    width: 56px;
+    height: 56px;
     border-radius: var(--shape-full);
-    background: var(--primary);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--surface-container-low);
+    background: var(--sienna);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #FFFFFF;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    box-shadow: 0 10px 28px rgba(194, 84, 45, 0.38), 0 4px 12px rgba(0, 0, 0, 0.16);
     cursor: pointer;
     flex-shrink: 0;
     outline: none;
@@ -271,7 +279,7 @@
   .container.is-empty .view-section { display: none !important; }
 
   /* M3 shared-axis: the incoming view springs in along X, direction matching
-     tab order (Home ← → Analytics), so the pill and content move as one
+     tab order (Today ← Logs → Trends), so the pill and content move as one
      connected mechanism. */
   @keyframes axisInLeft {
     from { opacity: 0; transform: translateX(32px); }
@@ -347,10 +355,10 @@
   .hero-chart-wrap { position: relative; width: 100%; height: 58px; margin: 0 -4px; }
 
   .tile-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 1.5rem; width: 100%; }
-  /* Analytics tile row sits directly above the spend-pace card, same
-     pairing as the home hero card + income/expense tiles — keep both
+  /* Trends tile row sits directly above the spend-pace card, same
+     pairing as the Today hero card + income/expense tiles — keep both
      gaps at the hero card's 12px instead of the section-break 1.5rem. */
-  #analytics-metrics { margin-bottom: 12px; }
+  #trends-metrics { margin-bottom: 12px; }
   #income-bar-card { margin-bottom: 12px; }
 
   .tile-block {
@@ -413,8 +421,8 @@
 
   @media (max-width: 768px) {
     .charts-row { grid-template-columns: minmax(0, 1fr); }
-    /* Every analytics block shares one width + centering so nothing drifts. */
-    #analytics-view > * {
+    /* Every Trends block shares one width + centering so nothing drifts. */
+    #trends-view > * {
       max-width: 440px;
       margin-left: auto;
       margin-right: auto;
@@ -451,10 +459,11 @@
   .empty-state-card { max-width: 440px; margin: 0 auto; }
 
   /* Toast — the honest fallback when an optimistic write can't reach the
-     backend. Sits above the nav pill (bottom 24 + 48 pill + gap). Neutral ink,
-     no semantic red: it's a "retry", not a money figure. */
+     backend. Sits above the whole nav cluster (24 bar + 48 pill + 12 gap +
+     56 FAB + 12 clearance = 152). Neutral ink, no semantic red: it's a
+     "retry", not a money figure. */
   #toast {
-    position: fixed; left: 50%; bottom: 88px; z-index: 120;
+    position: fixed; left: 50%; bottom: calc(152px + env(safe-area-inset-bottom, 0px)); z-index: 120;
     transform: translate(-50%, 12px);
     max-width: min(420px, calc(100vw - 32px));
     padding: 0.7rem 1rem; border-radius: var(--shape-lg) var(--shape-xs) var(--shape-lg) var(--shape-xs);
@@ -466,9 +475,9 @@
   }
   #toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
 
-  /* "Today" line on Home — a single quiet glance between the tiles and the
-     timeline. Insight-strip voice, no card chrome heavier than a hairline. */
-  #home-today:not(:empty) {
+  /* "Today" glance line — a single quiet glance below the tiles.
+     Insight-strip voice, no card chrome heavier than a hairline. */
+  #today-glance:not(:empty) {
     margin: -0.6rem 2px 1.25rem;
     padding-top: 0.9rem;
     border-top: 1px solid var(--outline-variant);
@@ -913,15 +922,19 @@
   .capture-attach img { width: 44px; height: 44px; border-radius: var(--shape-sm); object-fit: cover; flex-shrink: 0; }
   .capture-attach-label { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: var(--on-surface-variant); line-height: 1.4; }
 
-  /* Bottom-anchored sheet variant, floated just above the nav pill — right
-     where the thumb already is after tapping the FAB. Container-transform
-     entrance: the sheet starts as a small circle at the FAB's spot (origin
-     ~44px below its resting place) and springs open — the FAB visually
-     becomes the sheet. */
-  .modal-overlay.align-bottom { align-items: flex-end; padding: 1rem 1rem 96px; }
+  /* Bottom-anchored sheet variant, floated just above the detached FAB —
+     right where the thumb already is after tapping it. Container-transform
+     entrance: the sheet starts as a small circle at the FAB's spot and
+     springs open — the FAB visually becomes the sheet.
+     Geometry: FAB center sits 112px (+ safe-area) above the viewport bottom
+     (24 bar offset + 48 pill + 12 gap + 28 half-FAB); the sheet's bottom
+     edge sits at the 150px padding, so the origin is 38px below the sheet
+     (150 − 112). Both include the same safe-area inset, so the offset holds.
+     Re-derive all three numbers if the nav cluster's geometry moves. */
+  .modal-overlay.align-bottom { align-items: flex-end; padding: 1rem 1rem calc(150px + env(safe-area-inset-bottom, 0px)); }
   .modal-overlay.align-bottom .modal-sheet {
     max-width: 440px;
-    transform-origin: 50% calc(100% + 44px);
+    transform-origin: 50% calc(100% + 38px);
     transform: scale(0.08);
     border-radius: var(--shape-full);
     transition: transform var(--motion-wobble), border-radius var(--motion-snap), opacity var(--motion-standard);
@@ -994,15 +1007,16 @@
 </div>
 
 <div class="bottom-bar">
+  <button class="fab" onclick="openCaptureModal()" aria-label="Log a transaction" id="global-action-fab">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </button>
   <div class="floating-nav">
     <div id="nav-slider" class="nav-slider"></div>
-    <button class="nav-btn active" id="tab-home" onclick="switchView('home')">Home</button>
-    <button class="fab" onclick="openCaptureModal()" aria-label="Log a transaction" id="global-action-fab">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-    </button>
-    <button class="nav-btn" id="tab-analytics" onclick="switchView('analytics')">Analytics</button>
+    <button class="nav-btn active" id="tab-today" onclick="switchView('today')">Today</button>
+    <button class="nav-btn" id="tab-logs" onclick="switchView('logs')">Logs</button>
+    <button class="nav-btn" id="tab-trends" onclick="switchView('trends')">Trends</button>
   </div>
 </div>
 
@@ -1016,17 +1030,20 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <div id="home-view" class="view-section">
-    <div id="home-hero"></div>
-    <div id="home-tiles" class="tile-row"></div>
-    <div id="home-today"></div>
-    <div id="home-timeline"></div>
+  <div id="today-view" class="view-section">
+    <div id="today-hero"></div>
+    <div id="today-tiles" class="tile-row"></div>
+    <div id="today-glance"></div>
   </div>
 
-  <div id="analytics-view" class="view-section">
+  <div id="logs-view" class="view-section">
+    <div id="logs-timeline"></div>
+  </div>
+
+  <div id="trends-view" class="view-section">
     <div id="month-shelf"></div>
-    <div id="analytics-insight"></div>
-    <div id="analytics-metrics" class="tile-row"></div>
+    <div id="trends-insight"></div>
+    <div id="trends-metrics" class="tile-row"></div>
     <div class="card" id="income-bar-card">
       <div id="income-bar-block"></div>
     </div>
@@ -1231,14 +1248,15 @@ const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').mat
 let allRows = [];
 let activeMonth = new Date().getMonth();
 let activeYear = new Date().getFullYear();
-let currentView = 'home';
+let currentView = 'today';
+const VIEW_ORDER = ['today', 'logs', 'trends'];
 
 // Render-state tracking so revisiting a tab doesn't rebuild (and re-animate)
 // content that is already current. dataStamp bumps on every sheet fetch;
 // renderedKey remembers what month+data each view last rendered.
 let dataStamp = 0;
-const renderedKey = { home: null, analytics: null };
-const hasEntranced = { home: false, analytics: false };
+const renderedKey = { today: null, logs: null, trends: null };
+const hasEntranced = { today: false, logs: false, trends: false };
 // Last value each counter displayed, so numbers animate from where they
 // were (value inertia) instead of re-counting from zero on every render.
 const counterMemory = {};
@@ -1750,11 +1768,11 @@ function typewriteInto(el, html) {
 const insightCache = {};
 let insightToken = 0;
 
-async function renderAnalyticsInsight() {
+async function renderTrendsInsight() {
   const sparkle = '<svg width="13" height="13" viewBox="0 0 24 24" fill="#C2542D"><path d="M12 2l1.9 6.3L20 10l-6.1 1.7L12 18l-1.9-6.3L4 10l6.1-1.7z"/></svg>';
   const { body, families, facts } = computeInsightNarrative();
   if (families.length) saveInsightHistory(families);
-  const wrap = document.getElementById('analytics-insight');
+  const wrap = document.getElementById('trends-insight');
   wrap.innerHTML = `<div class="insight-card"><div class="insight-head">${sparkle}<span class="insight-label">What I noticed</span></div><div class="insight-body"></div></div>`;
   const bodyEl = wrap.querySelector('.insight-body');
   const token = ++insightToken;
@@ -2209,6 +2227,8 @@ function showToast(msg) {
 
 function switchView(view) {
   window.scrollTo(0, 0);
+  const fromIdx = VIEW_ORDER.indexOf(currentView);
+  const toIdx = VIEW_ORDER.indexOf(view);
   const isTabChange = view !== currentView;
   currentView = view;
   document.querySelectorAll('.nav-btn').forEach(t => t.classList.remove('active'));
@@ -2217,13 +2237,15 @@ function switchView(view) {
   const section = document.getElementById(`${view}-view`);
   section.classList.add('active');
   // Shared-axis slide, direction matching tab order — only on an actual tab
-  // change, never on initial load or same-view refreshes.
+  // change, never on initial load or same-view refreshes. Moving right in
+  // the tab order slides content in from the right (and vice versa), so
+  // 1→3 moves the same way as 1→2.
   section.classList.remove('axis-in-left', 'axis-in-right');
   if (isTabChange) {
-    section.classList.add(view === 'analytics' ? 'axis-in-left' : 'axis-in-right');
+    section.classList.add(toIdx > fromIdx ? 'axis-in-left' : 'axis-in-right');
   }
-  // Analytics slot sits past the docked FAB: own width + 40px FAB + 2×4px gaps.
-  document.getElementById('nav-slider').style.transform = (view === 'analytics') ? 'translateX(calc(100% + 48px))' : 'translateX(0)';
+  // Slider slot n = n × (own width + 4px gap); see the .nav-slider CSS note.
+  document.getElementById('nav-slider').style.transform = `translateX(calc(${toIdx * 100}% + ${toIdx * 4}px))`;
   calculateAndRender();
 }
 
@@ -2321,7 +2343,7 @@ function calculateAndRender() {
     "Other":             { hex: "#495057" }
   };
 
-  if (currentView === 'home') {
+  if (currentView === 'today') {
     let lastMo = activeMonth - 1, lastYr = activeYear;
     if (lastMo < 0) { lastMo = 11; lastYr -= 1; }
     const lastMonth = monthTotals(lastYr, lastMo);
@@ -2335,7 +2357,7 @@ function calculateAndRender() {
     }
     const trendData = trendMonths.map(m => monthTotals(m.year, m.month).net);
 
-    document.getElementById('home-hero').innerHTML = `
+    document.getElementById('today-hero').innerHTML = `
       <div class="hero-card">
         <div class="hero-top">
           <div class="hero-label">Net Balance</div>
@@ -2346,7 +2368,7 @@ function calculateAndRender() {
       </div>
     `;
 
-    document.getElementById('home-tiles').innerHTML = `
+    document.getElementById('today-tiles').innerHTML = `
       <div class="tile-block income-block">
         <div class="tile-label">Income</div>
         <div class="tile-val counter-val" data-val="${totalIncome}" data-key="home-inc" data-prefix="RM ">RM 0.00</div>
@@ -2359,12 +2381,12 @@ function calculateAndRender() {
       </div>
     `;
 
-    // "Today" glance sits between the tiles and the timeline. It's inherently
-    // about the real today, so only show it when Home is on the current month
-    // (same current-month-only rule the analytics pace marker follows).
+    // "Today" glance sits below the tiles. It's inherently about the real
+    // today, so only show it when the view is on the current month (same
+    // current-month-only rule the Trends pace marker follows).
     const nowD = new Date();
     const isCurrentMonth = activeMonth === nowD.getMonth() && activeYear === nowD.getFullYear();
-    document.getElementById('home-today').innerHTML = isCurrentMonth ? todayGlanceHtml() : '';
+    document.getElementById('today-glance').innerHTML = isCurrentMonth ? todayGlanceHtml() : '';
 
     const heroTickColor = getComputedStyle(document.documentElement).getPropertyValue('--on-surface-variant').trim();
 
@@ -2393,8 +2415,13 @@ function calculateAndRender() {
       }
     });
 
+  }
+
+  // Logs — the ledger. Still the flat month timeline for now; Phase 4 of the
+  // restructure roadmap turns it into the week-index accordion.
+  if (currentView === 'logs') {
     if (!rows.length) {
-      document.getElementById('home-timeline').innerHTML = '<div class="empty">No records found.</div>';
+      document.getElementById('logs-timeline').innerHTML = '<div class="empty">No records found.</div>';
     } else {
       const groups = {};
       [...rows].sort((a, b) => new Date(b.Date) - new Date(a.Date)).forEach(r => {
@@ -2403,9 +2430,9 @@ function calculateAndRender() {
         groups[dateHeader].push(r);
       });
 
-      // Rows cascade in top-to-bottom (35ms apart, capped so long lists don't
-      // stall); on first entrance they wait for the hero + tiles to land.
-      const rowBaseDelay = firstEntrance ? 190 : 0;
+      // Rows cascade in top-to-bottom (35ms apart, capped so long lists
+      // don't stall). No hero above them on Logs, so no base delay.
+      const rowBaseDelay = 0;
       let rowIdx = 0;
       let timelineHtml = '';
       for (const [dateStr, records] of Object.entries(groups)) {
@@ -2431,16 +2458,16 @@ function calculateAndRender() {
         }).join('');
         timelineHtml += `<div class="txn-footer"><span>Spent this day</span><span class="txn-footer-amt">RM ${formatCurrency(dayExpensesTotal)}</span></div></div>`;
       }
-      document.getElementById('home-timeline').innerHTML = timelineHtml;
-      document.querySelectorAll('#home-timeline .txn-row[data-uid]').forEach(el => {
+      document.getElementById('logs-timeline').innerHTML = timelineHtml;
+      document.querySelectorAll('#logs-timeline .txn-row[data-uid]').forEach(el => {
         el.addEventListener('click', () => openTxnModal(el.dataset.uid));
       });
     }
   }
 
-  if (currentView === 'analytics') {
+  if (currentView === 'trends') {
     renderMonthShelf();
-    renderAnalyticsInsight();
+    renderTrendsInsight();
 
     const today = new Date();
     const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
@@ -2448,7 +2475,7 @@ function calculateAndRender() {
     const daysElapsed = isCurrentMonth ? today.getDate() : daysInMonth;
     const dailyBurnRate = daysElapsed > 0 ? (totalExpense / daysElapsed) : 0;
 
-    document.getElementById('analytics-metrics').innerHTML = `
+    document.getElementById('trends-metrics').innerHTML = `
       <div class="tile-block neutral-block">
         <div class="tile-label">Average Daily Spend</div>
         <div class="tile-val counter-val" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM " data-suffix="/day">RM 0.00/day</div>
