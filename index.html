@@ -1295,7 +1295,7 @@ const FIREBASE_CONFIG = {
 const FCM_VAPID_KEY = "BP8WK1wCIkMP4g5avjmpJMnL2r1CnVQ6lGa4oL4hSQ2YUJalN9rEUsc06AvrcMKBnhvBtzg0mAEvUh3AH94oz7A";
 
 const INCOME_CATEGORIES = ["Salary", "Freelance", "Bonus", "Investment", "Side Income", "Reimbursement", "Other Income"];
-const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "Shopping", "Groceries", "Entertainment", "Other"];
+const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "Shopping & Groceries", "Subscriptions", "Entertainment", "Other"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MONTHS_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -1369,21 +1369,21 @@ let heroChart = null;
 // is reserved for amounts/deltas so a food-heavy pie doesn't read as an
 // alert. Other stays a deliberate neutral for the catch-all bucket.
 const CAT_COLORS = {
-  "Food & Dining":     { hex: "#C2542D" },
-  "Transport":         { hex: "#0891B2" },
-  "Bills & Utilities": { hex: "#D97706" },
-  "Shopping":          { hex: "#2684FF" },
-  "Groceries":         { hex: "#6554C0" },
-  "Entertainment":     { hex: "#DB2777" },
-  "Other":             { hex: "#495057" }
+  "Food & Dining":        { hex: "#C2542D" },
+  "Transport":            { hex: "#0891B2" },
+  "Bills & Utilities":    { hex: "#D97706" },
+  "Shopping & Groceries": { hex: "#2684FF" },
+  "Subscriptions":        { hex: "#6554C0" },
+  "Entertainment":        { hex: "#DB2777" },
+  "Other":                { hex: "#495057" }
 };
 
 const CAT_ICONS = {
   "Food & Dining": "🍜",
   "Transport": "🚗",
   "Bills & Utilities": "💡",
-  "Shopping": "🛍️",
-  "Groceries": "🛒",
+  "Shopping & Groceries": "🛍️",
+  "Subscriptions": "🔁",
   "Entertainment": "🎬",
   "Other": "📎"
 };

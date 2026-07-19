@@ -57,7 +57,7 @@ project deleted, webhook removed — nothing of the old stack runs anywhere.
 | 7 | User | User id (integer stored as string; historically the Telegram chat_id — kept as the identity key). Written on every add/edit. Legacy rows backfilled via Find & Replace in col H. |
 
 **Income Categories:** Salary, Freelance, Bonus, Investment, Side Income, Reimbursement, Other Income
-**Expense Categories:** Food & Dining, Transport, Shopping, Groceries, Entertainment, Bills & Utilities, Other
+**Expense Categories:** Food & Dining, Transport, Bills & Utilities, Shopping & Groceries, Subscriptions, Entertainment, Other
 
 There is also a **`PushSubs` tab** (User | Token | Created), auto-created by Apps Script
 — FCM push subscriptions, one row per device token (goes away in Phase F).
@@ -297,7 +297,8 @@ capture heatmap → archive shelf (bottom).
   380px container. ⚠️ **Both plugins gated on `chart.canvas.id === 'donut'`** — ungated
   plugins bleed onto every chart.
 - **Category palette** (validated with the dataviz six-checks, light+dark): Food &
-  Dining `#C2542D`, Transport `#0891B2`, Entertainment `#DB2777`, Other `#495057`
+  Dining `#C2542D`, Transport `#0891B2`, Bills & Utilities `#D97706`, Shopping &
+  Groceries `#2684FF`, Subscriptions `#6554C0`, Entertainment `#DB2777`, Other `#495057`
   (deliberate neutral). Semantic expense red is reserved for amounts/deltas — never a
   category.
 - **Capture heatmap:** calendar cell grid for `viewMonth`, sienna ramp classes
@@ -393,10 +394,13 @@ Every shipped phase was verified this way (23–72 checks each) before merging.
 UX refresh + tile system (#6/#7), motion/physics passes (#11–#13), insights strip
 (#14–#18), no-keyboard-on-open (#20), PWA + capture + push Phase 0 (#22/#23), three-tab
 restructure (#33), Today composition (#34), plus the Logs week index, Trends month
-navigation, optimistic writes, and refinement Phases A–D (2026-07-18). Full history: §7.
+navigation, optimistic writes, refinement Phases A–D, and Phase E (2026-07-18/19). Full
+history: §7.
 
-**Pending:** roadmap Phases E–F (§6, one per session, in order), then the unscheduled
-candidate features (§6).
+⚠️ **Phase E code is merged but the Apps Script deployment and Sheet data migration are
+manual owner steps, still outstanding** — see §7's Phase E entry.
+
+**Pending:** roadmap Phase F (§6), then the unscheduled candidate features (§6).
 
 ---
 
@@ -427,25 +431,6 @@ running costs anywhere in the project.
   `canvas.id`; horizontal transforms need the `overflow-x: clip` ancestor; strict
   `activeUser` filter is deliberate — never add a view-all; animations suppressed under
   `.settled`/reduced-motion; Apps Script redeploys via Manage deployments → **Edit**.
-
-### Phase E — Subscriptions category
-
-Touches both implementations + a redeploy.
-
-1. `index.html`: add `"Subscriptions"` to `EXPENSE_CATEGORIES`; add entries to
-   `CAT_COLORS` and `CAT_ICONS`. Pick the color with the dataviz six-checks validation
-   against the existing palette, light + dark (palette is contrast-validated; sienna
-   family is taken by Food & Dining, red is semantic).
-2. `apps-script/Code.gs`: add to `EXPENSE_CATEGORIES` (feeds both the extraction prompt
-   and the `validate_transactions` port). Consider one prompt example mapping
-   ("netflix RM17" → Subscriptions) so the parser prefers it over Entertainment/Bills.
-3. **Redeploy Apps Script the safe way** (Manage deployments → Edit → new version).
-4. Existing rows are untouched; subscription rows logged under other categories stay
-   where they are.
-
-**Verify:** manual add shows Subscriptions in the dropdown; capture-parse "netflix RM17"
-returns Subscriptions; pie renders the new color legibly in both themes. One PR +
-redeploy.
 
 ### Phase F — Push digest retirement (when ready, no urgency)
 
@@ -536,6 +521,19 @@ woven into §3.
   removed, Trends live pace bar removed); D budget rename sweep (labels only).
 - **2026-07-19 — Backlog refresh + this consolidation:** candidate features refined
   (§6); roadmap files deleted, CLAUDE.md rewritten as the single reference.
+- **2026-07-19 — Phase E, expanded scope (Subscriptions + category merge):** added
+  `"Subscriptions"` (color `#6554C0`, icon 🔁) to `EXPENSE_CATEGORIES`/`CAT_COLORS`/
+  `CAT_ICONS` in both `index.html` and `apps-script/Code.gs`; merged `"Shopping"` and
+  `"Groceries"` into a single `"Shopping & Groceries"` category (color `#2684FF`, icon
+  🛍️) — both new colors are the freed-up hexes from the two retired categories, so the
+  seven-color palette stays exactly as six-checks-validated, no new hues introduced.
+  Added one `EXTRACT_PROMPT` example line steering recurring bills ("netflix RM17") to
+  Subscriptions over Entertainment/Bills & Utilities. Added a one-off
+  `migrateShoppingGroceriesCategory()` helper in `Code.gs` (same pattern as
+  `backfillUIDs()`) to relabel existing Sheet rows from `Shopping`/`Groceries` to
+  `Shopping & Groceries` — **owner must run it manually once from the Apps Script
+  editor**, and the deployment must be redeployed (Manage deployments → Edit → new
+  version) before the parser or dropdown picks up the new categories live.
 
 ---
 

@@ -42,8 +42,8 @@ var DASHBOARD_URL = 'https://timothycjin-cyber.github.io/alfred-dashboard/';
 var OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 var OPENAI_MODEL = 'gpt-4o-mini';
 
-var EXPENSE_CATEGORIES = ['Food & Dining', 'Transport', 'Shopping', 'Groceries',
-                          'Entertainment', 'Bills & Utilities', 'Other'];
+var EXPENSE_CATEGORIES = ['Food & Dining', 'Transport', 'Bills & Utilities', 'Shopping & Groceries',
+                          'Subscriptions', 'Entertainment', 'Other'];
 var INCOME_CATEGORIES = ['Salary', 'Freelance', 'Bonus', 'Investment',
                          'Side Income', 'Reimbursement', 'Other Income'];
 
@@ -77,6 +77,9 @@ var EXTRACT_PROMPT = 'You are a personal finance assistant for a Malaysian user.
 '\n' +
 'For EXPENSE, pick category from: ' + JSON.stringify(EXPENSE_CATEGORIES) + '\n' +
 'For INCOME, pick category from: ' + JSON.stringify(INCOME_CATEGORIES) + '\n' +
+'\n' +
+'Recurring bills/memberships (e.g. "netflix RM17", "spotify RM15", "gym RM120") ->\n' +
+'category "Subscriptions" — prefer this over Entertainment or Bills & Utilities.\n' +
 '\n' +
 'Extract these fields for each transaction:\n' +
 '- type: "Expense" or "Income"\n' +
@@ -244,6 +247,27 @@ function backfillUIDs() {
     var cell = sheet.getRange(r, 7);
     if (!String(cell.getValue()).trim()) cell.setValue(generateUID());
   }
+}
+
+// One-off: run manually from the Apps Script editor after the Subscriptions
+// category ships (roadmap Phase E). Relabels existing "Shopping" and
+// "Groceries" rows to the merged "Shopping & Groceries" category so old
+// entries stay consistent with the new picklist.
+function migrateShoppingGroceriesCategory() {
+  var sheet = getSheet();
+  var last = sheet.getLastRow();
+  var range = sheet.getRange(2, 3, last - 1, 1); // Category column
+  var values = range.getValues();
+  var changed = 0;
+  for (var i = 0; i < values.length; i++) {
+    var cat = String(values[i][0]).trim();
+    if (cat === 'Shopping' || cat === 'Groceries') {
+      values[i][0] = 'Shopping & Groceries';
+      changed++;
+    }
+  }
+  range.setValues(values);
+  return changed;
 }
 
 // ── Allow-list ───────────────────────────────────────────────────────────────
