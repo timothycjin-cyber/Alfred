@@ -1154,7 +1154,7 @@
     <div class="type-toggle">
       <div class="type-toggle-slider" id="type-slider"></div>
       <button type="button" id="type-expense-btn" onclick="setModalType('Expense')">Expense</button>
-      <button type="button" id="type-income-btn" onclick="setModalType('Income')">Income</button>
+      <button type="button" id="type-income-btn" onclick="setModalType('Income')">Budget</button>
     </div>
     <input type="hidden" id="modal-type" value="Expense">
 
@@ -1474,7 +1474,7 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   if (!el) return;
   const today = new Date();
   if (!(totalIncome > 0)) {
-    el.innerHTML = `<div class="income-bar-caption"><span>No income logged this month</span><span class="cap-period">${MONTHS[today.getMonth()]} ${today.getFullYear()}</span></div>`;
+    el.innerHTML = `<div class="income-bar-caption"><span>No budget set this month</span><span class="cap-period">${MONTHS[today.getMonth()]} ${today.getFullYear()}</span></div>`;
     paceBarMemory = null;
     return;
   }
@@ -1498,7 +1498,7 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   const markerStart = mem ? mem.marker : 0;
 
   el.innerHTML = `
-    <div class="income-bar-caption"><span><b>${usedPct.toFixed(0)}%</b> of income spent · ${remPct.toFixed(0)}% left</span><span class="cap-period">${MONTHS[today.getMonth()]} ${today.getFullYear()}</span></div>
+    <div class="income-bar-caption"><span><b>${usedPct.toFixed(0)}%</b> of budget spent · ${remPct.toFixed(0)}% left</span><span class="cap-period">${MONTHS[today.getMonth()]} ${today.getFullYear()}</span></div>
     <div class="income-bar-wrap">
       <div class="income-bar-row">
         ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${startUsed}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
@@ -1643,7 +1643,7 @@ function weekBodyHtml(wk) {
           <div class="txn-details">
             <div class="txn-desc">${r.Description}</div>
             <div class="txn-badge-container">
-              <span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Income' : r.Category.split(' ')[0]}</span>
+              <span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Budget' : r.Category.split(' ')[0]}</span>
               <span class="txn-date">${MONTHS[d.getMonth()]} ${d.getDate()}</span>
             </div>
           </div>
@@ -2744,7 +2744,7 @@ function calculateAndRender() {
     document.getElementById('today-hero').innerHTML = `
       <div class="hero-card">
         <div class="hero-top">
-          <div class="hero-label">Net Balance</div>
+          <div class="hero-label">Budget left</div>
         </div>
         <div class="hero-amount counter-val" id="hero-amount" style="color: ${netBalance >= 0 ? 'var(--semantic-income)' : 'var(--semantic-expense)'};" data-val="${netBalance}" data-key="home-net" data-prefix="RM ">RM 0.00</div>
         <div class="hero-sub">${netBalance >= 0 ? 'In the green' : 'Watching the leak'}</div>
@@ -2754,7 +2754,7 @@ function calculateAndRender() {
 
     document.getElementById('today-tiles').innerHTML = `
       <div class="tile-block income-block">
-        <div class="tile-label">Income</div>
+        <div class="tile-label">Budget</div>
         <div class="tile-val counter-val" data-val="${totalIncome}" data-key="home-inc" data-prefix="RM ">RM 0.00</div>
         <div class="tile-chip ${incChangePct >= 0 ? 'good' : 'bad'}">${incChangePct >= 0 ? '▲' : '▼'} ${Math.abs(incChangePct).toFixed(0)}% vs last mo.</div>
       </div>
@@ -3358,7 +3358,7 @@ function renderReviewList() {
     <div class="review-row">
       <div class="review-main">
         <div class="review-desc">${escapeHtml(t.description)}</div>
-        <div class="review-meta">${escapeHtml(t.category)} · ${escapeHtml(t.date)}${t.type === 'Income' ? ' · <span class="income-tag">Income</span>' : ''}</div>
+        <div class="review-meta">${escapeHtml(t.category)} · ${escapeHtml(t.date)}${t.type === 'Income' ? ' · <span class="income-tag">Budget</span>' : ''}</div>
       </div>
       <input type="number" step="0.01" inputmode="decimal" class="review-amount" value="${t.amount}"
              onchange="updateReviewAmount(${i}, this.value)" aria-label="Amount for ${escapeHtml(t.description)}">
