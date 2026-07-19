@@ -1,18 +1,40 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-19 (**backlog refresh** — refined the parked feature ideas in §6 (doc-only, no code): **Trips** (temporary named mini-budgets with their own page + FAB, the concrete first cut of "multiple named budgets" — first data-model growth past budget = month's income), **recurring expenses** (daily/weekly/monthly auto-generation, pop-out in Logs — supersedes the old future-dated-entries note), **"Spending patterns"** heatmap rebrand (gradient legend + weekly/monthly toggle, supersedes the v2 Phase 6 acceptance sweep); dropped capture-bar correction handling and the capture-parse validation suite as no longer needed. Prior 2026-07-18: **refinement Phase D — budget rename sweep**: labels only, data model untouched — hero `Net Balance` → `Budget left` (same math), Today `Income` tile → `Budget`, pace captions `% of budget spent` / `No budget set this month`, txn-modal toggle `Expense / Budget` (still stores `Type: Income`), Logs badge + review-sheet tag `Income` → `Budget`; §0 product model rewritten as *budget tracker* (budget = month's logged income, no carry-over invariant); see §3a. Earlier same day: **refinement Phase C — Today budget-pace card + Trends overspend glow**: the live pace bar now lives ONLY on Today as a three-row card (caption · bar+marker · new `Avg daily RM A · Forecast ~RM B` stats line; the old `Day D of N · pace verdict` line is gone), Trends' live-month `#income-bar-card` is hidden (closed-month archive card stays), the Forecast tile's on-track/over-income chip is replaced by a semantic-red + soft-glow treatment on both tile figures when forecast > month income (`.overspend`), `barMemory` simplified to a single `paceBarMemory`; see §3a. Earlier same day: **refinement Phase B — single contextual month selector**: header month dropdown deleted (`activeMonth`/`activeYear` pinned to the real now — Today always shows the current month), one compact ‹ month › chip in the header shown only on Trends/Logs driving the shared `viewMonth`, Logs scroll-to-month (never filters; lazy window grows to reach the target), export trigger moved from the header to a slim toolbar atop Logs (month scope follows `viewMonth`), bell hidden pending Phase F; see §3a. Earlier same day: **refinement Phase A — visual polish batch** from the new `ALFRED_REFINEMENT_ROADMAP_v3.md` (now the active roadmap): neutral FAB shadow, "Coffee RM8" capture placeholder, stronger pill border, nav-only snappier spring (`--motion-wobble-nav`) + active-tab 1.1× text pop, Logs stripped of the this-week chip / month nets / 8-week-average marker, 14-day capture strip removed from Today, 4px pace-bar Today marker, avg-daily tile drops `/day`; see §3a. Earlier same day: **restructure Phase 5 — Trends month navigation**: Trends now runs on its own `viewMonth` state — ‹ month › nav chip, live-month forecast tile vs closed-month actuals + archive card, archive shelf moved to the bottom; see §3a. Earlier same day: **Phase 4 — Logs week index**: the ledger is now Mon–Sun week rows under month headers, accordion expansion, spend bars + trailing-8-week average marker, lazy month windowing; see §3a. Earlier same day: **Phase 3 — Today tab composition**: hero → tiles → glance line → live pace bar → 14-day capture strip; pace bar now shared Today+Trends; see §3a. Earlier same day: **Phase 2 three-tab nav** — **Today · Logs · Trends** with a detached 56px sienna FAB above the pill; see §3a "Nav restructure". Roadmap: `ALFRED_RESTRUCTURE_ROADMAP_v2.md` in-repo. Earlier same day: optimistic writes. Prior 2026-07-16: **one-handed ergonomics pass** — capture bar moved into a FAB-opened bottom sheet, FAB docked center of the nav pill, camera input also offers gallery, refresh icon removed; see §3a. Earlier: **Telegram bot DECOMMISSIONED** — the web app is now the whole product; `apps-script/Code.gs` is the single extraction/validation implementation. Earlier same day: repo decoupled from the bot; Phase 0 done — Firebase `project-alfred-f7575` configured [PRs #22/#23], capture bar, insights and the FCM push digest all VERIFIED LIVE on Android; nightly 10–11pm trigger set. Prior: independent-web-app build 2026-07-15.)*
+*Last updated: 2026-07-19 — **consolidated edition.** The two roadmap files
+(`ALFRED_RESTRUCTURE_ROADMAP_v2.md`, `ALFRED_REFINEMENT_ROADMAP_v3.md`) are deleted; their
+remaining live content (Phases E–F, standing rules, backlog) is folded into §6 here. The
+old changelog-style phase narrative is compacted into §7 (history) — everything below
+describes the **current state** of the app plus the traps that keep it working. Code
+comments in `index.html` still reference roadmap phase names (e.g. "roadmap Phase 4",
+"Phase F"); §6–§7 keep those names resolvable.*
 
 ---
 
-## 0. Overview
+## 0. Overview & product model
 
-**Project Alfred** is a personal **budget tracker** web app — this repo. It captures expenses in natural language or from receipt photos, tracks them against the month's budget, visualises spend, and pushes a nightly digest notification. It is an installable PWA on GitHub Pages, with the shared Google Sheet's own Apps Script as its entire backend (see §3b) — **fully serverless, no paid hosting anywhere.**
+**Project Alfred** is a personal **budget tracker** web app — this repo. It captures
+expenses in natural language or from receipt photos, tracks them against the month's
+budget, visualises spend, and pushes a nightly digest notification (digest slated for
+retirement — §6 Phase F). It is an installable PWA on GitHub Pages, with the shared
+Google Sheet's own Apps Script as its entire backend — **fully serverless, no paid
+hosting anywhere** (~$0/month; see §5).
 
-**Product model:** capture must be effortless (log an expense in seconds, confirm-before-save), analytics are pull-based and visual (trends, breakdowns, insights), and the digest is push (10pm notification). All three now live in this one app.
+**Product model:** capture must be effortless (log an expense in seconds,
+confirm-before-save), analytics are pull-based and visual (trends, breakdowns,
+insights), and the digest is push (10pm notification — the pillar Phase F retires).
 
-**Budget reframe (refinement Phase D, 2026-07-18 — rename only):** the surfaces speak *budget*, but the data model is untouched — rows keep `Type: Income`, `INCOME_CATEGORIES` keeps its names, and **a month's budget = that month's logged income**. There is no stored budget number. **No month carry-over, ever** — each month is a sealed page; net/budget-left never rolls forward (this is an invariant, already true in code). Multiple *named* budgets are a recorded future direction (v3 backlog); the rename keeps that path open.
+**Budget reframe (rename only):** the surfaces speak *budget*, but the data model is
+untouched — rows keep `Type: Income`, `INCOME_CATEGORIES` keeps its names, and **a
+month's budget = that month's logged income**. There is no stored budget number.
+**No month carry-over, ever** — each month is a sealed page; net/budget-left never rolls
+forward (an invariant, already true in code). Multiple *named* budgets are a recorded
+future direction (§6 "Trips"); the rename keeps that path open.
 
-**The former Telegram bot is decommissioned (2026-07-16).** This app replaced it outright — capture, glance, and push all proved out here, so the bot and its Railway hosting were retired rather than ported (the old "Phase D" plan). Its repo (`timothycjin-cyber/project-alfred`) is a historical record; rows it wrote (Source `telegram`/`telegram-image`) remain in the Sheet as valid data.
+**The former Telegram bot is decommissioned (2026-07-16).** This app replaced it
+outright; its repo (`timothycjin-cyber/project-alfred`) is a historical record. Rows it
+wrote (Source `telegram`/`telegram-image`) remain in the Sheet as valid data. Railway
+project deleted, webhook removed — nothing of the old stack runs anywhere.
+`apps-script/Code.gs` is the **single** extraction/validation implementation.
 
 ---
 
@@ -29,7 +51,7 @@
 | 1 | Amount (MYR) | Numeric |
 | 2 | Category | String |
 | 3 | Description | String |
-| 4 | Source | `web` / `web-image` (capture bar), `dashboard` (plain FAB add), `telegram` / `telegram-image` (historical rows from the retired bot) |
+| 4 | Source | `web` / `web-image` (capture sheet), `dashboard` (plain FAB add), `telegram` / `telegram-image` (historical rows from the retired bot) |
 | 5 | Type | Expense or Income |
 | 6 | UID | Short unique id, e.g. mqx393vfm58v. Apps Script generates `Date.now().toString(36)` + random; rows from the retired bot are 12-char hex. Never assume a format — treat as opaque. |
 | 7 | User | User id (integer stored as string; historically the Telegram chat_id — kept as the identity key). Written on every add/edit. Legacy rows backfilled via Find & Replace in col H. |
@@ -37,292 +59,525 @@
 **Income Categories:** Salary, Freelance, Bonus, Investment, Side Income, Reimbursement, Other Income
 **Expense Categories:** Food & Dining, Transport, Shopping, Groceries, Entertainment, Bills & Utilities, Other
 
-**Write path (the only one since the bot's retirement):** this app → fetch() POST → Google Apps Script Web App → appends/edits/deletes rows in Sheet1.
+There is also a **`PushSubs` tab** (User | Token | Created), auto-created by Apps Script
+— FCM push subscriptions, one row per device token (goes away in Phase F).
 
-There is also a **`PushSubs` tab** (User | Token | Created), auto-created by Apps Script — FCM push subscriptions, one row per device token.
-
----
-
-## 2. Former Telegram Bot — DECOMMISSIONED 2026-07-16
-
-Retired the same day the web app's capture/insights/push were verified live; the app made it redundant, so it was shut down instead of ported (superseding the old Phase D plan and the Railway stress test). Its repo (`timothycjin-cyber/project-alfred`, Python/Flask, formerly on Railway) remains as a historical record. The extraction prompt + validation rules it pioneered now live **solely** in `apps-script/Code.gs` — there is no second implementation to keep aligned anymore.
+- Empty-User rows are legacy owner rows — the digest's user filter keeps the
+  empty-string fallback until they're all backfilled.
 
 ---
 
-## 3. Dashboard (index.html)
+## 2. Backend — Google Apps Script (`apps-script/Code.gs`)
+
+The Sheet's own Apps Script, published as a Web App, is the entire backend. The in-repo
+`apps-script/Code.gs` is the source of truth for its code.
+
+- **Web App URL:** `https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXIWSRt1xVAbLnNPlhiHHaWpTHGB23N1wkoMU74nHifMT9prU3rM4m6/exec`
+- **Deployment:** Execute as: Me, Access: Anyone. Attached to the Sheet via Extensions → Apps Script.
+- **Auth:** shared secret `key: "8891"` in every POST body (public in page source — fine; the allow-list guards the metered spend).
+- **All requests POSTed as `text/plain`** so they stay CORS-"simple" (no preflight); Apps Script sends `Access-Control-Allow-Origin` automatically.
+- ⚠️ **To update: Deploy → Manage deployments → Edit → new version. NEVER create a new deployment (different URL).** Don't redeploy unless changes were made.
+
+**Actions routed by `doPost(e)`:**
+- `add` / `edit` / `delete` — row writes; `handleAdd`/`handleEdit` write User col H; `handleAdd` honors a client-supplied `uid` (backward-compatible — older clients get a server UID). Helpers: `findRowByUID()`, `generateUID()`, `backfillUIDs()`.
+- `parse` — `{user, text | image_b64[, mime][, caption]}` → `{transactions:[…], dropped, note?}`. The extraction prompt (`EXTRACT_PROMPT`, array-return schema) + `validate_transactions()` port (fix-quietly/drop-loudly; 36 Node tests). **Extract only — never writes**; saving goes through the normal confirmed add path. Guarded by the `ALLOWED_USERS` Script Property + input size caps. A query object comes back as `note` for the capture UI.
+- `insights` — LLM phrasing of client-computed facts (gpt-4o-mini, max_tokens 160, temp 0.6).
+- `push-subscribe` / `push-unsubscribe` / `run-digest-push` — FCM push (all removed in Phase F).
+
+**Push digest:** `sendDailyDigestPush()` is a time-driven trigger (daily 10–11pm; Apps
+Script triggers fire within the hour, not exact-minute). JS port of
+`build_daily_digest`/`_daily_average` → compact `{title, body}`, sent per token via
+**FCM HTTP v1** (SA JWT signed with `Utilities.computeRsaSha256Signature`, access token
+cached in `CacheService` 55 min; dead tokens pruned on UNREGISTERED).
+
+**Script Properties:** `OPENAI_API_KEY`, `ALLOWED_USERS`, `FIREBASE_SA_JSON`,
+`FCM_PROJECT_ID` (the last two drop in Phase F).
+
+---
+
+## 3. Dashboard (`index.html`) — current state
 
 **Live URL:** https://timothycjin-cyber.github.io/alfred-dashboard/
 
 | Layer | Tool |
 |---|---|
-| Hosting | GitHub Pages (static) |
+| Hosting | GitHub Pages (static, single-file app) |
 | Charts | Chart.js 4.4.1 (CDN) |
 | Data read | GViz JSON endpoint (public, no auth) |
-| Data write | Google Apps Script Web App (POST) |
-| Auth for writes | Shared secret — key: "8891" in POST body |
+| Data write | Apps Script Web App POST (§2) |
 
 **GViz URL pattern:**
 `https://docs.google.com/spreadsheets/d/19_C3gFlY7hDjGm87k3Uke63_Tgg6TQPl6xLiGZvuEis/gviz/tq?tqx=out:json&sheet=Sheet1`
 
-**Write path:** index.html → fetch() POST → Google Apps Script Web App → appends/edits/deletes row in Sheet1.
+### 3.1 User filtering (strict, deliberate)
 
-- **Apps Script:** attached to the Sheet via Extensions → Apps Script
-- **Deployment:** Published as Web App (Execute as: Me, Access: Anyone)
-- **Web App URL:** `https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXIWSRt1xVAbLnNPlhiHHaWpTHGB23N1wkoMU74nHifMT9prU3rM4m6/exec`
-- **Secret key:** 8891 (passed as key field in POST body)
+- `activeUser` parsed from `?user=` query param on load, falling back to
+  `localStorage('alfred_user')` (written whenever the param is present) so the installed
+  PWA keeps working — `start_url` can't carry per-user state.
+- `calculateAndRender()` applies a **strict** filter: a row renders only if `activeUser`
+  is non-empty AND matches the row's User column exactly. No `?user=` → zero rows render
+  (intentional privacy). Always test with `?user=YOUR_CHAT_ID`.
+- **No household/"view all" toggle — deliberate; never add one.**
 
-**Apps Script key functions (deployed — do NOT redeploy unless changes made):**
-doPost(e) routes add/edit/delete · handleAdd() (writes User col H) · handleEdit() (writes User col H) · handleDelete() · backfillUIDs() · findRowByUID() · generateUID().
-⚠️ To update Apps Script: **Deploy → Manage deployments → Edit** → new version. Do NOT create a new deployment (different URL).
+### 3.2 Design system & motion
 
-**User filtering logic (Pipeline 1 Phase 3 — DONE):**
-- `activeUser` parsed from `?user=` query param on load
-- `calculateAndRender()` applies a **strict** filter: a row renders only if `activeUser` is non-empty AND matches the row's User column exactly
-- Opening without `?user=` → zero rows render (intentional strict privacy). Always test with `?user=YOUR_CHAT_ID`.
-- No household/"view all" toggle — deliberate strict per-user isolation
+Material 3 Expressive foundation — Roboto Flex UI, ink monochrome tokens, semantic
+red/green reserved for expense/overspend vs income/good-news, burnt-sienna accent
+(`--sienna: #C2542D`). FAB + modals + nav pill share a liquid-glass aesthetic.
+Theme-aware via `prefers-color-scheme`. **Ledger voice throughout: no emoji, no
+exclamation marks, quiet verdicts.** Visual grammar rule: **bars for money, cells for
+habit** (spend intensity = horizontal bar; capture activity = sienna-tinted cells; never
+mix — the Trends heatmap is the only cell grid).
 
-**Design system:** Material 3 Expressive foundation — Roboto Flex UI, ink monochrome tokens, semantic red/green preserved, burnt-sienna (`#C2542D`) accent. Bouncy motion is core: `--motion-wobble` (overshoot cubic-bezier) drives the nav pill slider, hero/tile/chip pop-in animations, and bar transitions; `--motion-snap` for taps. FAB + modal + nav pill share a liquid-glass aesthetic. Theme-aware via `prefers-color-scheme`.
+**Motion tokens:** `--motion-wobble` (overshoot spring; hero/tile/chip pop-ins, FAB
+bloom, bar transitions), `--motion-snap` (taps), `--motion-wobble-nav` (nav-only, ≈20%
+shorter — drives `.nav-slider` transform and the active-tab `scale(1.1)` text pop).
+Under `@supports (transition-timing-function: linear(...))` the tokens become sampled
+damped-spring `linear()` curves (wobble = stiffness 320/ζ 0.62, ~632ms; snap = 700/0.85,
+~370ms; nav ~505ms); cubic-bezier fallbacks for older browsers.
 
-### 3a. Dashboard UX refresh (2026-07-11 vibe session — DONE)
+- **Entrances:** hero first, tiles staggered via `nth-child` delays, txn rows cascade
+  through a per-row `--d` var; all entrance keyframes use `backwards` fill.
+- **No-replay:** `renderedKey` (per view: `year-month-dataStamp`) makes
+  `calculateAndRender()` a no-op on tab revisit; `dataStamp` bumps on every fetch. On
+  genuine re-renders `hasEntranced` adds `.no-entrance`. Revisited tabs get `.settled`
+  (pins child animations — `display:none → block` would otherwise restart them).
+- **Value inertia:** `counterMemory` (keyed by `data-key` on `.counter-val`) animates
+  numbers from their previous value, not from zero.
+- **Mount-then-spring:** elements born at final state never animate — the pace bar
+  mounts at its previous state (`paceBarMemory`) and gets real `flex-grow`/`left` one
+  frame later so the wobble fires.
+- **Shared-axis tab slide:** `.axis-in-left/right` in `switchView()`, direction from
+  tab order. ⚠️ **`.container` must keep `overflow-x: clip`** — the slide's transient
+  `translateX` briefly widens the document; `position:fixed; right:0` bars then size to
+  the widened viewport and *sustain* the overflow, which mobile browsers zoom to fit.
+  `clip` (not `hidden` — that would kill vertical scroll/sticky header). Caught by
+  measuring `documentElement.scrollWidth` over repeated toggles, not by eye.
+- **`prefers-reduced-motion`:** zeroes all motion tokens + stagger delays; JS
+  `REDUCED_MOTION` flag makes counters instant, sets `Chart.defaults.animation = false`,
+  shows insight text without the typewriter, scrolls without smooth. Loader becomes an
+  opacity pulse.
+- **Loader:** 4-bar bouncing mini bar-chart (staggered, last bar sienna).
 
-Both tabs reworked from bordered `.metric` cards to a shared **`tile-block`** system + purpose-built cards. Drew inspiration from finance-app dribbble refs (hero balance card w/ embedded mini-chart, on-slice pie %s, income/expense pills), translated into Alfred's own tokens (not the refs' purple-on-white).
+### 3.3 Navigation — Today · Logs · Trends + detached FAB
 
-**Home:**
-- **Net Balance hero card** (`.hero-card`, `#home-hero`) — full-width; **ink-black gradient in dark mode, monochrome off-white surface in light mode** (no shadow). Holds: privacy **blur toggle** (`toggleHeroPrivacy()` → `.value-hidden` CSS blur), and an embedded **6-month net-trend mini bar chart** (`heroChart`, current month in burnt-sienna, others tinted green/red by sign). Balance figure colored green/red by sign via semantic tokens.
-- **Income / Expense tiles** (`#home-tiles`) — tinted-surface (`--wash-income`/`--wash-expense`), number colored by type, each with a `▲/▼ X% vs last month` outlined chip.
-- **Transaction rows** — per-category **icon chip** (`.txn-icon-chip`, `CAT_ICONS` map) tinted from the existing `CAT_COLORS` map.
+Three text tabs in a 280×48px glass pill (4px padding, 4px gaps), Today is the default
+landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
+`#logs-view` / `#trends-view`.
 
-**Analytics:**
-- **Average Daily Spend / Forecasted Spend** — same `tile-block` system (expense-tint / neutral-tint); emoji subtitles removed.
-- **Spend card** (`#income-bar-block`) — no headline; a two-segment **"% of income spent · % left"** bar (`.income-bar-seg used/rem`) plus a **"Today" month-pace marker** (`.income-bar-marker` at month-elapsed %) and a `Day D of N · spending ahead/under/on pace` line (red/green/neutral). Marker + pace only render for the **current** month; needs `totalIncome > 0`.
-- **Expenses by Category** — **solid pie** (was donut). `pieLabelsPlugin` draws bold on-slice %s (≥8%) + name+amount callouts with elbow leader lines; `variableRadiusPlugin` scales each slice's outer radius **subtly** by share (`0.92 + 0.08 × share`) so a dominant Food category doesn't lopside the circle. Center-total (old donut hole) and the separate Category Breakdown card were both removed — callouts carry name + amount now. **Every slice gets a callout** (tooltips are disabled, so callouts are the only ID for small categories): callouts route to a left/right column by slice angle, then de-collide vertically (32px min gap, clamped to canvas) — the old `pct < 8` skip now only gates the on-slice %.
-- **Mobile centering:** every direct child of `#analytics-view` shares one `max-width:440px` + auto-center at ≤768px, so tiles/cards/charts all line up (previously tiles went full-width while charts stayed capped).
+- **Slider math:** width `calc((100% - 16px) / 3)` (padding box minus 2×4 padding +
+  2×4 gaps, over 3); slot n = `translateX(calc(n·100% + n·4px))`, set in `switchView()`.
+- **FAB:** 56px sienna circle floating 12px above the pill, centered; `.bottom-bar` is a
+  column stack anchored `bottom: calc(24px + env(safe-area-inset-bottom))`. Neutral
+  elevation shadow (`0 6px 16px rgba(0,0,0,0.18)`); white icon; `body.modal-open-state`
+  rotate.
+- **⚠️ Derived numbers (re-derive ALL if the cluster moves):** FAB center = **112px** +
+  safe-area above the viewport bottom (24 bar + 48 pill + 12 gap + 28 half-FAB).
+  Capture-sheet overlay `padding-bottom: calc(150px + env(safe-area-inset-bottom))`;
+  bloom `transform-origin: 50% calc(100% + 38px)` (150 − 112). `body`
+  `padding-bottom: calc(164px + inset)` clears the cluster; toast sits at
+  `bottom: calc(152px + inset)`.
+- **Header:** just "Project Alfred" on Today; on Trends/Logs a contextual month chip
+  appears (§3.4). Bell hidden (one-line early return in `initPushUI()` — full teardown
+  is Phase F). No refresh icon (pull-to-refresh covers it; `@keyframes refreshSpin`
+  survives for the capture-send spinner).
 
-⚠️ Chart plugins (`pieLabelsPlugin`, `variableRadiusPlugin`) are gated on `chart.canvas.id === 'donut'` so they only touch the category pie, not the cumulative line. Custom callouts are drawn in Chart.js `layout.padding` — the pie renders at `radius:'90%'` inside a 380px-tall container with L/R padding for label room.
+### 3.4 Month state — single contextual selector
 
-**Motion polish (2026-07-11, post-refresh — DONE):**
-- **Staggered entrances:** hero lands first, tiles follow via `nth-child` `animation-delay` (70/140ms), txn rows cascade top-to-bottom (35ms apart, index capped at 10) through a per-row `--d` CSS var shared with each row's icon chip. All entrance keyframes use `backwards` fill so delayed elements stay hidden until their turn.
-- **No-replay re-renders:** `renderedKey` (per view: `year-month-dataStamp`) makes `calculateAndRender()` a no-op when switching back to a tab whose content is already current — charts/DOM persist, nothing re-animates. `dataStamp` bumps on every `init()` fetch. On a genuine re-render (month switch, post-save), `hasEntranced` adds `.no-entrance` to the view, which kills hero/tile pop-ins (rows still cascade — they're new content).
-- **Value-inertia counters:** `counterMemory` (keyed by `data-key` on each `.counter-val`) makes numbers animate **from their previous value** to the new one instead of re-counting from RM 0.00. First paint still counts up from zero.
+- `activeMonth`/`activeYear` are **pinned to the real current month at load** and never
+  change — Today always shows now. (Consequence: Today/Logs `renderedKey` viewKeys are
+  constant within a session, busted only by `dataStamp`.)
+- **Shared `viewMonth`/`viewYear`** drive Trends and Logs, stepped by the compact
+  `‹ Jul ›` header chip (`#header-monthnav`, `renderHeaderMonthNav()`; `’YY` appended
+  when not the current year). Rendered **only when `currentView` is `trends` or `logs`**
+  and data exists; re-rendered on every `switchView`, in the Trends/Logs render
+  branches, and inside `headerNavMonth` (it lives outside the panes, so the key-skip
+  can't cover it).
+- `headerNavMonth(delta)` clamps to [`earliestDataMonth()` … current month], ends
+  disable. **Behavior fork:** on Trends → `calculateAndRender()` (viewKey busts); on
+  Logs → `logsScrollToMonth()` — **no filtering, no re-render**.
+- The Trends archive shelf also sets `viewMonth`; the chip label follows.
 
-**Quick-wins pass (2026-07-11, same session — DONE):**
-- **`prefers-reduced-motion`:** zeroes the three motion tokens (collapsing every transition/animation built on them) + stagger delays; JS `REDUCED_MOTION` flag makes counters instant and sets `Chart.defaults.animation = false`. Loading spinner + refresh spin kept (status, not flourish).
-- **Chip valence:** tile chips are now `.good`/`.bad` (green/red) by whether the change is good news — expenses dropping reads green. Average Daily Spend tile went expense-tint → neutral (it's information, not a warning).
-- **Refresh feedback:** `.refresh-btn.spinning` spins the icon while `init()`'s fetch is in flight (also covers initial load); replaced the old `:active` rotate.
-- **Category palette** (validated with the dataviz six-checks script, light+dark): Food & Dining `#C2542D` (own burnt-sienna hue — semantic expense red is reserved for amounts/deltas), Transport `#0891B2` (chroma fix), Entertainment `#DB2777` (contrast fix); Other stays deliberate-neutral `#495057`. "Last month" cumulative line + legend dot are now outline gray per theme (`#6C757D`/`#ADB5BD`) — reference, not warning.
-- **Hero mini-chart negatives:** `minBarLength: 4` + `heroBaselinePlugin` (faint zero line, gated on `canvas.id === 'hero-trend'`) so negative-net months stay visible.
+### 3.5 Today tab
 
-**Physics pass (2026-07-11, same session — DONE):**
-- **Real spring easing:** `@supports (transition-timing-function: linear(0,0.5,1))` overrides the motion tokens with sampled damped-spring `linear()` curves — wobble = stiffness 320 / ζ 0.62 (~8% overshoot, 632ms), snap = stiffness 700 / ζ 0.85 (near-critical, 370ms). Old cubic-beziers remain as the fallback for pre-`linear()` browsers; the reduced-motion zeroing (later in the sheet) still wins.
-- **Shared-axis tab transition:** incoming view springs in along X via `.axis-in-left/right` (direction = tab order), applied in `switchView()` only on an actual tab change. Companion fix: `display:none → block` restarts child CSS animations, so revisited tabs were replaying pop-ins despite the no-replay render skip — `.settled` (added on the skip path, removed on real renders) pins hero/tile/row/chip animations on revisit. ⚠️ **`.container` must keep `overflow-x: clip`** — the slide's transient `translateX` briefly widens the document, and on mobile that makes `position:fixed; right:0` bars (nav, modals) size to the widened layout viewport and *sustain* the overflow, which the browser then zooms to fit ("Analytics zooms in slightly after a few toggles"). `clip` (not `hidden`) contains it while leaving `overflow-y` visible so vertical scroll + the sticky header are unaffected.
-- **Spend bar actually springs now:** segments + Today marker mount at their previous state (`barMemory`, or nearly-empty on first render) and get their real `flex-grow`/`left` one frame later, so the wobble transitions fire (elements born at final state never animate). Verified overshoot: 10.1 → 19.25 → settles 18.14.
-- **Loader:** spinner replaced with a 4-bar bouncing mini bar-chart (staggered 120ms, last bar burnt-sienna); under reduced motion it becomes an opacity pulse (`loaderPulse`).
-- **Micro:** txn rows get a `scale(0.985)` press squish matching the tiles.
+Composition (scroll-peek order): **hero → tiles → glance line → budget-pace card.**
 
-**Modal polish (2026-07-12 — DONE):** both overlays (`#modal-overlay`, `#export-overlay`) are now `role="dialog" aria-modal="true" aria-labelledby=…`.
-- **Focus management:** `trapModalFocus(overlay, initial)` remembers the trigger, moves focus into the sheet on open (`preventScroll` so the entrance isn't yanked), and confines Tab/Shift+Tab within it; `releaseModalFocus()` restores focus to the trigger on close.
-- **Escape-to-close:** one global `keydown` — Escape backs out of the delete confirm first (if shown), otherwise closes whichever overlay is open.
-- **In-modal delete confirm:** native `confirm()` is gone. The outline-red Delete button (`askDeleteConfirm()`) escalates to a solid-red confirm row (`.btn-danger-solid`, "Delete this entry? This can't be undone."); `cancelDeleteConfirm()`/`resetDeleteConfirm()` restore the main actions (also reset on open/close). `deleteTxn()` now assumes intent is already confirmed and drives the confirm button's `Deleting…` state.
+- **Hero** (`.hero-card`, `#today-hero`): label **`Budget left`** (income − expense);
+  ink-black gradient in dark mode, monochrome off-white in light. Privacy blur toggle
+  (`toggleHeroPrivacy()` → `.value-hidden`), embedded 6-month net-trend mini bar chart
+  (`heroChart`, current month sienna, others green/red by sign; `minBarLength: 4` +
+  `heroBaselinePlugin` faint zero line, gated on `canvas.id === 'hero-trend'`). Sub-copy
+  "In the green" / "Watching the leak".
+- **Tiles** (`#today-tiles`): **`Budget`** (month income) / **`Expenses`**,
+  tinted surfaces (`--wash-income`/`--wash-expense`), `▲/▼ X% vs last month` chips with
+  `.good`/`.bad` valence (expenses dropping reads green).
+- **Glance line** (`computeTodayGlance` — the digest math as client-side JS): today's
+  spend vs the 30-day spend-day average; zero-state "Nothing logged today yet."
+- **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome,
+  totalExpense)` — single caller), exactly three rows: caption
+  `X% of budget spent · Y% left` (no-budget state: `No budget set this month`); the
+  two-segment bar + 4px sienna "Today" month-elapsed marker (caption bottom margin 30px
+  for label clearance); quiet stats line `Avg daily RM A · Forecast ~RM B`
+  (`.income-bar-stats` — avg daily = MTD spend ÷ elapsed days, forecast = avg daily ×
+  days in month; the forecast bold gets `.overspend` red+glow when forecast > month
+  income). `paceBarMemory` (single, nulled when hidden) feeds the mount-then-spring.
+- **Current-month-only rule:** glance + pace render only for the real current month.
 
-**No auto-pop keyboard on open (2026-07-12 — DONE, PR #20):** user feedback said the txn modal's keyboard auto-popping on open (from focusing `#modal-amount`) got in the way — people wanted to see the modal before typing. `openTxnModal()` now calls `trapModalFocus(overlay, overlay.querySelector('.modal-sheet'))` instead of focusing the amount field; the sheet got `tabindex="-1"` + `outline:none` so it's a valid, invisible focus target that doesn't trigger a mobile keyboard. The export modal is untouched (it already focuses a button, not a field). `trapModalFocus`'s Shift+Tab wrap now also matches `document.activeElement === sheet` (not just `first`), since initial focus can sit on the sheet itself, outside the normal focusable list.
+### 3.6 Logs tab
 
-**Insights strip — Phase 1 (2026-07-12 — DONE):** a short-narrative "What I noticed" card at the top of `#analytics-view` (`#analytics-insight`, `.insight-card`). Grew out of the daily-summary idea into a broader pattern-spotter.
-- **Deterministic engine (all in JS, free & instant):** `buildAnalyticsInsight()` collects candidate facts from six builders across the four families the user picked — `_insightPace` (MTD vs same-point-last-month for the current month; whole-month vs prior for past months), `_insightCategory` (3-month monotonic climb, or a ≥40% jump/drop vs recent average; guarded at ≥RM30), `_insightRecurring` (descriptions repeating ~once/month across ≥3 months at a stable amount — CV ≤ 0.2, occurrences ≤ 1.5×months — reported as annualized load), `_insightWeekend` (weekend-vs-weekday intensity over trailing 8 weeks), `_insightStreak` (longest no-spend run in the month), `_insightComposition` (dominant category share). Each returns `{family, score, text}`; the top 3 **distinct families** by score compose the narrative. Guards: `<5` expense rows → "log a few more days" fallback; no strong candidate → "steady month" line.
-- **Numbers are computed, never guessed** — every figure comes from the row scan, so the narrative can't misstate them. `<b>` bolds figures; `.up`/`.down` spans carry red/green valence.
-- Rendered in the analytics branch of `calculateAndRender()`, so it respects the month selector and the no-replay/`.settled` skip.
-- **Novelty rotation:** `computeInsightNarrative()` de-prioritizes families shown on recent generations (`localStorage` per user, last 5 gens; penalty `28·0.55^age` subtracted from score before the top-3 pick). Modest + decaying, so a dominant story (big pace/category swing) persists while the mid-tier rotates across days. Verified: pace stayed pinned while slots 2–3 cycled timing → recurring → timing. Only genuine renders record history (the `.settled` skip doesn't), and fallbacks record nothing.
-- **Typewriter reveal:** `typewriteInto()` sets the real innerHTML (so `<b>`/valence spans exist), then types it out over the DOM's text nodes via `requestAnimationFrame` (duration `clamp(chars·14ms, 500, 1900)`), with a blinking burnt-sienna caret (`.insight-body.typing::after`). Sells the "live analyst" feel. Reduced motion shows the full text instantly with no caret; a new render cancels the prior `_twRAF`.
+`renderLogsLedger()` → `#logs-ledger`: a Mon–Sun **week accordion** under month headers,
+over **all** the user's rows. Bars for money; no cell grids here.
 
-**One-handed ergonomics pass (2026-07-16 — DONE, refined same day):** mobile-reach tweaks from user feedback (left-handed, one-handed use):
-- **Capture bar moved off the top of Home into a FAB-opened capture sheet** (`#capture-overlay`, `.modal-overlay.align-bottom`). The sheet floats just above the nav pill (`padding-bottom: 96px` on the overlay) — right where the thumb already is after tapping the FAB. The classic add/edit form is one tap away via its "Enter manually" button (`openManualFromCapture()` → `openTxnModal(null)`, so `pendingSource` still resets and plain adds still send `source:'dashboard'`). `handleParsedResult` closes the sheet before opening the confirm modal/review list; capture notes render inside the sheet and persist to the next open (cleared on each new parse). Same no-keyboard-auto-pop pattern as the txn modal (initial focus on the sheet). Escape-to-close covers the new overlay.
-- **Container-transform entrance:** the sheet's closed state is `scale(0.08)` + full border-radius with `transform-origin: 50% calc(100% + 44px)` (the FAB's spot below it); opening springs it to full size via `--motion-wobble` — the FAB visually blooms into the sheet. ⚠️ The 44px origin offset assumes overlay `padding-bottom: 96px`, nav bottom 24px, pill 48px — re-derive if any of those move.
-- **FAB docked in the center of the nav pill** — Home · (+) · Analytics in one glass pill (280px), a 40px FAB flush inside the 48px bar (no poking), dead center so either thumb reaches it. Slider math: width `calc(50% - 28px)`, Analytics position `translateX(calc(100% + 48px))` (hops over FAB + gaps) — set in `switchView()`. ⚠️ Keep slider geometry in sync if pill width/FAB size/gap change.
-- **WhatsApp-style photo entry:** two hidden file inputs — clip button (left of input) → `#capture-gallery-file` (bare `accept="image/*"`, OS offers gallery/files, screenshots work); camera button (right, next to send) → `#capture-camera-file` (`capture="environment"`, straight to camera). Both feed `handleCaptureFile`.
-- **Photo + comment:** a chosen photo no longer sends immediately — it parks as `pendingImageB64` with a thumbnail chip (`.capture-attach`, removable ×) above the input, so a note ("2 pax, only count my half") can be typed; send submits both, note as the photo `caption`. Attachment survives sheet close/reopen until sent or removed; cleared on successful parse.
-- **Refresh icon removed** (pull-to-refresh reloads the page anyway); `init()` no longer touches `.refresh-btn`; bell + export remain right-aligned in the header. `@keyframes refreshSpin` kept — the capture-send busy spinner uses it.
+- **Bucketing:** weeks keyed by the Monday's ISO date (`weekMondayIso`); a week lives
+  under the month containing its Monday (cross-month weeks appear exactly once).
+  Month headers carry `data-ym="Y-M"` (scroll targets). Newest first.
+- **Closed row:** range label, entry count, spend total (semantic red), 6px spend bar
+  scaled to the max rendered week spend.
+- **Accordion:** `toggleWeek()` swaps only the tapped week's body (no entrance replay);
+  multiple weeks open; current week seeded open once (`logsSeeded`, `curWeekKey`).
+  Expanded rows = classic txn idiom + `.txn-date`; income rows badge as `Budget`
+  (`.inc-badge` class name unchanged); tap opens the edit modal. `expandedWeeks` (Set of
+  Monday keys) is module state — expansion survives optimistic re-renders and appends.
+- **Lazy windowing:** `logsMonthsShown` starts at 2; an IntersectionObserver on
+  `#logs-sentinel` (160px rootMargin) appends one older month per firing (chain-fires to
+  fill short screens). `_logsTotalMonths` bounds it (set each render).
+- **Scroll-to-month** (`logsScrollToMonth`): grows the lazy window until the target
+  `.month-header[data-ym]` exists, then `window.scrollTo` it under the sticky header
+  (smooth unless `REDUCED_MOTION`). A month with no logged weeks → quiet no-op.
+- **Export:** slim right-aligned `.logs-toolbar` icon row atop `#logs-view` (moved from
+  the header). `openExportModal`/`exportCSV` scope + filename + error copy read
+  **`viewMonth`/`viewYear`** — exporting exports the chip's month.
+- `CAT_COLORS` + `CAT_ICONS` live at module scope (shared with the pie / txn rows).
 
-**Nav restructure — Phase 2 of `ALFRED_RESTRUCTURE_ROADMAP_v2.md` (2026-07-18 — DONE).** Three tabs **Today · Logs · Trends** (Today is the default landing tab) + a **detached FAB**. ⚠️ This supersedes every docked-FAB geometry number in the ergonomics-pass notes above.
-- **Pill:** still 280×48px glass, 4px padding, 4px gaps — but three equal text tabs, no FAB inside. Slider width `calc((100% - 16px) / 3)` (100% is the padding box: subtract 2×4 padding + 2×4 gaps, over 3); slot n = `translateX(calc(n·100% + n·4px))`, set in `switchView()` from `VIEW_ORDER = ['today','logs','trends']`. Shared-axis slide direction generalized: moving right in tab order → `axis-in-left`, so 1→3 slides the same way as 1→2.
-- **FAB:** 56px sienna (`--sienna: #C2542D`, new token) circle floating 12px above the pill, centered — `.bottom-bar` is now a column stack anchored `bottom: calc(24px + env(safe-area-inset-bottom))`. Sienna-tinted drop shadow; white icon; `body.modal-open-state` rotate kept.
-- **⚠️ Derived numbers (re-derive all if the cluster moves):** FAB center = **112px** + safe-area above the viewport bottom (24 bar + 48 pill + 12 gap + 28 half-FAB). Capture-sheet overlay `padding-bottom: calc(150px + env(safe-area-inset-bottom))`; bloom `transform-origin: 50% calc(100% + 38px)` (150 − 112). `body` `padding-bottom: calc(164px + inset)` clears the cluster; toast sits at `bottom: calc(152px + inset)`.
-- **Temporary tab composition** (real Today/Logs builds are roadmap Phases 3–4): **Today** = hero + income/expense tiles + today-glance line; **Logs** = the flat month timeline (`#logs-timeline`, moved off Home — cascade base delay now 0, no hero above it); **Trends** = everything Analytics had (shelf, insight, tiles, pace/archive card, charts, heatmap). Renames: panes `#today-view/#logs-view/#trends-view`, `#today-hero/#today-tiles/#today-glance`, `#trends-insight/#trends-metrics`, `renderAnalyticsInsight()` → `renderTrendsInsight()`; `renderedKey`/`hasEntranced` keyed by the three new names. "Home"/"Analytics" no longer exist in code.
-- Verified with the Playwright loop (36 checks, 390/900 × light/dark: pixel-exact slider alignment on all three tabs incl. after a live theme flip, FAB geometry, bloom origin landing on the FAB center, 1→3 slide direction, no overflow-x creep over repeated toggles, Logs row → edit modal, Escape closes the sheet).
+### 3.7 Trends tab
 
-**Today tab composition — Phase 3 of `ALFRED_RESTRUCTURE_ROADMAP_v2.md` (2026-07-18 — DONE).** Today = habit + right-now: **hero → income/expense tiles → glance line → live pace bar → 14-day capture strip**, ordered for scroll-peek (pace card top lands ~y490 on a 390×700 viewport, strip peeks below).
-- **Glance line** was already the digest-math port (`computeTodayGlance`, 30-day spend-day average, zero-state "Nothing logged today yet.") — unchanged.
-- **Pace bar extracted into `renderLivePaceBar(blockId, totalIncome, totalExpense)`**, shared by Today (`#today-pace-block`) and Trends (`#income-bar-block`). ⚠️ Superseded by refinement Phase C (below): Today-only now, no `blockId` param, single `paceBarMemory`. `barMemory` is now **keyed by block id** so each instance springs from its own last state. Caller guarantees current month; the no-income caption lives inside the function. Trends' closed-month archive-card branch is untouched (Phase 5 will rework Trends' framing).
-- **14-day capture strip** (`renderCaptureStrip` → `#today-capture`): trailing window ending today (rightmost), bare cells (no day numbers at 14-up), `title` tooltips, start-date/"Today" labels underneath. **Reuses the heatmap's exact `hm-l0..l4` sienna ramp classes** (cells-for-habit rule; ramp lives in one place in CSS), inheriting `chipPop` + `.settled`/reduced-motion suppression for free. Quiet `full grid in Trends` link (`.strip-link`) calls `switchView('trends')`.
-- **Current-month-only rule:** glance + pace + strip render only when the viewed month is the real current month (`barMemory` for the Today block resets when hidden); a past month on Today is just hero + tiles.
-- Verified with the Playwright loop (23 checks): glance matches hand-computed values for 0/1/many entries (RM 50.75 avg case), pace caption/marker/verdict match hand math, strip cell counts + ramp levels + end labels, link switches tabs, **optimistic add repaints glance/strip/pace in ~60ms with no loader**, past-month hides the live blocks, dark + 900px clean.
+Everything computes from `viewMonth` (`vRows`/`vIncome`/`vExpense`/`vCatData`).
+Composition: insight strip → tiles → spend/archive card slot → cumulative line → pie →
+capture heatmap → archive shelf (bottom).
 
-**Logs week index — Phase 4 of `ALFRED_RESTRUCTURE_ROADMAP_v2.md` (2026-07-18 — DONE).** The flat month timeline is gone; Logs (`#logs-ledger`, was `#logs-timeline`) is now `renderLogsLedger()` — a week accordion over **all** the user's rows, independent of the header month selector. Bars for money on this tab; no cell grids.
-- **Bucketing:** weeks run Mon–Sun, keyed by the Monday's ISO date (`weekMondayIso`); a week lives under the month containing its Monday, so a cross-month week appears exactly once (e.g. `Jun 29 – Jul 5` under June). Month headers: `July 2026 · net +RM 3,940.00` (`MONTHS_FULL`, `monthTotals`). Newest month/week first.
-- **Closed row:** range label, optional `this week` sienna chip, entry count, spend total (semantic red), and a 6px spend bar on a **scale shared across every rendered week** (max of week spends and the average), with a 2px sienna marker at the **trailing-8-week average** (`weeklyAverageSpend`: completed weeks only, averaged over spend-weeks, needs ≥2 spend-weeks else the marker hides — same philosophy as the glance line's daily average).
-- **Accordion:** `toggleWeek()` swaps only the tapped week's body in place (other open weeks keep their DOM, no entrance replay); multiple weeks open; current week seeded open once (`logsSeeded`). Expanded rows are the classic txn idiom **plus a `.txn-date`** (`badge · Jul 12`); tap opens the untouched edit modal. `expandedWeeks` (Set of Monday keys) is module state, so **expansion survives optimistic-edit re-renders and lazy appends**.
-- **Lazy windowing:** `logsMonthsShown` starts at 2 (current + previous); an IntersectionObserver on `#logs-sentinel` (160px rootMargin) appends one older month per firing — it naturally chain-fires until the sentinel leaves the margin, so short ledgers just fill the screen. No virtual-scroll library.
-- `CAT_COLORS` hoisted to module scope (next to `CAT_ICONS`) so the logs renderer is self-contained; the pie uses the same object.
-- Verified with the Playwright loop (27 checks): cross-month bucketing, hand-computed nets/totals/fills/marker (73.88 avg over 6 spend-weeks → 59.1% marker), accordion open/close with multiple weeks, optimistic edit updating totals + marker while expansion survives, marker hidden below 2 spend-weeks, lazy May→April appends, no drift at 390px, dark + 900px clean.
+- **Insight strip** (`#trends-insight`, `.insight-card`, "What I noticed"):
+  - **Deterministic engine** (`buildAnalyticsInsight()` → rendered by
+    `renderTrendsInsight()`): six fact builders — `_insightPace` (MTD vs same-point last
+    month; whole-month vs prior for past months), `_insightCategory` (3-month monotonic
+    climb or ≥40% jump/drop vs recent average, ≥RM30 guard), `_insightRecurring`
+    (~monthly repeating descriptions across ≥3 months, CV ≤ 0.2, reported annualized),
+    `_insightWeekend`, `_insightStreak`, `_insightComposition`. Each returns
+    `{family, score, text}`; top 3 **distinct families** compose the narrative. Guards:
+    <5 expense rows → "log a few more days" fallback; no strong candidate → "steady
+    month" line. **Numbers are computed, never guessed.**
+  - **Novelty rotation:** recent families penalized (`localStorage` per user, last 5
+    gens, decaying penalty) so the mid-tier rotates. Only genuine live-month renders
+    record history; fallbacks and past months record nothing.
+  - **LLM phrasing:** POSTs the computed facts as
+    `{key, action:'insights', facts, month}` → `{narrative}`; `styleInsightText()`
+    escapes then re-bolds figures. Fully guarded: 10s timeout / non-200 / error → falls
+    back to the deterministic text; `insightCache` keyed
+    `user|viewYear|viewMonth|dataStamp|families`; `insightToken` drops stale responses;
+    `.insight-thinking` dots while phrasing. `INSIGHTS_ENDPOINT` = `APPS_SCRIPT_URL`;
+    blank it to force deterministic-only. Past months always use the deterministic
+    retrospective — no LLM POST.
+  - **Typewriter reveal:** `typewriteInto()` sets real innerHTML then types over the
+    text nodes (rAF, `clamp(chars·14ms, 500, 1900)`), blinking sienna caret. Reduced
+    motion → instant.
+- **Tiles:** live month → Average Daily + `Forecast ~RM x`; closed month → Average
+  Daily + `Total Spent` actuals. **Overspend treatment:** `overspend = isCurrentMonth &&
+  vIncome > 0 && forecast > vIncome` puts `.overspend` on **both** tile values —
+  `color: var(--semantic-expense)` + `text-shadow: 0 0 12px` at 35% alpha (light
+  `rgba(229,62,62,.35)`, dark `rgba(255,77,77,.35)`). Never on closed months. This is a
+  sanctioned semantic-red use (overspend warning).
+- **Spend-card slot** (`#income-bar-card`): **hidden on the live month** (Today owns the
+  pace bar); closed months show the **archive card** (net, top category, days logged
+  X of N, quiet pace verdict).
+- **Cumulative line:** current cumulative vs "last month" (= viewMonth−1) reference line
+  in outline gray per theme (`#6C757D`/`#ADB5BD`) — reference, not warning.
+- **Pie:** solid, variable-radius (`0.92 + 0.08 × share` — restraint deliberate),
+  `pieLabelsPlugin` on-slice bold %s (≥8%) + name+amount callouts with elbow leaders for
+  **every** slice (tooltips disabled; callouts route left/right by angle, de-collide
+  vertically, 32px min gap). Drawn in `layout.padding`; pie at `radius:'90%'` in a
+  380px container. ⚠️ **Both plugins gated on `chart.canvas.id === 'donut'`** — ungated
+  plugins bleed onto every chart.
+- **Category palette** (validated with the dataviz six-checks, light+dark): Food &
+  Dining `#C2542D`, Transport `#0891B2`, Entertainment `#DB2777`, Other `#495057`
+  (deliberate neutral). Semantic expense red is reserved for amounts/deltas — never a
+  category.
+- **Capture heatmap:** calendar cell grid for `viewMonth`, sienna ramp classes
+  `hm-l0..l4` (the ramp lives once in CSS). Rebrand to "Spending patterns" is a backlog
+  item (§6).
+- **Archive shelf** (`renderArchiveShelf`, `#month-shelf`, "Archive"): chip row of past
+  months holding data; tap sets `viewMonth`. Scrolls inside itself (overflow-x auto
+  within the clipped container).
 
-**Trends month navigation — Phase 5 of `ALFRED_RESTRUCTURE_ROADMAP_v2.md` (2026-07-18 — DONE).** ⚠️ Partially superseded by refinement Phase B (below, same day): the in-tab `#trends-monthnav` chip is gone — the header chip is the single selector now, and `viewMonth` is shared with Logs (scroll target) instead of Trends-only. The rest of this block (forecast/actuals tiles, archive card + shelf, insight/heatmap on viewMonth) still stands. As written at the time: Trends reads its **own `viewMonth`/`viewYear` state** — never the header month selector (which then drove Today only; Logs ignores months entirely). `renderedKey`'s viewKey is per-tab accordingly.
-- **‹ month › nav chip** (`#trends-monthnav`, `renderTrendsMonthNav`/`trendsNavMonth`): steps within [earliest data month … current month] (`earliestDataMonth()`, keyed year×12+month); ends disable at the bounds.
-- **Trends branch computes its own `vRows`/`vIncome`/`vExpense`/`vCatData`** from viewMonth; pie + cumulative line ("last month" = viewMonth−1) read them. The **insight engine builders and the heatmap were swapped from `activeMonth` to `viewMonth`** wholesale; `renderLivePaceBar` now uses the real current date internally (both callers only invoke it for the live month).
-- **Tiles:** live month → `Forecast` tile `~RM x` (avg daily × days in month) with an `on track`/`over income` chip colored against income; closed month → `Total Spent` actuals (no forecast). Avg-daily tile unchanged (MTD ÷ elapsed days; whole month for closed months).
-- **Closed months** keep the archive card in the pace-bar slot (net, top category, days logged X of N, quiet pace verdict) — now fed from viewMonth data.
-- **Archive shelf** (`renderArchiveShelf`, `#month-shelf` moved to the **bottom** of the tab, "Archive" title): chip row of **past** months holding data; tapping sets viewMonth. Current month is reachable via the ›. Chip row still scrolls inside itself (overflow-x auto within the clipped container).
-- **Insights:** past months type the deterministic retrospective narrative — no LLM POST, and **novelty history only records on live-month generations**; the current-month cache key semantics are unchanged (`user|viewYear|viewMonth|dataStamp|families`).
-- Verified with the Playwright loop (25 checks): forecast/avg-daily match hand math (`~RM 447.78`, on-track chip), every element (tiles, archive card, pie, cumulative shape, heatmap header, insight) follows month navigation, back stops at earliest / forward restores the live view, exactly 1 insights POST across July→June→July (cache + retrospective path), shelf tap + active state, Today unaffected by Trends navigation, no overflow at 390/900, dark clean.
+### 3.8 Capture flow (FAB → sheet → parse → confirm)
 
-**Refinement Phase A — visual polish batch (2026-07-18, same day — DONE).** First phase of `ALFRED_REFINEMENT_ROADMAP_v3.md` (in-repo; supersedes the remaining v2 items — v2 Phase 6 heatmap polish moved to the v3 backlog, Phase 7 FAB long-press parked). Pure CSS/copy simplifications, no behavior change. ⚠️ Amendments to the phase notes above: the Logs marker/nets/chip and the Today 14-day capture strip described in Phases 3–4 are **removed** as of this pass.
-- **FAB shadow neutral:** the sienna-tinted glow is now a plain elevation shadow (`0 6px 16px rgba(0,0,0,0.18)`); size, color, rotate untouched.
-- **Capture placeholder:** `“Coffee RM8”` (was `“lunch RM15” or add a receipt`) — changed in both the `#capture-input` markup and the `clearCaptureAttachment()` reset string; the attach-mode placeholder ("Add a note, or send as is") stays.
-- **Pill border:** light `rgba(0,0,0,0.16)` (was 0.08), dark `rgba(255,255,255,0.12)` (was 0.05) — the slider's overshoot now reads against the pill edge.
-- **Nav-only motion token `--motion-wobble-nav`** ≈ 20% shorter than `--motion-wobble` (505ms `linear()` spring, same sampled curve; 335ms cubic-bezier pre-`linear()` fallback; zeroed under reduced motion alongside the others). Drives the `.nav-slider` transform AND a new active-tab text pop: `.nav-btn` transitions transform on it, `.nav-btn.active` gets `transform: scale(1.1)`. `--motion-wobble` itself is untouched (hero/tiles/FAB bloom/bars still use it). Verified no overflow creep over repeated toggles (scrollWidth stays 390).
-- **Logs simplification:** the `this week` chip (`.week-now`), the month-header net span (`.month-net`), and the trailing-8-week average marker (`.week-bar-avg` + `weeklyAverageSpend()`) are gone — function and CSS deleted. Kept: entry count, week spend total, and the spend bar, whose shared scale is now simply the max rendered week spend. `curWeekKey` survives only to seed the current week open.
-- **14-day capture strip removed from Today:** `renderCaptureStrip()`, the `#today-capture` container, and the `.capture-strip-card`/`.strip-*` CSS deleted. Today is now hero → tiles → glance → pace bar. The `hm-l0..l4` sienna ramp classes stay — they belong to the Trends heatmap.
-- **Pace-bar Today marker:** 4px wide (was 2px, `translateX(-2px)` recenter); `.income-bar-caption` bottom margin 22px → 30px so the TODAY label has clear air under the caption.
-- **Trends avg-daily tile:** `/day` suffix dropped (`data-suffix` removed).
-- Verified with the Playwright loop (36 checks, 390/900 × light/dark + reduced-motion: computed FAB shadow/borders/token values, active-tab scale + no scrollWidth creep over 8 toggles, hand-computed week totals `RM 87.50`/`RM 100.00` with bar scale = max spend, chip/net/marker absent, strip gone while pace + glance + `hm-l*` ramp survive, marker 4px with label clearance, avg tile `RM 13.75` no suffix, zero console errors).
+- **Capture sheet** (`#capture-overlay`, `.modal-overlay.align-bottom`) floats just
+  above the nav pill. **Container-transform entrance:** closed state `scale(0.08)` +
+  full radius, `transform-origin` at the FAB center (see §3.3 derived numbers) — the FAB
+  blooms into the sheet via `--motion-wobble`.
+- Clip button → `#capture-gallery-file` (bare `accept="image/*"`: gallery/files,
+  screenshots work); camera button → `#capture-camera-file` (`capture="environment"`).
+  Both feed `handleCaptureFile`; photos canvas-downscale to ≤1280px JPEG q0.82 before
+  base64.
+- **Photo + comment:** a chosen photo parks as `pendingImageB64` with a removable
+  thumbnail chip (`.capture-attach`) so a note can be typed; send submits both, note as
+  the photo `caption`. Attachment survives sheet close/reopen until sent/removed.
+  Placeholder `“Coffee RM8”` (set in markup AND the `clearCaptureAttachment()` reset;
+  attach-mode placeholder "Add a note, or send as is").
+- POSTs `action:'parse'`; busy spinner replaces the send arrow; 25s timeout;
+  notes/errors in `#capture-note` (persist to next open, cleared on new parse).
+- **Confirm flow:** 1 txn → the normal txn modal pre-filled ("Confirm entry", saves via
+  untouched `saveTxn()`); N txns → `#review-overlay` (editable amounts, removable rows,
+  "Save all" sequential; saved rows leave the list so retry can't duplicate). Income
+  rows tag as `Budget` (`.income-tag` class unchanged).
+- **Sources:** capture-confirmed adds carry `source: 'web'` / `'web-image'`; plain FAB
+  adds send `'dashboard'` (`pendingSource` resets on every plain modal open —
+  "Enter manually" via `openManualFromCapture()` preserves this).
 
-**Refinement Phase B — single contextual month selector + header cleanup + export to Logs (2026-07-18, same day — DONE).** One month selector for the whole app; Today is always the real now.
-- **Header month dropdown deleted** (`#month-select-element`, `renderDropdownOptions()`, `handleMonthDropdown()`, `.month-select` CSS). `activeMonth`/`activeYear` survive but are **pinned to the real current month at load** — Today's render path still reads them; nothing changes them after load. `renderedKey` consequence: Today/Logs viewKeys are constant within a session, busted only by `dataStamp`.
-- **Contextual header chip** (`#header-monthnav` in `.header-actions`, `renderHeaderMonthNav()`): compact `‹ Jul ›` pill (short month; `’YY` appended when not the current year), rendered **only when `currentView` is `trends` or `logs`** and data exists — hidden on Today. Steps the **shared `viewMonth`/`viewYear`** via `headerNavMonth(delta)` (the old `trendsNavMonth` clamp logic, [`earliestDataMonth()` … current month], ends disable). Re-rendered on every `switchView` (it lives outside the panes, so the key-skip can't cover it), in the Trends and Logs render branches, and inside `headerNavMonth` itself. The in-tab `#trends-monthnav` + `renderTrendsMonthNav()` are gone; the compact `.monthnav` CSS moved to header scale (28px buttons, 52px label). The **archive shelf stays** and still sets `viewMonth` — the chip label follows.
-- **Behavior fork in `headerNavMonth`:** on Trends → `calculateAndRender()` (viewKey busts, tab re-renders); on Logs → `logsScrollToMonth(viewYear, viewMonth)` — **no filtering, no re-render**, the accordion + expansion state are untouched.
-- **Logs scroll-to-month** (`logsScrollToMonth`): grows the lazy window (`logsMonthsShown++` + re-render, bounded by new `_logsTotalMonths` set each ledger render) until the target `.month-header[data-ym]` exists (month headers now carry `data-ym="Y-M"`), then scrolls it to just under the sticky header (`window.scrollTo`, smooth unless `REDUCED_MOTION`). A month with no logged weeks has no header → quiet no-op. Short ledgers clamp at max scroll — inherent.
-- **Export moved to Logs:** header export button removed; a slim right-aligned `.logs-toolbar` icon row sits atop `#logs-view`. Modal internals unchanged; `openExportModal`/`exportCSV` month scope + filename + error copy now read **`viewMonth`/`viewYear`** — exporting from Logs exports the chip's month.
-- **Bell hidden** — one-line early return in `initPushUI()`; full push teardown is roadmap Phase F. Header on Today is now just "Project Alfred".
-- Verified with the Playwright loop (40 checks, 390/900 × light/dark + reduced-motion: no dropdown/header-export/bell, chip only on Trends+Logs with correct bounds at both ends (March–July data), Logs chip-back scrolls to June with expansion surviving (and the sentinel's legitimate scroll-append distinguished from a re-render), grow-loop reaches May→April→March on demand, export from Logs = `alfred-may-2026.csv` with exactly the chip-month's rows, Trends follows the shared month (Total Spent/archive card on closed, Forecast on live), shelf tap updates the chip, Today pinned to the real month throughout, revisited Trends keeps its month via the settled skip, no overflow, zero console errors).
+### 3.9 Modals (txn, review, export)
 
-**Refinement Phase C — Today budget-pace card merge + Trends overspend glow (2026-07-18, same day — DONE).** The pace surface consolidates onto Today; Trends warns through its numbers instead of a bar.
-- **Today pace card is now the single "budget pace" card**, exactly three rows per the roadmap spec: caption (`X% of income spent · Y% left` — the budget *wording* lands in Phase D), the bar + 4px Today marker, and a new quiet stats line **`Avg daily RM A · Forecast ~RM B`** (`.income-bar-stats`). Definitions are the exact Trends ones: avg daily = MTD spend ÷ elapsed days, forecast = avg daily × days in month. The forecast bold gets `.overspend` (semantic-red + glow) when forecast > month income. ⚠️ The old `Day D of N · spending ahead/under/on pace` line (`.income-bar-pace`) is **removed** — the roadmap's three-row spec doesn't include it; the red forecast now carries the warning job. Its CSS (incl. `ahead`/`under` variants) is deleted.
-- **`renderLivePaceBar(totalIncome, totalExpense)` has one caller** (Today's current-month branch): the `blockId` param is gone, the element is `#today-pace-block`, and per-block `barMemory` collapsed to a single `let paceBarMemory` (nulled when Today shows a past month or income is 0). The mount-then-spring two-frame pattern is unchanged.
-- **Trends live month: no pace bar.** `#income-bar-card` (static markup) gets `display:none` + an emptied block on the live month; **closed months restore it with the archive card** (fed from viewMonth as before — that branch is untouched beyond the display toggle).
-- **Trends tiles overspend treatment:** the Forecast tile's `on track`/`over income` chip is gone. Instead `overspend = isCurrentMonth && vIncome > 0 && forecast > vIncome` puts `.overspend` on **both** the Average-Daily and Forecast `tile-val`s: `color: var(--semantic-expense)` + `text-shadow: 0 0 12px` at 35% alpha of the theme's red (light `rgba(229,62,62,.35)`, dark `rgba(255,77,77,.35)`). Closed months never get it (Total Spent tile is always neutral). This is a sanctioned semantic-red use — overspend warning, per the design language.
-- Verified with the Playwright loop (32 checks, healthy + overspend (income 400 < forecast 426.25) + dark + 900 + reduced-motion: hand-computed caption/stats (`6%`/`94%`, `13.75`/`426.25`), verdict line absent, bar springs to 6.2/93.8 with marker 58.1%, Trends card hidden live / archive card on closed, chip gone in every state, red + glow on exactly both tiles only when forecast > income (never closed months, avg-daily bold stays neutral on Today), dark tokens flip, zero console errors).
+All overlays are `role="dialog" aria-modal="true" aria-labelledby=…`.
 
-**Refinement Phase D — budget rename sweep (2026-07-18, same day — DONE).** Display strings only; the data model is untouched (rows keep `Type: Income`, `INCOME_CATEGORIES` unchanged, parser prompt untouched, `Code.gs` untouched). See the §0 budget-reframe note for the product framing.
-- **Renamed surfaces:** hero label `Net Balance` → **`Budget left`** (same income − expense math; sub-copy "In the green" / "Watching the leak" reviewed and kept — both still read right); Today's `Income` tile → **`Budget`** (value unchanged: month income); pace captions → **`X% of budget spent · Y% left`** and **`No budget set this month`**; txn-modal type toggle → **`Expense / Budget`** (`#type-income-btn` id and the stored `'Income'` value unchanged); Logs expanded-row badge and review-sheet meta tag `Income` → **`Budget`** (`.inc-badge`/`.income-tag` class names stay).
-- **Not renamed (deliberate):** CSS tokens/classes/ids (`--semantic-income`, `.income-block`, `.income-bar-*`, `#income-bar-card`, …), every `Type === 'Income'` comparison, `INCOME_CATEGORIES` and its category names (`Salary`, `Side Income`, `Other Income` — they're data, visible in the category dropdown), JS identifiers (`totalIncome`, `vIncome`). The insight fact builders never said "income", so nothing to reword there; archive-card verdict copy has no income wording either.
-- Verified with the Playwright loop (24 checks: hero label/math/sub-copy/mini-chart, tile labels `Budget · Expenses` with unchanged values, pace captions incl. the no-budget state, toggle text with a full **round-trip** (Budget-type add POSTs `"type":"Income"` and folds into the Budget tile optimistically), income-category dropdown intact, stored income row badges read `Budget`, a whole-DOM text-node sweep finds zero visible "income" outside `<option>`s on all three tabs, insights still render, dark + 900, zero console errors).
+- **Focus:** `trapModalFocus(overlay, initial)` remembers the trigger, moves focus in
+  (`preventScroll`), confines Tab/Shift+Tab; `releaseModalFocus()` restores. **No
+  auto-pop keyboard:** txn modal + capture sheet focus the sheet element itself
+  (`tabindex="-1"`, `outline:none`), not a field; Shift+Tab wrap also matches
+  `document.activeElement === sheet`. Export modal focuses a button (fine).
+- **Escape:** one global keydown — backs out of the delete confirm first, else closes
+  whichever overlay is open.
+- **Txn modal:** type toggle reads **`Expense / Budget`** (`#type-income-btn` id and
+  stored `'Income'` value unchanged). **In-modal delete confirm:** outline-red Delete
+  (`askDeleteConfirm()`) escalates to a solid-red confirm row ("Delete this entry? This
+  can't be undone."); `cancelDeleteConfirm()`/`resetDeleteConfirm()` restore (also reset
+  on open/close); `deleteTxn()` assumes intent confirmed.
 
-**Phase 2 — LLM phrasing (2026-07-12 — LIVE; backend moved to Apps Script 2026-07-15):** `renderAnalyticsInsight()` POSTs the computed plain-text facts as `{key, action:'insights', facts, month}` → `{narrative}` (gpt-4o-mini, *use-only-these-numbers* prompt — `handleInsights` in `apps-script/Code.gs`) and types the returned narrative. `styleInsightText()` escapes the model's text then re-bolds `RM x.xx` / `%` / `×` so figures still pop (styling only — the numbers are the ones we sent). Fully guarded: on timeout (10s), non-200, or any error → falls back to the deterministic `body`; `insightCache` (per user+month+`dataStamp`+families) avoids re-hitting the endpoint; an `insightToken` drops stale responses; a `.insight-thinking` dots indicator shows while phrasing. Numbers are still computed locally, so the LLM can never misstate a figure and the feature degrades to the free/offline templates. `INSIGHTS_ENDPOINT` = `APPS_SCRIPT_URL`; blank it to force Phase-1-only. (History: originally served by a `/insights` endpoint on the since-retired bot — PR #18 here + `project-alfred` PR #11 — re-pointed to Apps Script when the app went serverless.)
+### 3.10 Optimistic writes
 
-**Potential next tie-in:** surface the shared daily-summary block ("today so far vs average") at the top of the dashboard, reusing the digest logic.
+Add / edit / delete / review-save mutate `allRows` locally and re-render instantly (no
+loader), then POST in the background and fold in server truth via a **debounced
+reconcile** (`reconcileFromServer`, 1.5s after the POST). Reconcile keeps optimistic
+rows the GViz cache hasn't surfaced, honors optimistic deletes the cache still echoes,
+and de-dups **UID first, content-signature second** — correct whether or not the backend
+echoes the client UID. Failures roll back out of `allRows` and surface a neutral
+**toast** (`#toast`, inverse-surface — not semantic red). Client sends `clientUID()`
+with every add. Date construction matches the GViz month-correction so optimistic and
+reconciled rows format identically.
 
-### 3b. Independent web app — Railway-free (2026-07-15 built; 2026-07-16 Phase 0 done, push digest VERIFIED LIVE)
+### 3.11 PWA shell & push
 
-**Decision:** the dashboard grows into a standalone web app (capture + push, not just pull/visual), with **zero Railway dependency** — Google Apps Script is its entire backend. (At the time the Telegram bot stayed on Railway untouched, with migration deferred as "Phase D" — a day later the app's success made the bot redundant and it was decommissioned instead; see the end of this section.)
+- `manifest.json` (standalone, theme colors per scheme, maskable icons in `icons/`) —
+  **stays** even after Phase F.
+- `firebase-messaging-sw.js` (SW at repo root): raw `push` → `showNotification`,
+  `notificationclick` → focus/open; **deliberately no fetch handler** so GViz stays
+  live; no Firebase SDK import in the worker. (Deleted in Phase F.)
+- **Push bell (currently hidden — `initPushUI()` early-returns):** when active, it
+  lazily imports the Firebase SDK, requests permission,
+  `getToken({vapidKey, serviceWorkerRegistration})` — ⚠️ **must pass our SW
+  registration** or the SDK tries to register at the domain root, which 404s on a
+  project-pages path — then `push-subscribe`. Token mirrored in
+  `localStorage('alfred_push_token')`. `FIREBASE_CONFIG` + `FCM_VAPID_KEY` consts in
+  index.html (public values; `null`/`""` hides the feature). Firebase project:
+  `project-alfred-f7575`. Nightly 10–11pm trigger is live.
 
-**Apps Script backend (`apps-script/Code.gs` — NEW, in-repo source of truth):**
-- The existing Web App (same URL, same `key: "8891"`) gains actions: `parse`, `insights`, `push-subscribe`, `push-unsubscribe`, `run-digest-push`. All POSTed `text/plain` like the writes. ⚠️ The add/edit/delete handlers in the file were **reconstructed from documented behavior — diff against the live script before the first paste.**
-- `parse` — `{user, text | image_b64[, mime][, caption]}` → `{transactions:[…], dropped, note?}`. Ports the bot's `EXTRACT_PROMPT` (array schema) + `validate_transactions()` (fix-quietly/drop-loudly; 36 Node tests pass). **Extract only — never writes**; saving goes through the normal confirmed add path. Guarded by the `ALLOWED_USERS` Script Property (protects OpenAI spend; the 8891 key is public in page source) + input size caps. A query object comes back as `note` for the capture UI.
-- `insights` — port of the bot's `/insights` (same prompt, max_tokens 160, temp 0.6). `INSIGHTS_ENDPOINT` in index.html now points at Apps Script (`action:'insights'`, timeout 7s→10s for script latency). The Railway `/insights` endpoint still exists but is no longer called.
-- Push digest — `PushSubs` tab (User | Token | Created, auto-created), `sendDailyDigestPush()` as the **time-driven trigger target** (daily 10–11pm; Apps Script triggers fire within the hour, not exact-minute). JS port of `build_daily_digest`/`_daily_average` produces a compact `{title, body}`; sent per token via **FCM HTTP v1** (SA JWT signed with `Utilities.computeRsaSha256Signature`, access token cached in `CacheService` 55 min; dead tokens pruned on UNREGISTERED). (Ran alongside the Telegram 10pm digest during the trial; sole digest channel since the bot's retirement.)
-- Script Properties needed: `OPENAI_API_KEY`, `ALLOWED_USERS`, `FIREBASE_SA_JSON`, `FCM_PROJECT_ID`.
+### 3.12 Verification loop
 
-**Dashboard — PWA shell:** `manifest.json` (standalone, theme colors per scheme, maskable icons in `icons/`) + `firebase-messaging-sw.js` (SW at repo root: raw `push` → `showNotification`, `notificationclick` → focus/open; **deliberately no fetch handler** so GViz stays live; no Firebase SDK import in the worker). `start_url` can't carry `?user=`, so `activeUser` now falls back to `localStorage('alfred_user')` (written whenever the param is present) — the installed app keeps working; strict privacy filter unchanged.
-
-**Dashboard — capture bar** (since the 2026-07-16 ergonomics pass it lives in a FAB-opened bottom sheet, `#capture-overlay` — see §3a; originally a static bar at the top of Home): clip button (gallery/files) + text input + camera button (straight to camera) + send; a chosen photo parks as an attachment chip so a note can be typed, then send submits both (canvas-downscale to ≤1280px JPEG q0.82 before base64). POSTs `action:'parse'`; busy spinner replaces the send arrow; 25s timeout; notes/errors in `#capture-note`. Text in the input rides along as the **photo caption** (split instructions, mirroring Telegram). Confirm flow: **1 txn → the normal txn modal pre-filled** ("Confirm entry", saves via untouched `saveTxn()`); **N txns → `#review-overlay`** (editable amounts, removable rows, "Save all" saves sequentially; on failure the already-saved rows are gone from the list so retry can't duplicate). Capture-confirmed adds carry `source: 'web'` / `'web-image'` (plain FAB adds now send `'dashboard'`; `pendingSource` resets on every plain modal open).
-
-**Dashboard — push bell** (header, hidden until configured): `FIREBASE_CONFIG` + `FCM_VAPID_KEY` consts in index.html (public values; `null`/`""` hides the feature). Toggle lazily imports the Firebase SDK (gstatic, only when tapped), requests permission, `getToken({vapidKey, serviceWorkerRegistration})` — ⚠️ **must pass our SW registration** or the SDK tries to register `/firebase-messaging-sw.js` at the domain root, which 404s on a project-pages path — then `push-subscribe`. Token mirrored in `localStorage('alfred_push_token')` for state; toggle-off deletes token + unsubscribes.
-
-**Phase 0 — one-time user setup — ✅ DONE 2026-07-16.** Firebase project `project-alfred-f7575`; `FIREBASE_CONFIG` + `FCM_VAPID_KEY` wired into index.html (PRs #22/#23); Code.gs merged into the live script + Script Properties set + redeployed. **Verified live:** bell subscribed on the user's Android phone, `sendDailyDigestPush` run from the script editor, notification received. For a fresh setup the steps were:
-1. Firebase: free project → add Web app (config object → `FIREBASE_CONFIG`) → Cloud Messaging → Web Push certificates → key pair (public key → `FCM_VAPID_KEY`) → Project settings → Service accounts → generate key (JSON → `FIREBASE_SA_JSON` Script Property).
-2. Apps Script: merge `apps-script/Code.gs` into the live script (diff first!), set the four Script Properties, **Deploy → Manage deployments → Edit → new version** (never a new deployment).
-3. Add the daily trigger: `sendDailyDigestPush`, time-driven, 10pm–11pm.
-4. Test: dashboard → bell on (Android Chrome) → run `sendDailyDigestPush` from the script editor (or POST `{key, action:'run-digest-push'}`) → notification arrives.
-
-**Phase D — resolved 2026-07-16:** instead of porting the bot to Apps Script, the bot was decommissioned outright once this app's capture + push were verified live. See §2.
+Local `python3 -m http.server` + Playwright (mock the GViz response, serve Chart.js
+locally — the CDN is proxy-blocked): screenshot at 390px & 900px, light **and** dark,
+reduced-motion spot check; hand-compute expected figures and assert them; measure
+`documentElement.scrollWidth` over repeated toggles whenever anything moves along X.
+Every shipped phase was verified this way (23–72 checks each) before merging.
 
 ---
 
 ## 4. Status
 
-### What's Done ✅
+**Everything in §3 is DONE, LIVE, and Playwright-verified.** Highlights with PRs:
+UX refresh + tile system (#6/#7), motion/physics passes (#11–#13), insights strip
+(#14–#18), no-keyboard-on-open (#20), PWA + capture + push Phase 0 (#22/#23), three-tab
+restructure (#33), Today composition (#34), plus the Logs week index, Trends month
+navigation, optimistic writes, and refinement Phases A–D (2026-07-18). Full history: §7.
 
-**Core app:** Full Home + Analytics tabs; GViz date fix; month selector; dark mode; animated counters; Apps Script add/edit/delete; FAB + modal (liquid glass); M3 Expressive layer; strict per-user filtering; multi-user complete (per-user `?user=` links, all writes attribute to col H).
-- **UX refresh (2026-07-11) — DONE.** Home Net Balance hero card (privacy toggle + 6-mo mini trend) + income/expense tiles + txn category icon chips; Analytics spend card with month-pace "Today" marker, solid variable-radius pie w/ on-slice %s + callouts (replaced donut + Category Breakdown), unified mobile centering. Shared `tile-block` system across both tabs; dead `.metric`/`.crystal-ball` CSS removed. See §3a. Shipped via PRs #6 + #7.
-- **Motion + physics pass (2026-07-11→12) — DONE & TESTED IN PROD.** From a UX review: staggered entrances, no-replay re-renders + value-inertia counters, callouts for every pie slice, dark-mode legend-dot fix; then quick-wins (prefers-reduced-motion, chip valence, refresh spin, validated category palette, visible negative months); then a physics pass (real damped-spring `linear()` easing, shared-axis tab transition, live-springing spend bar, bouncing bar-chart loader). Follow-ups: straightened pie leader lines, "Loading data…" copy, and a **mobile overflow/zoom bugfix** (`.container` `overflow-x: clip`). All detail in §3a. Shipped via PRs #11–#13.
-- **Analytics insights strip — DONE & LIVE (2026-07-12).** "What I noticed" narrative card: Phase 1 deterministic engine (six pattern builders across pace/category/recurring/timing, top-3 distinct families) + novelty rotation (localStorage, decaying penalty) + typewriter reveal; Phase 2 LLM phrasing (facts computed locally, gpt-4o-mini rewords only, graceful fallback to templates — served by Apps Script since 2026-07-15). See §3a. Shipped via PRs #14, #16, #17, #18 + `project-alfred` #11.
-- **Modal no longer auto-pops the keyboard on open (2026-07-12) — DONE.** Initial focus moves to the modal sheet (not the amount field) on open, per user feedback. See §3a. Shipped via PR #20.
-- **Independent web app (2026-07-15) — BUILT & VERIFIED (Playwright: 23 checks, 36 logic tests), pending Phase 0 setup.** PWA shell + capture bar (chat/camera → parse → confirm) + FCM push-digest bell + Apps Script backend (`apps-script/Code.gs`); insights re-pointed off Railway. See §3b.
-
-- **Phase 0 setup + push digest verified live (2026-07-16) — DONE.** Firebase configured, Code.gs live, bell subscribed, test notification received on Android. Shipped via PRs #22 + #23. See §3b.
-
-- **Everything verified live (2026-07-16):** capture bar (text + photo), insights via Apps Script, push digest notification received, nightly 10–11pm trigger set. Repo decoupled from the bot the same day (README + CLAUDE.md rewritten web-app-first).
-- **Telegram bot decommissioned (2026-07-16):** the app replaced it outright; bot repo archived as history, Railway + Telegram teardown on the owner's checklist. `Code.gs` is now the single extraction/validation implementation.
-
-- **Teardown of retired services complete (2026-07-16):** Railway project deleted (billing ended), Telegram webhook/bot removed, co-users pointed at their `?user=` dashboard links. Nothing of the old stack runs anywhere.
-
-- **One-handed ergonomics pass (2026-07-16) — DONE, refined same day.** Capture bar → FAB-opened capture sheet floating just above the nav pill, with a container-transform entrance (FAB blooms into the sheet); 40px FAB docked flush in the center of the nav pill (left-thumb reachable); WhatsApp-style clip (gallery) + camera buttons with a photo-attach-then-comment flow (note rides as the caption); refresh icon removed (pull-to-refresh covers it). Verified with the Playwright loop (66 checks across 390px light/dark + 900px, incl. end-to-end attach → note → send → confirm). See §3a.
-
-- **Optimistic writes (2026-07-18) — DONE & VERIFIED.** Add / edit / delete / review-save now mutate `allRows` locally and re-render instantly (no full-screen loader, no blocking GViz round-trip), then POST in the background and fold in server truth via a **debounced reconcile** (`reconcileFromServer`, 1.5s after the POST). Reconcile keeps optimistic rows the GViz cache hasn't surfaced yet, honors optimistic deletes the cache still echoes, and de-dups on **UID first, content-signature second** — so it's correct whether or not the backend echoes the client UID. Failures roll the change back out of `allRows` and surface a neutral **toast** (`#toast`, inverse-surface, above the nav pill — not semantic red). Client sends a `clientUID()` with every add; `handleAdd` in `Code.gs` now honors a supplied `uid` (backward-compatible — older clients still get a server UID). ⚠️ The UID-exact reconcile path only kicks in after the Apps Script is **redeployed** (Manage deployments → Edit → new version); until then the signature fallback covers it, so no redeploy is *required*, only a precision upgrade. Verified with the render loop (72 checks, 390/900 × light/dark: instant paint, reconcile confirm/dedup/lag, edit, delete, delete-under-lag, failure rollback + toast). See §3a.
-
-- **Restructure Phase 2 — three-tab nav + detached FAB (2026-07-18) — DONE & VERIFIED.** Tabs are now Today · Logs · Trends (Today lands first), FAB is its own 56px sienna circle above the pill, flat timeline moved to Logs. Full geometry + rename detail in §3a "Nav restructure". Roadmap file `ALFRED_RESTRUCTURE_ROADMAP_v2.md` added to the repo (supersedes the old UX roadmap; Phases 0–1 were already live before this session). Merged via PR #33.
-
-- **Restructure Phase 3 — Today tab composition (2026-07-18) — DONE & VERIFIED.** Hero → tiles → glance line → shared live pace bar (`renderLivePaceBar`, per-block spring memory) → 14-day capture strip (heatmap's sienna ramp, `full grid in Trends` link); current-month-only rule for the live blocks; scroll-peek order verified at 390×700. Playwright: 23 checks incl. hand-computed glance values and ~60ms optimistic-add repaint. See §3a. Merged via PR #34.
-
-- **Restructure Phase 4 — Logs week index (2026-07-18) — DONE & VERIFIED.** Flat timeline replaced by a Mon–Sun week accordion under month headers with nets; spend bars on a shared scale + sienna trailing-8-week-average marker (hidden below 2 spend-weeks); current week open on load, multiple weeks open, expansion survives optimistic edits; lazy month windowing via sentinel observer. Playwright: 27 checks incl. cross-month bucketing and hand-computed math. See §3a.
-
-- **Restructure Phase 5 — Trends month navigation (2026-07-18) — DONE & VERIFIED.** Trends runs on its own `viewMonth` state: ‹ month › nav chip bounded by [earliest data month … now], live-month Forecast tile (`~RM x` + on-track/over-income chip) vs closed-month Total Spent actuals + archive card, insight engine + heatmap + pie + cumulative line all follow viewMonth, archive shelf of past months at the bottom of the tab. Past months keep the deterministic retrospective insight (no LLM POST); current-month cache semantics unchanged. Playwright: 25 checks incl. hand-computed forecast and a 1-POST cache assertion across navigation. See §3a.
-
-- **Refinement Phase A — visual polish batch (2026-07-18) — DONE & VERIFIED.** First phase of the new `ALFRED_REFINEMENT_ROADMAP_v3.md` (added to the repo this session; supersedes the remaining v2 items). Neutral FAB shadow, "Coffee RM8" capture placeholder, stronger pill border, `--motion-wobble-nav` snappier nav spring + 1.1× active-tab pop, Logs stripped to range/count/total/bar (chip, month nets, 8-week-average marker deleted), 14-day capture strip removed from Today, 4px pace-bar marker with caption clearance, avg-daily tile without `/day`. Playwright: 36 checks, 390/900 × light/dark + reduced motion. See §3a.
-
-- **Refinement Phase B — single contextual month selector (2026-07-18) — DONE & VERIFIED.** Header dropdown deleted (Today pinned to the real current month), compact ‹ month › header chip only on Trends/Logs driving the shared `viewMonth`, Logs scroll-to-month with on-demand lazy-window growth, export trigger moved to a Logs toolbar with `viewMonth` scope, bell hidden (teardown deferred to Phase F). Playwright: 40 checks, 390/900 × light/dark + reduced motion. See §3a.
-
-- **Refinement Phase C — Today budget-pace card + Trends overspend glow (2026-07-18) — DONE & VERIFIED.** Pace card consolidated onto Today (caption · bar+marker · new avg-daily/forecast stats line; Day-verdict line removed), Trends live-month pace bar gone (closed-month archive card stays), Forecast-tile chip replaced by semantic-red + soft-glow figures on both tiles when forecast > month income, `renderLivePaceBar` single-caller + `paceBarMemory` simplification. Playwright: 32 checks incl. an overspend scenario, dark tokens, hand-computed stats. See §3a.
-
-- **Refinement Phase D — budget rename sweep (2026-07-18) — DONE & VERIFIED.** Labels only, data model untouched: hero `Budget left`, `Budget` tile, budget pace captions, `Expense / Budget` modal toggle (stores `Type: Income` unchanged), Logs badge + review tag renamed; §0 product model rewritten as budget tracker. Playwright: 24 checks incl. a Budget-type add round-trip and a whole-DOM "income" text sweep. See §3a.
-
-### What's Pending ❌
-- **`ALFRED_REFINEMENT_ROADMAP_v3.md` Phases E–F** (one per session, in order): Subscriptions category (E), push digest retirement (F)
-- **Post-v3 feature ideas** — refined 2026-07-19 but not yet scheduled (no roadmap/phasing written); see §6: **Trips** (temporary named mini-budgets), **recurring expenses** (auto-generation), the **"Spending patterns"** heatmap rebrand.
+**Pending:** roadmap Phases E–F (§6, one per session, in order), then the unscheduled
+candidate features (§6).
 
 ---
 
 ## 5. Cost & Sustainability
 
-**The web app runs at ~$0/month.** GitHub Pages, Apps Script, and FCM are free; the only metered cost is OpenAI (gpt-4o-mini): ~$0.0002 per text parse, ~$0.002–0.004 per photo, ~a few hundred tokens per insights phrasing (cached client-side per month+data). Realistic total **well under $0.50/mo** against the $5 budget. Guards on the spend: `ALLOWED_USERS` allow-list on `parse`, input size caps, insights cache. Apps Script free quotas (20k UrlFetch/day, 90 min trigger runtime/day) are orders of magnitude above usage. With the bot and Railway retired, there are no other running costs anywhere in the project.
+**The web app runs at ~$0/month.** GitHub Pages, Apps Script, and FCM are free; the only
+metered cost is OpenAI (gpt-4o-mini): ~$0.0002 per text parse, ~$0.002–0.004 per photo,
+~a few hundred tokens per insights phrasing (cached client-side per month+data).
+Realistic total **well under $0.50/mo** against the $5 budget. Guards: `ALLOWED_USERS`
+allow-list on `parse`, input size caps, insights cache. Apps Script free quotas (20k
+UrlFetch/day, 90 min trigger runtime/day) are orders of magnitude above usage. No other
+running costs anywhere in the project.
 
 ---
 
 ## 6. Roadmap
 
-**The active roadmap is `ALFRED_REFINEMENT_ROADMAP_v3.md`** (mobile UI refinement + budget reframe; Phases A–D done, Phases E–F remain, one per session, in order). It supersedes the remaining `ALFRED_RESTRUCTURE_ROADMAP_v2.md` items: v2 Phase 6 heatmap polish moved to the v3 backlog, Phase 7 FAB long-press parked.
+*This section IS the roadmap — the separate roadmap files were folded in and deleted
+2026-07-19. Execute **one phase per session, in order.***
 
-**Candidate features (this repo) — refined 2026-07-19.** Not yet phased; each needs its own design/roadmap pass before building. These supersede the v3 roadmap's "Backlog / parked" list where they overlap.
+### Standing rules for every phase
 
-- **Trips — temporary named budgets.** The concrete first cut of the parked "multiple named budgets" idea (which the Phase D rename kept the path open for): when you go on a trip, spin up a **temporary, named mini-budget** with its own set amount and track trip spend against it — separate from (and not polluting) the month's budget math. Leaning toward its **own page with its own FAB** ("Trips"), so trip capture and its running tally live apart from the Today/Logs/Trends monthly view. This is a **stored budget number scoped to a trip**, so it's the first place the data model grows past "budget = the month's logged income" (see §0) — needs a design pass on where trip rows live (a tag/flag on rows vs. a separate sheet/tab) before any build.
-- **Recurring expenses.** Set up an expense that **auto-generates on a daily / weekly / monthly schedule** (rent, subscriptions, standing bills) instead of logging each occurrence by hand. Managed from a **pop-out sheet within the Logs page**. This **supersedes the old "future-dated entries UX" note** (which was only messaging around a next-month-dated row) — scheduled auto-generation is the real feature. Open questions for the design pass: where generation runs (an Apps Script time trigger writing rows, mirroring the digest trigger, vs. client-side materialization on load), how far ahead rows are created, and how to edit/stop a series.
-- **"Spending patterns" — heatmap rebrand + controls.** Rebrand the Trends capture heatmap card as **"Spending patterns"** and add two things: a **gradient legend** at the bottom of the card (a less → more colour ramp, i.e. surface the existing `hm-l0..l4` sienna ramp as a key), and a small **weekly / monthly toggle at the top-right of the card**, sitting just above the grid, to switch the window the grid summarizes. (Supersedes the old v2 Phase 6 "heatmap acceptance sweep" — it's now a feature pass, not just a spec check.)
+- Verify with the render loop (§3.12) before committing.
+- Update this file in the same PR as the change it documents.
+- Respect the design language: M3 Expressive, sienna accent, semantic red =
+  expenses/overspend only, minimal ledger voice (no emoji, no exclamation marks).
+- Known traps (respect them): GViz dates month-0-indexed; Chart plugins gated by
+  `canvas.id`; horizontal transforms need the `overflow-x: clip` ancestor; strict
+  `activeUser` filter is deliberate — never add a view-all; animations suppressed under
+  `.settled`/reduced-motion; Apps Script redeploys via Manage deployments → **Edit**.
 
-**Still parked:** FAB long-press (old v2 Phase 7 — no spec attached).
+### Phase E — Subscriptions category
 
-**Dropped (2026-07-19):** capture-bar correction handling ("actually make that RM20") — no longer wanted; capture-parse validation suite — considered resolved.
+Touches both implementations + a redeploy.
 
-(The old cross-repo item — Phase D, porting the bot to Apps Script — was resolved 2026-07-16 by retiring the bot instead.)
+1. `index.html`: add `"Subscriptions"` to `EXPENSE_CATEGORIES`; add entries to
+   `CAT_COLORS` and `CAT_ICONS`. Pick the color with the dataviz six-checks validation
+   against the existing palette, light + dark (palette is contrast-validated; sienna
+   family is taken by Food & Dining, red is semantic).
+2. `apps-script/Code.gs`: add to `EXPENSE_CATEGORIES` (feeds both the extraction prompt
+   and the `validate_transactions` port). Consider one prompt example mapping
+   ("netflix RM17" → Subscriptions) so the parser prefers it over Entertainment/Bills.
+3. **Redeploy Apps Script the safe way** (Manage deployments → Edit → new version).
+4. Existing rows are untouched; subscription rows logged under other categories stay
+   where they are.
+
+**Verify:** manual add shows Subscriptions in the dropdown; capture-parse "netflix RM17"
+returns Subscriptions; pie renders the new color legibly in both themes. One PR +
+redeploy.
+
+### Phase F — Push digest retirement (when ready, no urgency)
+
+1. `index.html`: remove the bell button + `togglePush()` + Firebase SDK lazy-import
+   path, `FIREBASE_CONFIG`, `FCM_VAPID_KEY`, `localStorage('alfred_push_token')`
+   handling.
+2. Repo: delete `firebase-messaging-sw.js` (⚠️ keep `manifest.json` — the PWA install
+   shell stays; the SW had no fetch handler so its removal doesn't affect data flow).
+3. Apps Script: delete the `sendDailyDigestPush` time trigger; remove `push-subscribe`,
+   `push-unsubscribe`, `run-digest-push` actions and digest/FCM code; drop the
+   `FIREBASE_SA_JSON` + `FCM_PROJECT_ID` Script Properties. Keep `OPENAI_API_KEY` +
+   `ALLOWED_USERS` (parse + insights live on). Redeploy via Manage deployments → Edit.
+4. Optionally delete the `PushSubs` tab and the Firebase project (owner checklist).
+5. **This file: rewrite the product model** — the third pillar ("digest is push") is
+   retired by real-usage evidence; Alfred is capture + pull-based visual analytics. The
+   digest *math* (`computeTodayGlance`) lives on in the Today glance line.
+
+**Verify:** no console errors on load; capture, insights, add/edit/delete all still work
+(they share the Apps Script deployment — regression-test after redeploy). One PR.
+
+### Candidate features (refined 2026-07-19 — not yet phased)
+
+Each needs its own design/roadmap pass before building.
+
+- **Trips — temporary named budgets.** The concrete first cut of the parked "multiple
+  named budgets" idea (which the budget rename kept the path open for): a **temporary,
+  named mini-budget** with its own set amount, tracking trip spend separately from (and
+  not polluting) the month's budget math. Leaning toward its **own page with its own
+  FAB** ("Trips"). This is a **stored budget number scoped to a trip** — the first place
+  the data model grows past "budget = the month's logged income" (§0) — needs a design
+  pass on where trip rows live (tag/flag on rows vs. a separate sheet tab) before any
+  build.
+- **Recurring expenses.** An expense that **auto-generates on a daily / weekly / monthly
+  schedule** (rent, subscriptions, standing bills), managed from a **pop-out sheet
+  within the Logs page**. Supersedes the old "future-dated entries UX" note. Open
+  questions for the design pass: where generation runs (an Apps Script time trigger
+  writing rows, mirroring the digest trigger, vs. client-side materialization on load),
+  how far ahead rows are created, and how to edit/stop a series.
+- **"Spending patterns" — heatmap rebrand + controls.** Rebrand the Trends heatmap card
+  as **"Spending patterns"**; add a **gradient legend** at the bottom (surface the
+  `hm-l0..l4` sienna ramp as a less → more key) and a small **weekly / monthly toggle**
+  top-right of the card to switch the window the grid summarizes. (Supersedes the old
+  v2 Phase 6 heatmap acceptance sweep.)
+
+**Parked:** FAB long-press accelerator (long-press ~450ms opens the camera flow
+directly, skipping the capture sheet; tap unchanged — old v2 Phase 7, no full spec).
+
+**Dropped (2026-07-19):** capture-bar correction handling ("actually make that RM20") —
+no longer wanted; capture-parse validation suite — considered resolved.
+
+### Explicitly out of scope (do not build unless asked)
+
+- Streak counters, badges, confetti, celebratory motion beyond existing pop-ins
+- Milestone marks on the hero; personal-records insight templates
+- Drill-in navigation for Logs weeks (accordion decided), search, or filters
+- Any new backend endpoints, LLM calls, or paid services
 
 ---
 
-## 7. Key Learnings & Principles
+## 7. History (compact)
 
-- **Array-return schema** is the unlock: one prompt change (always return a list) handles single/multi-entry/multi-day/split with one append loop — no separate code paths.
-- **Validation philosophy: fix quietly, drop loudly.** Silent coercion for anything fixable (currency noise, off-list category, bad date), visible drops only for genuinely unwritable rows. Keeps natural input frictionless without writing garbage.
-- Prompt-driven logic (dates, splits) needs **real-world eyeballing** — unit tests can't cover the LLM's reasoning, only the deterministic guardrails around it.
-- **Digest as pure sheet math** (no LLM) keeps it free and instant — one source of truth reusable across push (notification) + pull (future daily-summary block).
-- **Extraction/validation logic now has a single implementation** (`Code.gs`) — it was briefly duplicated across this repo and the Telegram bot, which is exactly the kind of drift risk that made retiring the bot attractive once the app covered its jobs.
-- Empty-User rows are legacy owner rows — the digest's user filter keeps the empty-string fallback until they're all backfilled.
+For code comments that reference roadmap phases: **v2** = the restructure roadmap
+(Today · Logs · Trends, numbered Phases 0–7), **v3 / lettered phases** = the refinement
+roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
+woven into §3.
 
-**Dashboard UX (2026-07-11 vibe session):**
-- **Steal patterns, not palettes.** Finance-app refs gave the *structure* (hero card w/ mini-chart, on-slice pie %s, income/expense pills); reskinning them into Alfred's existing tokens kept one coherent system instead of a purple-on-white transplant.
-- **One shared component beats per-tab cards.** Migrating Home + Analytics onto `tile-block` let dead `.metric`/`.crystal-ball` CSS be deleted outright — consistency + less code in one move.
-- **A metric is more useful paired with its baseline.** The spend bar only became meaningful once the "Today" month-pace marker gave it something to be read *against* (spent-vs-time), not just a raw %.
-- **Variable-radius pie needs restraint.** Scaling slice radius by share (`0.92 + 0.08×share`) hints hierarchy; the first pass (`0.72 + 0.28`) made one dominant category visibly lopside the circle.
-- **Chart.js custom canvas draws (on-slice labels, callouts, variable radius, center text) must be gated by `canvas.id`** — an ungated plugin bleeds onto every chart on the page.
-- **Always eyeball mobile widths, not just desktop.** The "right-drift" was tiles going full-width while charts stayed `max-width`-capped between 480–768px — invisible on desktop, obvious on a phone. Screenshotted at 390 / 600 / 900 to confirm.
-- **Render-to-verify loop:** local `python3 -m http.server` + Playwright (mock the GViz response, serve Chart.js locally since the CDN is proxy-blocked) → screenshot at multiple widths & both themes before committing.
-- **A horizontal transform + `position:fixed; right:0` = a mobile zoom trap.** The shared-axis slide's `translateX` briefly widened the document; the fixed nav/modal bars then sized to that widened layout viewport and *held* the overflow open, so the browser kept zooming to fit — creeping worse each toggle. Physics/slide animations that move things along X need an ancestor with `overflow-x: clip` (not `hidden`, which would kill vertical scroll). Caught by measuring `documentElement.scrollWidth` across repeated toggles in Playwright, not by eye.
-- **Compute the numbers, let the LLM only phrase them.** The insights strip (§3a) computes every figure in JS and would hand *those facts* to an LLM purely for wording — so the model can never misstate an amount. It also means Phase 1 (deterministic templates) is a complete, free, offline-capable feature on its own, and the LLM is a phrasing upgrade, not a dependency. Ship the deterministic half first.
-- **A static site can't hold a secret.** The dashboard is public GitHub Pages, so any call that needs the OpenAI key must go through a server that holds it (Apps Script Script Properties) — never inline in `index.html`. Public-by-design values (Firebase config, VAPID key, the 8891 write key) are fine in page source; the allow-list is what guards the metered spend.
-- **Apps Script can be the whole backend — with two crypto-shaped edges.** It holds secrets (Script Properties), calls OpenAI (UrlFetchApp), reads the Sheet natively, and schedules (time triggers) — all free. But it can't do raw Web Push (no ES256/ECDH), so push goes through FCM, whose RS256 service-account JWT it CAN sign (`computeRsaSha256Signature`). And FCM's page SDK must be handed our SW registration explicitly on a project-pages path.
-- **A manifest can't carry per-user state.** `start_url` is static, so anything identity-like (`?user=`) needs a client-side fallback (localStorage) for the installed-app launch path.
-- **Cross-origin from GitHub Pages to any backend: two things or it silently fails.** (1) The response needs `Access-Control-Allow-Origin` or the browser blocks *reading* it even on a 200 (Apps Script web apps send it automatically); (2) send the request as `text/plain` so it stays a "simple" request and skips the CORS preflight. And make optional calls **non-blocking** — computed-fact fallback + timeout + a "thinking" state — so a slow backend degrades to the free templates instead of leaving the UI blank. An upgrade must never become a hard dependency.
+- **2026-07-11 — UX refresh + motion/physics passes** (PRs #6, #7, #11–#13): hero card,
+  tile system, pie rework, staggered entrances, no-replay renders, spring easing,
+  shared-axis slide, mobile overflow/zoom bugfix.
+- **2026-07-12 — Insights strip** (deterministic engine + LLM phrasing, PRs #14,
+  #16–#18), modal a11y polish, no-keyboard-on-open (PR #20).
+- **2026-07-15 — Independent web app built:** PWA shell, capture bar, push bell,
+  `apps-script/Code.gs` backend; insights re-pointed off Railway.
+- **2026-07-16 — Phase 0 setup verified live** (PRs #22/#23): Firebase
+  `project-alfred-f7575`, push digest received on Android, nightly trigger set.
+  **Telegram bot decommissioned** + Railway/webhook teardown; repo decoupled.
+  **One-handed ergonomics pass:** capture bar → FAB-opened sheet with container
+  transform, docked-FAB era, photo-attach-then-comment flow, refresh icon removed.
+- **2026-07-18 — Restructure (v2) Phases 2–5:** three-tab nav + detached FAB (PR #33),
+  Today composition (PR #34), Logs week index, Trends month navigation. **Optimistic
+  writes.** ⚠️ The v2-era docked-FAB geometry and two-tab slider math are superseded by
+  §3.3.
+- **2026-07-18 — Refinement (v3) Phases A–D:** A visual polish batch (neutral FAB
+  shadow, nav spring + text pop, Logs simplification — week chip / month nets /
+  8-week-average marker removed, 14-day Today capture strip removed); B single
+  contextual month selector (header dropdown deleted, export → Logs toolbar, bell
+  hidden); C Today budget-pace card merge + Trends overspend glow (Day-verdict line
+  removed, Trends live pace bar removed); D budget rename sweep (labels only).
+- **2026-07-19 — Backlog refresh + this consolidation:** candidate features refined
+  (§6); roadmap files deleted, CLAUDE.md rewritten as the single reference.
+
+---
+
+## 8. Key Learnings & Principles
+
+- **Array-return schema** is the unlock: one prompt change (always return a list)
+  handles single/multi-entry/multi-day/split with one append loop — no separate code
+  paths.
+- **Validation philosophy: fix quietly, drop loudly.** Silent coercion for anything
+  fixable (currency noise, off-list category, bad date), visible drops only for
+  genuinely unwritable rows.
+- Prompt-driven logic (dates, splits) needs **real-world eyeballing** — unit tests can't
+  cover the LLM's reasoning, only the deterministic guardrails around it.
+- **Digest as pure sheet math** (no LLM) keeps it free and instant — one source of truth
+  reusable across push and pull surfaces.
+- **Single implementation beats duplication:** extraction/validation briefly lived in
+  two repos — exactly the drift risk that made retiring the bot attractive.
+- **Steal patterns, not palettes.** Finance-app refs gave the *structure*; reskinning
+  into Alfred's tokens kept one coherent system.
+- **One shared component beats per-tab cards** (`tile-block` let dead CSS be deleted).
+- **A metric is more useful paired with its baseline** (the pace bar only became
+  meaningful with the "Today" marker to read it against).
+- **Variable-radius pie needs restraint** (`0.92 + 0.08×share`; the first pass at
+  `0.72 + 0.28` lopsided the circle).
+- **Chart.js custom canvas draws must be gated by `canvas.id`** — ungated plugins bleed
+  onto every chart on the page.
+- **Always eyeball mobile widths, not just desktop** — tiles going full-width while
+  charts stayed capped was invisible on desktop, obvious on a phone.
+- **A horizontal transform + `position:fixed; right:0` = a mobile zoom trap** — see
+  §3.2; caught by measuring `scrollWidth` in Playwright, not by eye.
+- **Compute the numbers, let the LLM only phrase them** — the model can never misstate a
+  figure, and the deterministic half ships as a complete free/offline feature; the LLM
+  is a phrasing upgrade, not a dependency.
+- **A static site can't hold a secret.** Anything needing the OpenAI key goes through
+  Apps Script Script Properties; public-by-design values (Firebase config, VAPID key,
+  the 8891 write key) are fine in page source; the allow-list guards the metered spend.
+- **Apps Script can be the whole backend — with two crypto-shaped edges:** no raw Web
+  Push (no ES256/ECDH) so push goes through FCM, whose RS256 SA JWT it CAN sign; and
+  FCM's page SDK must be handed our SW registration explicitly on a project-pages path.
+- **A manifest can't carry per-user state** — `start_url` is static, so identity needs a
+  localStorage fallback for the installed-app launch path.
+- **Cross-origin from GitHub Pages: two things or it silently fails** — the response
+  needs `Access-Control-Allow-Origin` (Apps Script sends it), and requests go as
+  `text/plain` to skip the CORS preflight. Make optional calls non-blocking (fallback +
+  timeout + thinking state) so an upgrade never becomes a hard dependency.
