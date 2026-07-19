@@ -400,10 +400,11 @@ restructure (#33), Today composition (#34), plus the Logs week index, Trends mon
 navigation, optimistic writes, refinement Phases A–D, and Phase E (2026-07-18/19). Full
 history: §7.
 
-**Phase F (push digest retirement) is DONE** in code (2026-07-19) and Playwright-verified
-— no bell, no service worker registered, no Firebase requests, all core flows intact.
-Owner still needs to delete the Apps Script time trigger + Firebase Script Properties and
-(optionally) the `PushSubs` tab / Firebase project — §6 checklist.
+**Phase F (push digest retirement) is DONE**, both in code (2026-07-19, Playwright-verified
+— no bell, no service worker registered, no Firebase requests, all core flows intact) and
+live: Apps Script redeployed, Firebase project deleted. Owner should still double-check the
+`sendDailyDigestPush` time trigger and the `FIREBASE_SA_JSON`/`FCM_PROJECT_ID` Script
+Properties are cleared — §6 checklist.
 
 **Pending:** the unscheduled candidate features (§6).
 
@@ -446,14 +447,17 @@ bell + `togglePush()` + `initPushUI()` + Firebase SDK import + `FIREBASE_CONFIG`
 the `push-subscribe`/`push-unsubscribe`/`run-digest-push` actions and all digest/FCM code
 from `Code.gs`, and rewrote the product model here (§0).
 
-**Owner checklist — manual steps still to do (not code):**
+**Owner checklist:**
 
-1. Apps Script: **redeploy** the updated `Code.gs` via Manage deployments → **Edit** →
-   new version (parse + insights share the deployment — regression-test after).
-2. Apps Script: delete the `sendDailyDigestPush` time-driven trigger (Triggers panel).
+1. ✅ Apps Script: **redeployed** the updated `Code.gs` via Manage deployments → Edit →
+   new version.
+2. Apps Script: delete the `sendDailyDigestPush` time-driven trigger (Triggers panel) —
+   harmless if left (the function it called no longer exists, so it just fails silently
+   in the execution log), but worth clearing.
 3. Script Properties: drop `FIREBASE_SA_JSON` + `FCM_PROJECT_ID` (keep `OPENAI_API_KEY`
    + `ALLOWED_USERS`).
-4. Optionally delete the `PushSubs` tab and the Firebase project `project-alfred-f7575`.
+4. ✅ Firebase project `project-alfred-f7575` **deleted**. Optionally also delete the
+   now-inert `PushSubs` tab in the Sheet.
 
 ### Candidate features (refined 2026-07-19 — not yet phased)
 
