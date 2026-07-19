@@ -413,6 +413,14 @@ live: Apps Script redeployed, Firebase project deleted. Owner should still doubl
 `sendDailyDigestPush` time trigger and the `FIREBASE_SA_JSON`/`FCM_PROJECT_ID` Script
 Properties are cleared — §6 checklist.
 
+**Today budget-pace card redesign ("pace bar hybrid," 2026-07-19) is DONE and LIVE**
+(PRs #45/#46): the single-continuous-pill bar, thin reference-line "Today" marker with
+speech-bubble legend, `Day X of N` caption, and over/under verdict line described in
+§3.5 shipped in #45; #46 was a same-day fast-follow fixing two bugs a code review
+caught — a CSS specificity bug that squared off the pill's corner whenever only one
+segment rendered (0% spent, or fully/over spent), and the legend bubble overflowing the
+card at the month's first/last day (now clamped via `clampBubbleLeft()`).
+
 **Pending:** the unscheduled candidate features (§6).
 
 ---
