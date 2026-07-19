@@ -14,12 +14,6 @@
  *   OPENAI_API_KEY   — for the parse + insights actions
  *   ALLOWED_USERS    — comma-separated chat_ids; empty/absent disables the
  *                      allow-list; empty/absent disables it
- *   FIREBASE_SA_JSON — full Firebase service-account JSON (stringified),
- *                      for FCM push. Absent = push actions error cleanly.
- *   FCM_PROJECT_ID   — the Firebase project id (e.g. "project-alfred-push")
- *
- * Time-driven trigger (for the push digest): Triggers → Add Trigger →
- * sendDailyDigestPush → time-driven → day timer → 10pm–11pm.
  *
  * Actions routed by doPost (all POSTed as text/plain JSON with key "8891"):
  *   add / edit / delete            — sheet writes (existing dashboard paths)
@@ -28,16 +22,12 @@
  *                                    LLM-extract only; NEVER writes the sheet.
  *   insights                       — {facts:[...], month} → {narrative}
  *                                    (LLM phrasing of computed facts)
- *   push-subscribe / push-unsubscribe — {user, token} → PushSubs tab
- *   run-digest-push                — manual trigger for testing the push path
  */
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
 var SECRET_KEY = '8891';
 var SHEET_NAME = 'Sheet1';
-var PUSHSUBS_SHEET_NAME = 'PushSubs';
-var DASHBOARD_URL = 'https://timothycjin-cyber.github.io/alfred-dashboard/';
 
 var OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 var OPENAI_MODEL = 'gpt-4o-mini';
@@ -54,7 +44,6 @@ var MAX_AMOUNT = 1000000;       // RM: above this is almost certainly a parse er
 var MAX_TEXT_CHARS = 1000;      // parse input caps — the key is public in the
 var MAX_IMAGE_B64_CHARS = 5000000; // page source; don't let anyone feed novels
 
-var DIGEST_AVG_WINDOW_DAYS = 30;
 var TIMEZONE = 'Asia/Kuala_Lumpur';
 
 // ── Prompts (ported verbatim from project_alfred_bot.py) ─────────────────────
@@ -167,9 +156,6 @@ function doPost(e) {
       case 'delete':           return jsonOut(handleDelete(data));
       case 'parse':            return jsonOut(handleParse(data));
       case 'insights':         return jsonOut(handleInsights(data));
-      case 'push-subscribe':   return jsonOut(handlePushSubscribe(data));
-      case 'push-unsubscribe': return jsonOut(handlePushUnsubscribe(data));
-      case 'run-digest-push':  return jsonOut({ success: true, sent: sendDailyDigestPush() });
       default:                 return jsonOut({ error: 'unknown action' });
     }
   } catch (err) {
@@ -427,223 +413,4 @@ function handleInsights(data) {
     160, 0.6
   );
   return { narrative: narrative };
-}
-
-// ── Push subscriptions (PushSubs tab: User | Token | Created) ────────────────
-
-function getPushSubsSheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(PUSHSUBS_SHEET_NAME);
-  if (!sheet) {
-    sheet = ss.insertSheet(PUSHSUBS_SHEET_NAME);
-    sheet.appendRow(['User', 'Token', 'Created']);
-  }
-  return sheet;
-}
-
-function handlePushSubscribe(data) {
-  if (!data.user || !data.token) return { error: 'user and token required' };
-  if (!isAllowedUser(data.user)) return { error: 'user not allowed' };
-  var sheet = getPushSubsSheet();
-  var values = sheet.getDataRange().getValues();
-  for (var i = 1; i < values.length; i++) {
-    if (String(values[i][1]) === String(data.token)) {
-      sheet.getRange(i + 1, 1).setValue(String(data.user)); // token exists — refresh owner
-      return { success: true, existing: true };
-    }
-  }
-  sheet.appendRow([String(data.user), String(data.token), new Date().toISOString()]);
-  return { success: true };
-}
-
-function handlePushUnsubscribe(data) {
-  if (!data.token) return { error: 'token required' };
-  var sheet = getPushSubsSheet();
-  var values = sheet.getDataRange().getValues();
-  for (var i = values.length - 1; i >= 1; i--) {
-    if (String(values[i][1]) === String(data.token)) sheet.deleteRow(i + 1);
-  }
-  return { success: true };
-}
-
-// ── Daily digest (port of build_daily_digest / _daily_average) ───────────────
-// Sheet math only — no OpenAI cost. Pure computation is split out
-// (computeDigest) so Node tests can drive it with fixture rows.
-
-// rows: [{date: 'YYYY-MM-DD', amount, category, type, user}]
-function dailyAverage(rows, refDateIso) {
-  var ref = new Date(refDateIso + 'T00:00:00Z').getTime();
-  var start = ref - DIGEST_AVG_WINDOW_DAYS * 86400000;
-  var perDay = {};
-  rows.forEach(function (r) {
-    if (!r.date || !r.amount) return;
-    if (String(r.type || 'Expense').trim().toLowerCase() === 'income') return;
-    var t = new Date(r.date + 'T00:00:00Z').getTime();
-    if (isNaN(t) || t < start || t >= ref) return;
-    perDay[r.date] = (perDay[r.date] || 0) + Number(r.amount);
-  });
-  var days = Object.keys(perDay);
-  if (!days.length) return null;
-  return days.reduce(function (s, d) { return s + perDay[d]; }, 0) / days.length;
-}
-
-function fmtMoney(x) {
-  return 'RM ' + Number(x).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-// Compact digest for a push notification: {title, body, empty}.
-function computeDigest(rows, todayIso, dateLabel) {
-  var todays = rows.filter(function (r) {
-    return r.date === todayIso && r.amount &&
-      String(r.type || 'Expense').trim().toLowerCase() !== 'income';
-  });
-
-  if (!todays.length) {
-    return { title: dateLabel, body: 'Nothing logged today.', empty: true };
-  }
-
-  var byCat = {};
-  var total = 0;
-  todays.forEach(function (r) {
-    byCat[r.category] = (byCat[r.category] || 0) + Number(r.amount);
-    total += Number(r.amount);
-  });
-  var topCat = Object.keys(byCat).sort(function (a, b) { return byCat[b] - byCat[a]; })[0];
-
-  var n = todays.length;
-  var countStr = n + ' expense' + (n === 1 ? '' : 's');
-  var avg = dailyAverage(rows, todayIso);
-  var verdict;
-  if (avg === null) verdict = countStr;
-  else {
-    var diff = total - avg;
-    if (Math.abs(diff) < 0.005) verdict = countStr + ' · on your daily average';
-    else if (diff < 0) verdict = countStr + ' · ' + fmtMoney(Math.abs(diff)) + ' under average';
-    else verdict = countStr + ' · ' + fmtMoney(diff) + ' over average';
-  }
-
-  return {
-    title: 'Daily Summary — ' + dateLabel,
-    body: 'Total ' + fmtMoney(total) + ' · top: ' + topCat + ' ' + fmtMoney(byCat[topCat]) + '\n' + verdict,
-    empty: false
-  };
-}
-
-// Reads Sheet1 into plain row objects. Legacy rows with an empty User belong
-// to the owner (legacy rows from before multi-user; fallback kept until backfilled).
-function readAllRows() {
-  var values = getSheet().getDataRange().getValues();
-  var tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
-  var rows = [];
-  for (var i = 1; i < values.length; i++) {
-    var v = values[i];
-    if (!v[0] || !v[1]) continue;
-    var date = (v[0] instanceof Date) ? Utilities.formatDate(v[0], tz, 'yyyy-MM-dd') : String(v[0]).trim();
-    rows.push({ date: date, amount: Number(v[1]), category: String(v[2] || 'Other'),
-                type: String(v[5] || 'Expense').trim(), user: String(v[7] || '').trim() });
-  }
-  return rows;
-}
-
-// Trigger target — also callable via the run-digest-push action for testing.
-// Returns the number of notifications sent.
-function sendDailyDigestPush() {
-  var subsSheet = getPushSubsSheet();
-  var subs = subsSheet.getDataRange().getValues().slice(1)
-    .map(function (v) { return { user: String(v[0]).trim(), token: String(v[1]).trim() }; })
-    .filter(function (s) { return s.user && s.token; });
-  if (!subs.length) return 0;
-
-  var allRows = readAllRows();
-  var todayIso = Utilities.formatDate(new Date(), TIMEZONE, 'yyyy-MM-dd');
-  var dateLabel = Utilities.formatDate(new Date(), TIMEZONE, 'EEEE, d MMMM');
-
-  var digestByUser = {};
-  var sent = 0;
-  var deadTokens = [];
-
-  subs.forEach(function (sub) {
-    if (!digestByUser[sub.user]) {
-      var rows = allRows.filter(function (r) { return r.user === sub.user || r.user === ''; });
-      digestByUser[sub.user] = computeDigest(rows, todayIso, dateLabel);
-    }
-    var d = digestByUser[sub.user];
-    var ok = sendFcm(sub.token, d.title, d.body, DASHBOARD_URL + '?user=' + encodeURIComponent(sub.user));
-    if (ok === 'dead') deadTokens.push(sub.token);
-    else if (ok === true) sent++;
-  });
-
-  // Prune tokens FCM reports as gone (uninstalled/cleared browser).
-  deadTokens.forEach(function (t) { handlePushUnsubscribe({ token: t }); });
-  return sent;
-}
-
-// ── FCM HTTP v1 (service-account JWT signed with Utilities RSA-SHA256) ───────
-
-function getFcmAccessToken() {
-  var cache = CacheService.getScriptCache();
-  var cached = cache.get('fcm_access_token');
-  if (cached) return cached;
-
-  var saRaw = PropertiesService.getScriptProperties().getProperty('FIREBASE_SA_JSON');
-  if (!saRaw) throw new Error('FIREBASE_SA_JSON not set in Script Properties');
-  var sa = JSON.parse(saRaw);
-
-  var now = Math.floor(Date.now() / 1000);
-  var header = Utilities.base64EncodeWebSafe(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).replace(/=+$/, '');
-  var claim = Utilities.base64EncodeWebSafe(JSON.stringify({
-    iss: sa.client_email,
-    scope: 'https://www.googleapis.com/auth/firebase.messaging',
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600
-  })).replace(/=+$/, '');
-  var input = header + '.' + claim;
-  var signature = Utilities.base64EncodeWebSafe(
-    Utilities.computeRsaSha256Signature(input, sa.private_key)
-  ).replace(/=+$/, '');
-
-  var resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
-    method: 'post',
-    payload: {
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: input + '.' + signature
-    },
-    muteHttpExceptions: true
-  });
-  if (resp.getResponseCode() !== 200) throw new Error('FCM token exchange ' + resp.getResponseCode());
-  var token = JSON.parse(resp.getContentText()).access_token;
-  cache.put('fcm_access_token', token, 3300); // valid 3600s; refresh 5 min early
-  return token;
-}
-
-// Returns true (sent), 'dead' (token gone — prune it), or false (other error).
-function sendFcm(token, title, body, url) {
-  var projectId = PropertiesService.getScriptProperties().getProperty('FCM_PROJECT_ID');
-  if (!projectId) throw new Error('FCM_PROJECT_ID not set in Script Properties');
-  var resp = UrlFetchApp.fetch(
-    'https://fcm.googleapis.com/v1/projects/' + projectId + '/messages:send', {
-      method: 'post',
-      contentType: 'application/json',
-      headers: { Authorization: 'Bearer ' + getFcmAccessToken() },
-      payload: JSON.stringify({
-        message: {
-          token: token,
-          webpush: {
-            notification: { title: title, body: body, icon: 'icons/icon-192.png' },
-            // The service worker reads data.url on notificationclick.
-            data: { url: url, tag: 'alfred-digest' }
-          }
-        }
-      }),
-      muteHttpExceptions: true
-    });
-  var code = resp.getResponseCode();
-  if (code === 200) return true;
-  if (code === 404 || code === 400) {
-    var text = resp.getContentText();
-    if (text.indexOf('UNREGISTERED') !== -1 || text.indexOf('INVALID_ARGUMENT') !== -1 || code === 404) return 'dead';
-  }
-  console.log('FCM send failed ' + code + ': ' + resp.getContentText().slice(0, 200));
-  return false;
 }

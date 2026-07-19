@@ -151,10 +151,6 @@
   /* Spin used by the capture-send busy spinner — status feedback. */
   @keyframes refreshSpin { to { transform: rotate(360deg); } }
 
-  /* Digest-notification bell: filled + accent when subscribed. */
-  .push-btn.on { color: #C2542D; }
-  .push-btn.on svg { fill: currentColor; }
-
   /* Nav cluster: a detached FAB floating 12px above the three-tab pill
      (Today · Logs · Trends). Column stack, both centered, anchored 24px
      (+ safe-area inset) off the viewport bottom. */
@@ -1062,11 +1058,6 @@
   </div>
   <div class="header-actions">
     <div id="header-monthnav" style="display:none"></div>
-    <button class="icon-btn push-btn" id="push-btn" onclick="togglePush()" aria-label="Daily digest notifications" aria-pressed="false" style="display:none">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-      </svg>
-    </button>
   </div>
 </div>
 
@@ -1278,22 +1269,6 @@ const SECRET_KEY = "8891";
 // falls back to the templates — so this is never a hard dependency.
 const INSIGHTS_ENDPOINT = APPS_SCRIPT_URL;
 
-// Push digest (FCM) — Phase 0 setup: create a free Firebase project →
-// Project settings → Your apps → add a Web app → paste its config object
-// here; then Cloud Messaging → Web Push certificates → Generate key pair →
-// paste the public key as FCM_VAPID_KEY. Both values are public by design
-// (they identify the project; they can't send messages). Leave null/"" and
-// the notification bell stays hidden — the feature simply doesn't exist yet.
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCMmsXYdQQvs3fXA4-BHGHGNSGF_q7ifO0",
-  authDomain: "project-alfred-f7575.firebaseapp.com",
-  projectId: "project-alfred-f7575",
-  storageBucket: "project-alfred-f7575.firebasestorage.app",
-  messagingSenderId: "597448007942",
-  appId: "1:597448007942:web:1e51f9f2a879eaad18be87"
-};
-const FCM_VAPID_KEY = "BP8WK1wCIkMP4g5avjmpJMnL2r1CnVQ6lGa4oL4hSQ2YUJalN9rEUsc06AvrcMKBnhvBtzg0mAEvUh3AH94oz7A";
-
 const INCOME_CATEGORIES = ["Salary", "Freelance", "Bonus", "Investment", "Side Income", "Reimbursement", "Other Income"];
 const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "Shopping & Groceries", "Subscriptions", "Entertainment", "Other"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -1308,12 +1283,6 @@ const urlParams = new URLSearchParams(window.location.search);
 let activeUser = urlParams.get('user') || localStorage.getItem('alfred_user') || '';
 if (urlParams.get('user')) {
   try { localStorage.setItem('alfred_user', urlParams.get('user')); } catch (e) {}
-}
-
-// PWA presence + push display. Registration is idempotent; failure (old
-// browser, file:// preview) just means no install/push — the app is unaffected.
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('firebase-messaging-sw.js').catch(() => {});
 }
 
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1409,11 +1378,12 @@ function monthTotals(year, month) {
   return { inc, exp, net: inc - exp };
 }
 
-// ── "Today" glance (client port of Code.gs computeDigest / dailyAverage) ─────
-// Pure sheet math over allRows for the active user — no backend call, no LLM,
-// same "digest as one source of truth" principle. Uses the dashboard's STRICT
-// user filter (no empty-User fallback the push digest carries) so the figure
-// matches everything else on screen. "Today" is the local date.
+// ── "Today" glance ───────────────────────────────────────────────────────────
+// Pure sheet math over allRows for the active user — no backend call, no LLM:
+// today's spend vs the trailing 30-day spend-day average. This is the digest
+// math that outlived the retired push digest (roadmap Phase F). Uses the
+// dashboard's STRICT user filter so the figure matches everything else on
+// screen. "Today" is the local date.
 const DIGEST_AVG_WINDOW_DAYS = 30;
 function computeTodayGlance() {
   const pad = n => String(n).padStart(2, '0');
@@ -3439,94 +3409,6 @@ async function deleteTxn() {
     showToast('Could not delete that entry — check your connection and try again.');
   }
 }
-
-// ── Push digest bell (FCM) ───────────────────────────────────────────────────
-// The Firebase SDK is only imported when the user actually toggles the bell —
-// people who never enable push never load it. The SDK must be handed OUR
-// service worker registration: left to itself it registers
-// /firebase-messaging-sw.js at the domain root, which 404s on a GitHub Pages
-// project site (/alfred-dashboard/).
-
-let pushBusy = false;
-let _messaging = null;
-
-function pushSupported() {
-  return 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
-}
-
-function initPushUI() {
-  return; // Phase B: bell hidden — full push-digest teardown is roadmap Phase F
-  if (!FIREBASE_CONFIG || !FCM_VAPID_KEY || !pushSupported()) return; // bell stays hidden
-  const btn = document.getElementById('push-btn');
-  btn.style.display = 'flex';
-  setPushUIState(!!localStorage.getItem('alfred_push_token') && Notification.permission === 'granted');
-}
-
-function setPushUIState(on) {
-  const btn = document.getElementById('push-btn');
-  btn.classList.toggle('on', on);
-  btn.setAttribute('aria-pressed', String(on));
-  btn.title = on ? 'Daily digest notifications: on' : 'Get the daily digest as a notification';
-}
-
-async function loadMessaging() {
-  if (_messaging) return _messaging;
-  const [{ initializeApp }, m] = await Promise.all([
-    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
-    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js')
-  ]);
-  const app = initializeApp(FIREBASE_CONFIG);
-  _messaging = { messaging: m.getMessaging(app), getToken: m.getToken, deleteToken: m.deleteToken };
-  return _messaging;
-}
-
-async function postPushAction(action, token) {
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ key: SECRET_KEY, action, user: activeUser, token })
-  });
-  const j = await res.json().catch(() => ({}));
-  if (j.error) throw new Error(j.error);
-}
-
-async function togglePush() {
-  if (pushBusy) return;
-  if (!activeUser) { alert('Open your personal dashboard link (?user=…) first — notifications are per person.'); return; }
-  pushBusy = true;
-  const btn = document.getElementById('push-btn');
-  btn.style.opacity = '0.5';
-  try {
-    const stored = localStorage.getItem('alfred_push_token');
-    if (stored) {
-      // Turn off: forget server-side first, then locally.
-      try { await postPushAction('push-unsubscribe', stored); } catch (e) {}
-      try { const fm = await loadMessaging(); await fm.deleteToken(fm.messaging); } catch (e) {}
-      localStorage.removeItem('alfred_push_token');
-      setPushUIState(false);
-      return;
-    }
-    const perm = await Notification.requestPermission();
-    if (perm !== 'granted') {
-      alert('Notifications are blocked for this site — enable them in your browser settings to get the daily digest.');
-      return;
-    }
-    const fm = await loadMessaging();
-    const reg = await navigator.serviceWorker.ready;
-    const token = await fm.getToken(fm.messaging, { vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
-    if (!token) throw new Error('no token');
-    await postPushAction('push-subscribe', token);
-    localStorage.setItem('alfred_push_token', token);
-    setPushUIState(true);
-  } catch (e) {
-    alert('Could not set up notifications: ' + e.message);
-  } finally {
-    pushBusy = false;
-    btn.style.opacity = '';
-  }
-}
-
-initPushUI();
 
 init();
 </script>
