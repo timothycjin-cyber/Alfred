@@ -397,9 +397,6 @@ restructure (#33), Today composition (#34), plus the Logs week index, Trends mon
 navigation, optimistic writes, refinement Phases A–D, and Phase E (2026-07-18/19). Full
 history: §7.
 
-⚠️ **Phase E code is merged but the Apps Script deployment and Sheet data migration are
-manual owner steps, still outstanding** — see §7's Phase E entry.
-
 **Pending:** roadmap Phase F (§6), then the unscheduled candidate features (§6).
 
 ---
@@ -531,9 +528,9 @@ woven into §3.
   Subscriptions over Entertainment/Bills & Utilities. Added a one-off
   `migrateShoppingGroceriesCategory()` helper in `Code.gs` (same pattern as
   `backfillUIDs()`) to relabel existing Sheet rows from `Shopping`/`Groceries` to
-  `Shopping & Groceries` — **owner must run it manually once from the Apps Script
-  editor**, and the deployment must be redeployed (Manage deployments → Edit → new
-  version) before the parser or dropdown picks up the new categories live.
+  `Shopping & Groceries`. **Owner ran the migration and redeployed Apps Script
+  (Manage deployments → Edit → new version)** — live on both the parser and the
+  dropdown.
 
 ---
 
