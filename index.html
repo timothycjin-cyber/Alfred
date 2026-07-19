@@ -625,6 +625,11 @@
   }
   .income-bar-row > .income-bar-seg:first-child { border-radius: var(--shape-full) 0 0 var(--shape-full); }
   .income-bar-row > .income-bar-seg:last-child { border-radius: 0 var(--shape-full) var(--shape-full) 0; }
+  /* :first-child and :last-child tie in specificity, so when only one segment
+     renders (0% spent, or fully/over spent) the source-order-last rule above
+     would otherwise win outright and leave a square corner — :only-child
+     (declared after both) restores the full pill for that case. */
+  .income-bar-row > .income-bar-seg:only-child { border-radius: var(--shape-full); }
   .income-bar-seg.used { background: var(--semantic-expense); color: #fff; }
   .income-bar-seg.rem { background: var(--surface-container); color: var(--on-surface-variant); padding-left: 12px; }
 
@@ -1462,6 +1467,16 @@ function todayGlanceHtml() {
 // The forecast figure turns semantic-red when it overshoots the month's
 // income. Caller guarantees the viewed month IS the current month — Trends
 // shows the archive card for closed months and nothing live.
+
+// The "Today" legend bubble is wide relative to the bar and unclamped
+// left:X% + translateX(-50%) lets it overflow the card at either month
+// boundary (day 1 / the last day). Clamp the anchor to keep the bubble's
+// ~27px half-width fully inside the wrap; the marker's own thin reference
+// line is unaffected and keeps the true elapsed-time position.
+function clampBubbleLeft(pct) {
+  return `clamp(27px, ${pct.toFixed(1)}%, calc(100% - 27px))`;
+}
+
 function renderLivePaceBar(totalIncome, totalExpense) {
   const el = document.getElementById('today-pace-block');
   if (!el) return;
@@ -1494,7 +1509,7 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   el.innerHTML = `
     <div class="income-bar-caption">Day <b>${today.getDate()}</b> of ${daysInMonth}</div>
     <div class="income-bar-wrap">
-      <div class="income-bar-bubble" style="left:${markerStart.toFixed(1)}%">Today<span class="income-bar-bubble-tail"></span></div>
+      <div class="income-bar-bubble" style="left:${clampBubbleLeft(markerStart)}">Today<span class="income-bar-bubble-tail"></span></div>
       <div class="income-bar-row">
         ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${startUsed}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
         ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${startRem}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
@@ -1514,7 +1529,7 @@ function renderLivePaceBar(totalIncome, totalExpense) {
     if (usedEl) usedEl.style.flexGrow = usedFlex;
     if (remEl) remEl.style.flexGrow = remFlex;
     if (markerEl) markerEl.style.left = monthPct.toFixed(1) + '%';
-    if (bubbleEl) bubbleEl.style.left = monthPct.toFixed(1) + '%';
+    if (bubbleEl) bubbleEl.style.left = clampBubbleLeft(monthPct);
   }));
   paceBarMemory = { used: usedFlex, rem: remFlex, marker: monthPct };
 }
