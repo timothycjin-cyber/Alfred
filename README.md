@@ -1,6 +1,6 @@
 # Alfred 📊
 
-**Project Alfred** — a personal finance web app. Log expenses in natural language or by snapping a receipt, see where the money goes, and get a nightly spending digest pushed to your phone.
+**Project Alfred** — a personal budget tracker web app. Log expenses in natural language or by snapping a receipt, track them against the month's budget, and see where the money goes.
 
 🔗 **Live:** https://timothycjin-cyber.github.io/alfred-dashboard/
 
@@ -10,11 +10,13 @@
 
 **Capture** — type "lunch RM15" (or "coffee RM3 last 3 days", "dinner RM60 my share 50%") or snap a receipt photo; the entry is parsed with AI and pre-filled for you to confirm before it's saved. Nothing is written without confirmation.
 
-**Home tab** — net balance hero with a 6-month trend, income/expense tiles, and a transaction timeline grouped by date.
+**Today tab** — "Budget left" hero with a 6-month trend, budget/expense tiles, a today-at-a-glance line, and a live budget-pace bar with avg-daily and forecast figures.
 
-**Analytics tab** — an AI-phrased "What I noticed" insights note, spend-pace bar with a month-progress marker, cumulative spend vs last month, and a category breakdown pie.
+**Logs tab** — the full ledger as a week-by-week accordion under month headers, with spend bars, tap-to-edit entries, and CSV export.
 
-**Push digest** — an installable PWA with a nightly (10pm) spending-summary notification via Firebase Cloud Messaging.
+**Trends tab** — an AI-phrased "What I noticed" insights note, month navigation with an archive of past months, cumulative spend vs last month, a category breakdown pie, and a capture heatmap.
+
+**Push digest** — an installable PWA with a nightly (10pm) spending-summary notification via Firebase Cloud Messaging (slated for retirement).
 
 ---
 
@@ -35,13 +37,12 @@ Fully serverless and free to run:
 
 | Feature | Status |
 |---|---|
-| Home + Analytics dashboards | ✅ Done |
+| Today · Logs · Trends dashboards | ✅ Done |
 | Multi-user support (per-user filtering) | ✅ Done |
-| Add / edit / delete entries | ✅ Done |
+| Add / edit / delete entries (optimistic writes) | ✅ Done |
 | CSV export | ✅ Done |
 | AI insights strip | ✅ Done |
 | Chat + camera capture with confirm flow | ✅ Done |
 | Installable PWA | ✅ Done |
-| Nightly push digest | ✅ Done |
-| Correction handling ("make that RM20") | ❌ Pending |
-| Daily-summary block on Home | ❌ Pending |
+| Nightly push digest | ✅ Done (retirement planned) |
+| Subscriptions category | ❌ Pending |
