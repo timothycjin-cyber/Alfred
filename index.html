@@ -381,14 +381,12 @@
      month's income, the Trends figures (and the Today stats-line forecast)
      go semantic-red with a soft glow — a legitimate semantic-red use per the
      design language (overspend, not decoration). */
-  .tile-block.neutral-block .tile-val.overspend,
-  .income-bar-stats b.overspend {
+  .tile-block.neutral-block .tile-val.overspend {
     color: var(--semantic-expense);
     text-shadow: 0 0 12px rgba(229, 62, 62, 0.35);
   }
   @media (prefers-color-scheme: dark) {
-    .tile-block.neutral-block .tile-val.overspend,
-    .income-bar-stats b.overspend {
+    .tile-block.neutral-block .tile-val.overspend {
       text-shadow: 0 0 12px rgba(255, 77, 77, 0.35);
     }
   }
@@ -605,39 +603,64 @@
   
   .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .income-bar-caption { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; color: var(--on-surface-variant); margin: 0 0 30px; }
-  .income-bar-caption b { color: var(--on-surface); font-weight: 800; }
-  .income-bar-caption .cap-period { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); white-space: nowrap; }
+  .income-bar-caption { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--on-surface); }
+  .income-bar-caption b { font-weight: 900; }
 
-  .income-bar-wrap { position: relative; }
-  .income-bar-row { display: flex; gap: 6px; }
+  /* Reserves room above the bar for the "Today" legend bubble (Phase G
+     hybrid redesign) — the bubble sits at wrap top:0, the bar starts
+     after the padding, so they never overlap. */
+  .income-bar-wrap { position: relative; padding-top: 36px; }
+  /* Single continuous pill: no gap between segments, only the outer
+     corners round (handled by :first-child/:last-child below) so used +
+     remaining read as one bar, not two chips. */
+  .income-bar-row { display: flex; gap: 0; }
   .income-bar-seg {
-    border-radius: var(--shape-full);
+    border-radius: 0;
     padding: 10px 14px;
     font-size: 13px; font-weight: 800;
-    display: flex; align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: flex-start;
     white-space: nowrap; overflow: hidden;
     transition: flex-grow var(--motion-wobble);
     min-width: 4px;
   }
-  .income-bar-seg.used { background: var(--semantic-expense); color: #fff; justify-content: flex-start; }
-  .income-bar-seg.rem { background: var(--surface-container); color: var(--on-surface); }
+  .income-bar-row > .income-bar-seg:first-child { border-radius: var(--shape-full) 0 0 var(--shape-full); }
+  .income-bar-row > .income-bar-seg:last-child { border-radius: 0 var(--shape-full) var(--shape-full) 0; }
+  .income-bar-seg.used { background: var(--semantic-expense); color: #fff; }
+  .income-bar-seg.rem { background: var(--surface-container); color: var(--on-surface-variant); padding-left: 12px; }
 
-  /* "Today" marker overlaid on the bar at the month-elapsed position;
-     springs from 0 to its position alongside the segments' flex-grow spring
-     (both start values are set in markup, finals applied a frame later). */
-  .income-bar-marker { position: absolute; top: -7px; bottom: -7px; width: 4px; background: var(--on-surface); border-radius: 2px; transform: translateX(-2px); pointer-events: none; transition: left var(--motion-wobble); }
-  .income-bar-marker::before {
-    content: attr(data-label);
-    position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
-    font-size: 9px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase;
-    color: var(--on-surface); white-space: nowrap;
+  /* "Today" marker: a thin reference line (not a fill) at the
+     month-elapsed position, springing alongside the segments' flex-grow
+     spring (both start values set in markup, finals applied a frame later). */
+  .income-bar-marker {
+    position: absolute; top: 30px; bottom: -6px; width: 1.5px; transform: translateX(-0.75px);
+    background: var(--on-surface);
+    box-shadow: -1px 0 0 rgba(255,255,255,0.55), 1px 0 0 rgba(255,255,255,0.55);
+    pointer-events: none; transition: left var(--motion-wobble);
   }
-  /* Quiet stats line under the bar (Phase C): avg daily · forecast, same
-     definitions as the Trends tiles. The forecast bold goes semantic-red
-     with a soft glow when it overshoots the month's income. */
-  .income-bar-stats { font-size: 12px; font-weight: 600; color: var(--on-surface-variant); margin-top: 14px; }
-  .income-bar-stats b { font-weight: 800; color: var(--on-surface); }
+  @media (prefers-color-scheme: dark) {
+    .income-bar-marker { box-shadow: -1px 0 0 rgba(0,0,0,0.5), 1px 0 0 rgba(0,0,0,0.5); }
+  }
+  /* Speech-bubble legend for the marker, anchored to the wrap's top edge
+     (the padding-top above reserves its space) so it reads as a label,
+     not another bar segment. */
+  .income-bar-bubble {
+    position: absolute; top: 0; transform: translateX(-50%);
+    background: var(--on-surface); color: var(--surface);
+    font-size: 10px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    padding: 4px 9px; border-radius: var(--shape-full); white-space: nowrap;
+    pointer-events: none; transition: left var(--motion-wobble);
+  }
+  .income-bar-bubble-tail {
+    position: absolute; left: 50%; bottom: -3px; width: 7px; height: 7px;
+    background: var(--on-surface); transform: translateX(-50%) rotate(45deg); border-radius: 1px;
+  }
+  /* Quiet money verdict under the bar (replaces the old avg-daily/forecast
+     stats line): reuses the same forecast-vs-income comparison as the
+     Trends overspend glow, phrased as a single on/off-track line. */
+  .income-bar-verdict { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); margin-top: 20px; }
+  .income-bar-verdict b { font-weight: 900; }
+  .income-bar-verdict b.over { color: var(--semantic-expense); }
+  .income-bar-verdict b.under { color: var(--semantic-income); }
 
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
   .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); padding: 4px 12px; border-radius: var(--shape-full); border: 1px solid var(--outline-variant); background: var(--surface-container-low); }
@@ -1444,7 +1467,7 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   if (!el) return;
   const today = new Date();
   if (!(totalIncome > 0)) {
-    el.innerHTML = `<div class="income-bar-caption"><span>No budget set this month</span><span class="cap-period">${MONTHS[today.getMonth()]} ${today.getFullYear()}</span></div>`;
+    el.innerHTML = `<div class="income-bar-caption">No budget set this month</div>`;
     paceBarMemory = null;
     return;
   }
@@ -1456,6 +1479,7 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   const avgDaily = totalExpense / today.getDate();
   const forecast = avgDaily * daysInMonth;
   const over = forecast > totalIncome;
+  const paceDiff = Math.abs(forecast - totalIncome);
 
   // Mount the bar at its previous state (or nearly-empty on first render),
   // then set the real values a frame later so the flex-grow / left
@@ -1468,24 +1492,29 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   const markerStart = mem ? mem.marker : 0;
 
   el.innerHTML = `
-    <div class="income-bar-caption"><span><b>${usedPct.toFixed(0)}%</b> of budget spent · ${remPct.toFixed(0)}% left</span><span class="cap-period">${MONTHS[today.getMonth()]} ${today.getFullYear()}</span></div>
+    <div class="income-bar-caption">Day <b>${today.getDate()}</b> of ${daysInMonth}</div>
     <div class="income-bar-wrap">
+      <div class="income-bar-bubble" style="left:${markerStart.toFixed(1)}%">Today<span class="income-bar-bubble-tail"></span></div>
       <div class="income-bar-row">
         ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${startUsed}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
         ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${startRem}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
       </div>
-      <div class="income-bar-marker" data-label="Today" style="left:${markerStart.toFixed(1)}%"></div>
+      <div class="income-bar-marker" style="left:${markerStart.toFixed(1)}%"></div>
     </div>
-    <div class="income-bar-stats">Avg daily <b>RM ${formatCurrency(avgDaily)}</b> · Forecast <b class="${over ? 'overspend' : ''}">~RM ${formatCurrency(forecast)}</b></div>
+    <div class="income-bar-verdict">${over
+      ? `<b class="over">Overspending</b> — off track by RM ${formatCurrency(paceDiff)}`
+      : `<b class="under">On track</b> — budget surplus of RM ${formatCurrency(paceDiff)}`}</div>
   `;
 
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const usedEl = el.querySelector('.income-bar-seg.used');
     const remEl = el.querySelector('.income-bar-seg.rem');
     const markerEl = el.querySelector('.income-bar-marker');
+    const bubbleEl = el.querySelector('.income-bar-bubble');
     if (usedEl) usedEl.style.flexGrow = usedFlex;
     if (remEl) remEl.style.flexGrow = remFlex;
     if (markerEl) markerEl.style.left = monthPct.toFixed(1) + '%';
+    if (bubbleEl) bubbleEl.style.left = monthPct.toFixed(1) + '%';
   }));
   paceBarMemory = { used: usedFlex, rem: remFlex, marker: monthPct };
 }

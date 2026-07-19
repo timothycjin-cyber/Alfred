@@ -218,13 +218,20 @@ Composition (scroll-peek order): **hero → tiles → glance line → budget-pac
 - **Glance line** (`computeTodayGlance` — the digest math as client-side JS): today's
   spend vs the 30-day spend-day average; zero-state "Nothing logged today yet."
 - **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome,
-  totalExpense)` — single caller), exactly three rows: caption
-  `X% of budget spent · Y% left` (no-budget state: `No budget set this month`); the
-  two-segment bar + 4px sienna "Today" month-elapsed marker (caption bottom margin 30px
-  for label clearance); quiet stats line `Avg daily RM A · Forecast ~RM B`
-  (`.income-bar-stats` — avg daily = MTD spend ÷ elapsed days, forecast = avg daily ×
-  days in month; the forecast bold gets `.overspend` red+glow when forecast > month
-  income). `paceBarMemory` (single, nulled when hidden) feeds the mount-then-spring.
+  totalExpense)` — single caller), exactly three rows (redesigned 2026-07-19, "pace bar
+  hybrid"): caption `Day X of N` (no-budget state: `No budget set this month`); a
+  **single continuous pill** bar — used (semantic-expense) + remaining
+  (neutral) segments with **no gap**, only the outer corners round
+  (`:first-child`/`:last-child`, so a single rendered segment still gets a full pill) —
+  plus a **thin 1.5px "Today" reference line** (not a fill) at the month-elapsed
+  position with a speech-bubble legend (`.income-bar-bubble` + `.income-bar-bubble-tail`)
+  anchored above the bar (`.income-bar-wrap` reserves the space via `padding-top: 36px`,
+  bubble sits at `top:0`); quiet verdict line (`.income-bar-verdict`) reusing the same
+  forecast-vs-income comparison as the Trends overspend glow — `Overspending — off track
+  by RM X` (semantic-expense) or `On track — budget surplus of RM X` (semantic-income),
+  where X = `|forecast − income|` (avg daily = MTD spend ÷ elapsed days, forecast = avg
+  daily × days in month). `paceBarMemory` (single, nulled when hidden) feeds the
+  mount-then-spring for both the bar segments and the marker/bubble position.
 - **Current-month-only rule:** glance + pace render only for the real current month.
 
 ### 3.6 Logs tab
