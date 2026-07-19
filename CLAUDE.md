@@ -1,12 +1,13 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-19 — **consolidated edition.** The two roadmap files
-(`ALFRED_RESTRUCTURE_ROADMAP_v2.md`, `ALFRED_REFINEMENT_ROADMAP_v3.md`) are deleted; their
-remaining live content (Phases E–F, standing rules, backlog) is folded into §6 here. The
-old changelog-style phase narrative is compacted into §7 (history) — everything below
-describes the **current state** of the app plus the traps that keep it working. Code
-comments in `index.html` still reference roadmap phase names (e.g. "roadmap Phase 4",
-"Phase F"); §6–§7 keep those names resolvable.*
+*Last updated: 2026-07-19 — **push digest retired (Phase F).** The nightly push digest
+is gone: `firebase-messaging-sw.js`, the bell, the Firebase/FCM client + Apps Script code,
+and the `push-subscribe`/`push-unsubscribe`/`run-digest-push` actions are all deleted.
+`manifest.json` stays (the PWA install shell). The digest *math* lives on client-side as
+the Today glance line (`computeTodayGlance`). Alfred is now a two-pillar app: effortless
+capture + pull-based visual analytics. Earlier roadmap files were consolidated into §6
+(2026-07-19); the phase narrative is compacted into §7 (history). Code comments in
+`index.html` still reference roadmap phase names; §6–§7 keep those names resolvable.*
 
 ---
 
@@ -14,14 +15,16 @@ comments in `index.html` still reference roadmap phase names (e.g. "roadmap Phas
 
 **Project Alfred** is a personal **budget tracker** web app — this repo. It captures
 expenses in natural language or from receipt photos, tracks them against the month's
-budget, visualises spend, and pushes a nightly digest notification (digest slated for
-retirement — §6 Phase F). It is an installable PWA on GitHub Pages, with the shared
+budget, and visualises spend. It is an installable PWA on GitHub Pages, with the shared
 Google Sheet's own Apps Script as its entire backend — **fully serverless, no paid
 hosting anywhere** (~$0/month; see §5).
 
-**Product model:** capture must be effortless (log an expense in seconds,
-confirm-before-save), analytics are pull-based and visual (trends, breakdowns,
-insights), and the digest is push (10pm notification — the pillar Phase F retires).
+**Product model (two pillars):** capture must be effortless (log an expense in seconds,
+confirm-before-save), and analytics are pull-based and visual (trends, breakdowns,
+insights). The nightly push digest — once the third pillar — was **retired by
+real-usage evidence (Phase F, 2026-07-19)**; its *math* lives on as the Today glance
+line (`computeTodayGlance`), so the "digest as one source of truth" idea survives on a
+pull surface.
 
 **Budget reframe (rename only):** the surfaces speak *budget*, but the data model is
 untouched — rows keep `Type: Income`, `INCOME_CATEGORIES` keeps its names, and **a
@@ -59,11 +62,13 @@ project deleted, webhook removed — nothing of the old stack runs anywhere.
 **Income Categories:** Salary, Freelance, Bonus, Investment, Side Income, Reimbursement, Other Income
 **Expense Categories:** Food & Dining, Transport, Bills & Utilities, Shopping & Groceries, Subscriptions, Entertainment, Other
 
-There is also a **`PushSubs` tab** (User | Token | Created), auto-created by Apps Script
-— FCM push subscriptions, one row per device token (goes away in Phase F).
+The **`PushSubs` tab** (FCM push subscriptions) is retired with Phase F — Apps Script no
+longer reads or creates it. The owner may delete the leftover tab manually (§6 Phase F
+checklist); nothing in the code references it.
 
-- Empty-User rows are legacy owner rows — the digest's user filter keeps the
-  empty-string fallback until they're all backfilled.
+- Empty-User rows are legacy owner rows — the strict dashboard filter renders only exact
+  matches, but keep backfilling col H until they're all done (some client-side math
+  still tolerated the empty-string fallback historically).
 
 ---
 
@@ -82,16 +87,15 @@ The Sheet's own Apps Script, published as a Web App, is the entire backend. The 
 - `add` / `edit` / `delete` — row writes; `handleAdd`/`handleEdit` write User col H; `handleAdd` honors a client-supplied `uid` (backward-compatible — older clients get a server UID). Helpers: `findRowByUID()`, `generateUID()`, `backfillUIDs()`.
 - `parse` — `{user, text | image_b64[, mime][, caption]}` → `{transactions:[…], dropped, note?}`. The extraction prompt (`EXTRACT_PROMPT`, array-return schema) + `validate_transactions()` port (fix-quietly/drop-loudly; 36 Node tests). **Extract only — never writes**; saving goes through the normal confirmed add path. Guarded by the `ALLOWED_USERS` Script Property + input size caps. A query object comes back as `note` for the capture UI.
 - `insights` — LLM phrasing of client-computed facts (gpt-4o-mini, max_tokens 160, temp 0.6).
-- `push-subscribe` / `push-unsubscribe` / `run-digest-push` — FCM push (all removed in Phase F).
 
-**Push digest:** `sendDailyDigestPush()` is a time-driven trigger (daily 10–11pm; Apps
-Script triggers fire within the hour, not exact-minute). JS port of
-`build_daily_digest`/`_daily_average` → compact `{title, body}`, sent per token via
-**FCM HTTP v1** (SA JWT signed with `Utilities.computeRsaSha256Signature`, access token
-cached in `CacheService` 55 min; dead tokens pruned on UNREGISTERED).
+**Push digest — retired (Phase F, 2026-07-19).** The `push-subscribe` /
+`push-unsubscribe` / `run-digest-push` actions, `sendDailyDigestPush()`, the FCM HTTP v1
+code (SA JWT signing), and the `PushSubs`/digest helpers are all deleted from `Code.gs`.
+Only `add`/`edit`/`delete`/`parse`/`insights` remain. Owner steps still pending: delete
+the `sendDailyDigestPush` time trigger and the Firebase Script Properties (§6 Phase F).
 
-**Script Properties:** `OPENAI_API_KEY`, `ALLOWED_USERS`, `FIREBASE_SA_JSON`,
-`FCM_PROJECT_ID` (the last two drop in Phase F).
+**Script Properties:** `OPENAI_API_KEY`, `ALLOWED_USERS` (the `FIREBASE_SA_JSON` +
+`FCM_PROJECT_ID` properties are unused after Phase F — owner can drop them).
 
 ---
 
@@ -178,9 +182,9 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
   `padding-bottom: calc(164px + inset)` clears the cluster; toast sits at
   `bottom: calc(152px + inset)`.
 - **Header:** just "Project Alfred" on Today; on Trends/Logs a contextual month chip
-  appears (§3.4). Bell hidden (one-line early return in `initPushUI()` — full teardown
-  is Phase F). No refresh icon (pull-to-refresh covers it; `@keyframes refreshSpin`
-  survives for the capture-send spinner).
+  appears (§3.4). No bell (the push digest is retired — Phase F removed the button,
+  `togglePush()`, and the Firebase client entirely). No refresh icon (pull-to-refresh
+  covers it; `@keyframes refreshSpin` survives for the capture-send spinner).
 
 ### 3.4 Month state — single contextual selector
 
@@ -362,21 +366,20 @@ echoes the client UID. Failures roll back out of `allRows` and surface a neutral
 with every add. Date construction matches the GViz month-correction so optimistic and
 reconciled rows format identically.
 
-### 3.11 PWA shell & push
+### 3.11 PWA shell (push retired — Phase F)
 
-- `manifest.json` (standalone, theme colors per scheme, maskable icons in `icons/`) —
-  **stays** even after Phase F.
-- `firebase-messaging-sw.js` (SW at repo root): raw `push` → `showNotification`,
-  `notificationclick` → focus/open; **deliberately no fetch handler** so GViz stays
-  live; no Firebase SDK import in the worker. (Deleted in Phase F.)
-- **Push bell (currently hidden — `initPushUI()` early-returns):** when active, it
-  lazily imports the Firebase SDK, requests permission,
-  `getToken({vapidKey, serviceWorkerRegistration})` — ⚠️ **must pass our SW
-  registration** or the SDK tries to register at the domain root, which 404s on a
-  project-pages path — then `push-subscribe`. Token mirrored in
-  `localStorage('alfred_push_token')`. `FIREBASE_CONFIG` + `FCM_VAPID_KEY` consts in
-  index.html (public values; `null`/`""` hides the feature). Firebase project:
-  `project-alfred-f7575`. Nightly 10–11pm trigger is live.
+- `manifest.json` (standalone, theme colors per scheme, maskable icons in `icons/`) is
+  now the **entire** PWA shell — it stays, and carries installability on its own.
+- **No service worker.** `firebase-messaging-sw.js` and its `navigator.serviceWorker`
+  registration in `index.html` are deleted (Phase F). The worker only ever did push
+  display + PWA presence and had no fetch handler, so removing it doesn't touch the live
+  GViz reads. An already-installed client keeps its old orphaned SW until the browser
+  drops it; harmless (no pushes are ever sent now).
+- **No push client.** The bell, `togglePush()`, `initPushUI()`, the lazy Firebase SDK
+  import, `FIREBASE_CONFIG`, `FCM_VAPID_KEY`, and `localStorage('alfred_push_token')`
+  are all gone. (The Firebase project `project-alfred-f7575` can be deleted by the owner
+  — §6 Phase F checklist.) How push used to work — FCM HTTP v1, SA-JWT signing, handing
+  the SDK our SW registration on a project-pages path — is preserved as a learning in §8.
 
 ### 3.12 Verification loop
 
@@ -397,14 +400,19 @@ restructure (#33), Today composition (#34), plus the Logs week index, Trends mon
 navigation, optimistic writes, refinement Phases A–D, and Phase E (2026-07-18/19). Full
 history: §7.
 
-**Pending:** roadmap Phase F (§6), then the unscheduled candidate features (§6).
+**Phase F (push digest retirement) is DONE** in code (2026-07-19) and Playwright-verified
+— no bell, no service worker registered, no Firebase requests, all core flows intact.
+Owner still needs to delete the Apps Script time trigger + Firebase Script Properties and
+(optionally) the `PushSubs` tab / Firebase project — §6 checklist.
+
+**Pending:** the unscheduled candidate features (§6).
 
 ---
 
 ## 5. Cost & Sustainability
 
-**The web app runs at ~$0/month.** GitHub Pages, Apps Script, and FCM are free; the only
-metered cost is OpenAI (gpt-4o-mini): ~$0.0002 per text parse, ~$0.002–0.004 per photo,
+**The web app runs at ~$0/month.** GitHub Pages and Apps Script are free (FCM is no
+longer used after Phase F); the only metered cost is OpenAI (gpt-4o-mini): ~$0.0002 per text parse, ~$0.002–0.004 per photo,
 ~a few hundred tokens per insights phrasing (cached client-side per month+data).
 Realistic total **well under $0.50/mo** against the $5 budget. Guards: `ALLOWED_USERS`
 allow-list on `parse`, input size caps, insights cache. Apps Script free quotas (20k
@@ -429,24 +437,23 @@ running costs anywhere in the project.
   `activeUser` filter is deliberate — never add a view-all; animations suppressed under
   `.settled`/reduced-motion; Apps Script redeploys via Manage deployments → **Edit**.
 
-### Phase F — Push digest retirement (when ready, no urgency)
+### Phase F — Push digest retirement ✅ DONE (2026-07-19)
 
-1. `index.html`: remove the bell button + `togglePush()` + Firebase SDK lazy-import
-   path, `FIREBASE_CONFIG`, `FCM_VAPID_KEY`, `localStorage('alfred_push_token')`
-   handling.
-2. Repo: delete `firebase-messaging-sw.js` (⚠️ keep `manifest.json` — the PWA install
-   shell stays; the SW had no fetch handler so its removal doesn't affect data flow).
-3. Apps Script: delete the `sendDailyDigestPush` time trigger; remove `push-subscribe`,
-   `push-unsubscribe`, `run-digest-push` actions and digest/FCM code; drop the
-   `FIREBASE_SA_JSON` + `FCM_PROJECT_ID` Script Properties. Keep `OPENAI_API_KEY` +
-   `ALLOWED_USERS` (parse + insights live on). Redeploy via Manage deployments → Edit.
-4. Optionally delete the `PushSubs` tab and the Firebase project (owner checklist).
-5. **This file: rewrite the product model** — the third pillar ("digest is push") is
-   retired by real-usage evidence; Alfred is capture + pull-based visual analytics. The
-   digest *math* (`computeTodayGlance`) lives on in the Today glance line.
+Code changes shipped and Playwright-verified (details in §7). What was done: removed the
+bell + `togglePush()` + `initPushUI()` + Firebase SDK import + `FIREBASE_CONFIG` +
+`FCM_VAPID_KEY` + `localStorage('alfred_push_token')` from `index.html`, deleted the
+`firebase-messaging-sw.js` file and its `navigator.serviceWorker` registration, stripped
+the `push-subscribe`/`push-unsubscribe`/`run-digest-push` actions and all digest/FCM code
+from `Code.gs`, and rewrote the product model here (§0).
 
-**Verify:** no console errors on load; capture, insights, add/edit/delete all still work
-(they share the Apps Script deployment — regression-test after redeploy). One PR.
+**Owner checklist — manual steps still to do (not code):**
+
+1. Apps Script: **redeploy** the updated `Code.gs` via Manage deployments → **Edit** →
+   new version (parse + insights share the deployment — regression-test after).
+2. Apps Script: delete the `sendDailyDigestPush` time-driven trigger (Triggers panel).
+3. Script Properties: drop `FIREBASE_SA_JSON` + `FCM_PROJECT_ID` (keep `OPENAI_API_KEY`
+   + `ALLOWED_USERS`).
+4. Optionally delete the `PushSubs` tab and the Firebase project `project-alfred-f7575`.
 
 ### Candidate features (refined 2026-07-19 — not yet phased)
 
@@ -531,6 +538,22 @@ woven into §3.
   `Shopping & Groceries`. **Owner ran the migration and redeployed Apps Script
   (Manage deployments → Edit → new version)** — live on both the parser and the
   dropdown.
+- **2026-07-19 — Phase F (push digest retirement):** the third pillar is gone. Deleted
+  from `index.html`: the notification bell, `togglePush()`/`initPushUI()`/`setPushUIState`/
+  `loadMessaging`/`postPushAction`, the lazy Firebase SDK import, `FIREBASE_CONFIG`,
+  `FCM_VAPID_KEY`, the `localStorage('alfred_push_token')` handling, the `.push-btn` CSS,
+  and the `navigator.serviceWorker.register(...)` call. Deleted the
+  `firebase-messaging-sw.js` file (kept `manifest.json` — it now carries the whole PWA
+  install shell). Stripped `Code.gs` back to `add`/`edit`/`delete`/`parse`/`insights`:
+  removed the `push-subscribe`/`push-unsubscribe`/`run-digest-push` actions, the
+  `PushSubs` helpers, `sendDailyDigestPush`, `computeDigest`/`dailyAverage`/`readAllRows`/
+  `fmtMoney`, the FCM HTTP v1 code (`getFcmAccessToken`/`sendFcm`), and the digest-only
+  config consts (`PUSHSUBS_SHEET_NAME`, `DASHBOARD_URL`, `DIGEST_AVG_WINDOW_DAYS`). The
+  digest *math* survives as the Today glance line (`computeTodayGlance`). Verified with
+  the render loop (§3.12): 390/900px × light/dark, mocked GViz, local Chart.js — no bell,
+  zero service-worker registrations, no Firebase/FCM requests, hero/tiles/glance/pace all
+  render, budget-left math correct. Owner still to redeploy Apps Script + delete the
+  trigger/properties (§6 checklist).
 
 ---
 
