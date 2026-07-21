@@ -182,8 +182,12 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
   `padding-bottom: calc(164px + inset)` clears the cluster; toast sits at
   `bottom: calc(152px + inset)`.
 - **Header:** just "Project Alfred" on Today; on Trends/Logs a contextual month chip
-  appears (§3.4). No bell (the push digest is retired — Phase F removed the button,
-  `togglePush()`, and the Firebase client entirely). No refresh icon (pull-to-refresh
+  appears (§3.4). `.header-actions` carries a `min-height: 36px` (2026-07-21) matching
+  the monthnav chip's rendered height, so the header row is the same total height on
+  Today (chip absent) as on Logs/Trends (chip shown) — without it the row shrank to the
+  title's ~24px line-height whenever the chip was hidden. No bell (the push digest is
+  retired — Phase F removed the button, `togglePush()`, and the Firebase client
+  entirely). No refresh icon (pull-to-refresh
   covers it; `@keyframes refreshSpin` survives for the capture-send spinner).
 
 ### 3.4 Month state — single contextual selector

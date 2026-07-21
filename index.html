@@ -127,7 +127,12 @@
     letter-spacing: -0.4px; 
   }
   
-  .header-actions { display: flex; align-items: center; gap: 8px; }
+  /* min-height matches the monthnav chip's rendered height (28px button +
+     2×3px padding + 2×1px border = 36px) so the header is the same total
+     height on Today (no chip) as on Logs/Trends (chip shown) — otherwise
+     the row shrinks to the title's ~24px line-height when the chip is
+     hidden. */
+  .header-actions { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 
   .icon-btn {
     width: 36px;
