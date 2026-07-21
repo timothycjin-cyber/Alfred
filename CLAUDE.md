@@ -1,13 +1,28 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-19 — **push digest retired (Phase F).** The nightly push digest
-is gone: `firebase-messaging-sw.js`, the bell, the Firebase/FCM client + Apps Script code,
-and the `push-subscribe`/`push-unsubscribe`/`run-digest-push` actions are all deleted.
-`manifest.json` stays (the PWA install shell). The digest *math* lives on client-side as
-the Today glance line (`computeTodayGlance`). Alfred is now a two-pillar app: effortless
-capture + pull-based visual analytics. Earlier roadmap files were consolidated into §6
-(2026-07-19); the phase narrative is compacted into §7 (history). Code comments in
-`index.html` still reference roadmap phase names; §6–§7 keep those names resolvable.*
+*Last updated: 2026-07-21 — **"Spending patterns" card (§6 candidate #3, §3.7).** The
+Trends capture heatmap was rebuilt into the "Spending patterns" card: each cell now tints
+by **spend per day** (owner-confirmed reframe away from capture-count), keeping the sienna
+intensity ramp so semantic red stays reserved for expense figures (§3.2 rule amended).
+Adds a card-local **Weekly/Monthly toggle**, a summary **chip** (`Month • N days • ↗ RM
+total • Avg RM/day`), a `Less → More` **legend**, and switches to **Monday-first**.
+Weekly = the current Mon–Sun week (single row, no date numbers); Monthly = the `viewMonth`
+calendar. Render-loop verified (Monthly+Weekly × light/dark × 390/900, reduced-motion;
+hand-checked totals/averages, ramp levels, Monday-first alignment, no horizontal overflow
+across toggle flips). Earlier same-day banner — **Today/Trends UI polish pass (PR #47):**
+the Today budget-pace card became a **two-bar, state-colour chart** (Spent vs Month rows,
+dotted "Today" line, Spent flips sienna→red on crossing — §3.5); hero + Trends
+`Average Daily`/`Forecast` tiles gained a heavier `--outline` border; the Trends overspend
+treatment dropped its glow; "Average Daily Spend" → "Average Daily"; `.header-actions`
+`min-height: 36px` evened the header height. Prior banner (2026-07-19): push
+digest retired (Phase F) — `firebase-messaging-sw.js`, the bell, the Firebase/FCM client
++ Apps Script code, and the `push-subscribe`/`push-unsubscribe`/`run-digest-push`
+actions all deleted; `manifest.json` stays (the PWA install shell); the digest *math*
+lives on as the Today glance line (`computeTodayGlance`). Alfred is a two-pillar app:
+effortless capture + pull-based visual analytics. Earlier roadmap files were
+consolidated into §6 (2026-07-19); the phase narrative is compacted into §7 (history).
+Code comments in `index.html` still reference roadmap phase names; §6–§7 keep those
+names resolvable.*
 
 ---
 
@@ -129,9 +144,12 @@ Material 3 Expressive foundation — Roboto Flex UI, ink monochrome tokens, sema
 red/green reserved for expense/overspend vs income/good-news, burnt-sienna accent
 (`--sienna: #C2542D`). FAB + modals + nav pill share a liquid-glass aesthetic.
 Theme-aware via `prefers-color-scheme`. **Ledger voice throughout: no emoji, no
-exclamation marks, quiet verdicts.** Visual grammar rule: **bars for money, cells for
-habit** (spend intensity = horizontal bar; capture activity = sienna-tinted cells; never
-mix — the Trends heatmap is the only cell grid).
+exclamation marks, quiet verdicts.** Visual grammar rule: **money magnitude = horizontal
+bar; the Trends cell grid = sienna intensity ramp** (the only cell grid). The grid was
+retinted from capture-count to **spend-per-day** (2026-07-21, §3.7) — sienna reads as
+*heat*, not money valence, so **semantic red stays reserved for expense/overspend
+figures and deltas**; a whole grid never goes red/green. (Earlier framing was "cells for
+habit" when the grid counted logging activity; that habit metric is retired.)
 
 **Motion tokens:** `--motion-wobble` (overshoot spring; hero/tile/chip pop-ins, FAB
 bloom, bar transitions), `--motion-snap` (taps), `--motion-wobble-nav` (nav-only, ≈20%
@@ -333,9 +351,22 @@ capture heatmap → archive shelf (bottom).
   Groceries `#2684FF`, Subscriptions `#6554C0`, Entertainment `#DB2777`, Other `#495057`
   (deliberate neutral). Semantic expense red is reserved for amounts/deltas — never a
   category.
-- **Capture heatmap:** calendar cell grid for `viewMonth`, sienna ramp classes
-  `hm-l0..l4` (the ramp lives once in CSS). Rebrand to "Spending patterns" is a backlog
-  item (§6).
+- **Spending patterns** (`renderSpendingPatterns`, `#spending-patterns`; was the
+  capture heatmap, rebuilt 2026-07-21): a cell grid tinted by **spend per day** on the
+  sienna `hm-l0..l4` ramp (the ramp lives once in CSS). **Monday-first.** A card-local
+  **Weekly/Monthly toggle** (`.sp-toggle`, reusing the modal `.type-toggle` slider;
+  handler `setPatternPeriod` re-renders **only this card**, so it neither replays the
+  insight typewriter nor needs folding into the Trends `renderedKey`) scopes the grid:
+  **Monthly** = the `viewMonth` calendar with date numbers; **Weekly** = the current
+  Mon–Sun week as a single 7-cell row with **no date numbers** (day identity from the
+  header + tooltip), independent of the month chip (the rest of Trends still follows it).
+  The ramp is **self-scaling**: `level = ceil(spend / maxSpend × 4)` over the window's
+  busiest non-future day (`hm-l0` = zero-spend, `hm-future` = dashed). A summary
+  **chip** (`.sp-chip`) reads `Month Year • N days • ↗/↘ RM total • Avg RM/day` (N =
+  `daysInMonth`/7; avg = total ÷ N; trend arrow vs the prior week/month, omitted with no
+  prior data — arrow valence follows spend delta: up = expense-red, down = income-green)
+  and a `Less → More` **legend** (`.sp-legend`) surfaces the ramp swatches. Spend is
+  summed from expense rows only (`isExpense`), active-user-filtered.
 - **Archive shelf** (`renderArchiveShelf`, `#month-shelf`, "Archive"): chip row of past
   months holding data; tap sets `viewMonth`. Scrolls inside itself (overflow-x auto
   within the clipped container).
@@ -424,9 +455,9 @@ Every shipped phase was verified this way (23–72 checks each) before merging.
 **Everything in §3 is DONE, LIVE, and Playwright-verified.** Highlights with PRs:
 UX refresh + tile system (#6/#7), motion/physics passes (#11–#13), insights strip
 (#14–#18), no-keyboard-on-open (#20), PWA + capture + push Phase 0 (#22/#23), three-tab
-restructure (#33), Today composition (#34), plus the Logs week index, Trends month
-navigation, optimistic writes, refinement Phases A–D, and Phase E (2026-07-18/19). Full
-history: §7.
+restructure (#33), Today composition (#34), the Today/Trends UI polish pass (#47), plus
+the Logs week index, Trends month navigation, optimistic writes, refinement Phases A–D,
+and Phase E (2026-07-18/19). Full history: §7.
 
 **Phase F (push digest retirement) is DONE**, both in code (2026-07-19, Playwright-verified
 — no bell, no service worker registered, no Firebase requests, all core flows intact) and
@@ -505,11 +536,13 @@ Each needs its own design/roadmap pass before building.
   questions for the design pass: where generation runs (an Apps Script time trigger
   writing rows, mirroring the digest trigger, vs. client-side materialization on load),
   how far ahead rows are created, and how to edit/stop a series.
-- **"Spending patterns" — heatmap rebrand + controls.** Rebrand the Trends heatmap card
-  as **"Spending patterns"**; add a **gradient legend** at the bottom (surface the
-  `hm-l0..l4` sienna ramp as a less → more key) and a small **weekly / monthly toggle**
-  top-right of the card to switch the window the grid summarizes. (Supersedes the old
-  v2 Phase 6 heatmap acceptance sweep.)
+- **"Spending patterns" — heatmap rebrand + controls. ✅ DONE (2026-07-21, §3.7).** The
+  Trends heatmap was rebuilt as the "Spending patterns" card: retinted from capture-count
+  to **spend-per-day** (owner-confirmed reframe; keeps the sienna ramp per §8 "steal
+  patterns, not palettes"), Monday-first, with a Weekly/Monthly toggle, a summary chip,
+  and the `Less → More` legend. One deliberate scope cut: **Weekly = the current week
+  only** (not navigable) — a later pass could add week stepping. (Superseded the old v2
+  Phase 6 heatmap acceptance sweep.)
 
 **Parked:** FAB long-press accelerator (long-press ~450ms opens the camera flow
 directly, skipping the capture sheet; tap unchanged — old v2 Phase 7, no full spec).
@@ -586,6 +619,45 @@ woven into §3.
   zero service-worker registrations, no Firebase/FCM requests, hero/tiles/glance/pace all
   render, budget-left math correct. Owner still to redeploy Apps Script + delete the
   trigger/properties (§6 checklist).
+- **2026-07-21 — Today/Trends UI polish pass (PR #47):** four small visual refinements,
+  each render-loop verified (§3.12; 390/900px × light/dark, mocked GViz, local Chart.js).
+  (1) **Pace-bar redesign** — the Today budget-pace card moved from the single
+  continuous-pill "hybrid" (used+remaining segments) to a **two-bar, state-colour chart**:
+  a `Spent` row and a `Month` row (each `label | track | value%`), a shared dotted 2px
+  "Today" reference line crossing both, and the Spent fill **sienna until it crosses the
+  Month line, then semantic-expense red** (`over` = `forecast > income`, algebraically
+  `usedPct > monthPct`, so bar colour and verdict never disagree). `paceMarkerLeft(pct)`
+  offsets the shared marker/bubble to the track column (`calc(72px + (100% - 136px) *
+  pct)`). `paceBarMemory` now keys `{spent, month, marker}` (§3.5). (2) **Hero border** —
+  the "Budget left" card takes a heavier `1.5px --outline` border (light) /
+  `rgba(255,255,255,.22)` (dark) vs the standard `--outline-variant`, so it reads as the
+  page's focal point (§3.5). (3) **Trends tiles** — `Average Daily Spend` relabelled
+  `Average Daily`; `.tile-block.neutral-block` gained an `--outline` border (the base
+  `--outline-variant` was invisible against `--surface-container`); the overspend
+  treatment kept `color: var(--semantic-expense)` but **lost the `text-shadow` glow** —
+  plainer read (§3.7). (4) **Header height** — `.header-actions` `min-height: 36px`
+  matches the monthnav chip so the header is the same height on Today (chip absent) as on
+  Logs/Trends (§3.3). Squash-merged to `main` as `52527e1`.
+- **2026-07-21 — "Spending patterns" card (§6 candidate #3):** rebuilt the Trends capture
+  heatmap (`renderCaptureHeatmap` → `renderSpendingPatterns`, `#capture-heatmap` →
+  `#spending-patterns`). The cell metric changed from **capture-count to spend-per-day**
+  (owner-confirmed via up-front questions — the reframe departs from the old "cells for
+  habit" rule, so §3.2's visual-grammar rule was amended; **kept the sienna ramp**, not
+  the references' red, per §8 "steal patterns, not palettes", which keeps semantic red
+  free for expense figures). Ramp is now **self-scaling** (`ceil(spend/maxSpend×4)` over
+  the window's busiest non-future day). Added a card-local **Weekly/Monthly toggle**
+  (`setPatternPeriod`, reusing the modal `.type-toggle` slider; re-renders only this card
+  so it dodges the insight typewriter replay and the `renderedKey` skip), a summary
+  **chip** (`.sp-chip`: `Month Year • N days • ↗/↘ RM total • Avg RM/day`, trend vs the
+  prior week/month), and a `Less → More` **legend** (`.sp-legend`). Switched the grid to
+  **Monday-first** (was Sunday-first). Weekly = the current Mon–Sun week (single 7-cell
+  row, no date numbers, independent of the month chip); Monthly = the `viewMonth`
+  calendar. Reused existing helpers (`isoDateOf`/`weekMondayIso`, `_expenseRowsFor`/`_sum`/
+  `_shiftMonth`, `formatCurrency`). Verified with the render loop (§3.12): Monthly+Weekly
+  × light/dark × 390/900px + reduced-motion, zero page errors; hand-checked chip
+  totals/averages, ramp levels (max-spend day = `hm-l4`), Monday-first alignment
+  (`leadBlanks`), dashed future days, weekly 7-cell/no-number layout, and
+  `scrollWidth == clientWidth` across repeated toggle flips.
 
 ---
 
