@@ -1,13 +1,22 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-19 — **push digest retired (Phase F).** The nightly push digest
-is gone: `firebase-messaging-sw.js`, the bell, the Firebase/FCM client + Apps Script code,
-and the `push-subscribe`/`push-unsubscribe`/`run-digest-push` actions are all deleted.
-`manifest.json` stays (the PWA install shell). The digest *math* lives on client-side as
-the Today glance line (`computeTodayGlance`). Alfred is now a two-pillar app: effortless
-capture + pull-based visual analytics. Earlier roadmap files were consolidated into §6
-(2026-07-19); the phase narrative is compacted into §7 (history). Code comments in
-`index.html` still reference roadmap phase names; §6–§7 keep those names resolvable.*
+*Last updated: 2026-07-21 — **Today/Trends UI polish pass (PR #47).** The Today
+budget-pace card was redesigned from the single continuous-pill "hybrid" into a
+**two-bar, state-colour chart** (Spent vs Month rows sharing a dotted "Today" line;
+Spent flips sienna→red only when it crosses the Month line — §3.5). The hero "Budget
+left" card and the Trends `Average Daily`/`Forecast` tiles gained a heavier `--outline`
+border (focal-point emphasis); the Trends overspend treatment kept its semantic-red
+colour but **dropped the text-shadow glow**; "Average Daily Spend" → "Average Daily";
+`.header-actions` got `min-height: 36px` so the header is the same height on Today as on
+Logs/Trends. Verified via the render loop (§3.12). Prior banner (2026-07-19): push
+digest retired (Phase F) — `firebase-messaging-sw.js`, the bell, the Firebase/FCM client
++ Apps Script code, and the `push-subscribe`/`push-unsubscribe`/`run-digest-push`
+actions all deleted; `manifest.json` stays (the PWA install shell); the digest *math*
+lives on as the Today glance line (`computeTodayGlance`). Alfred is a two-pillar app:
+effortless capture + pull-based visual analytics. Earlier roadmap files were
+consolidated into §6 (2026-07-19); the phase narrative is compacted into §7 (history).
+Code comments in `index.html` still reference roadmap phase names; §6–§7 keep those
+names resolvable.*
 
 ---
 
@@ -424,9 +433,9 @@ Every shipped phase was verified this way (23–72 checks each) before merging.
 **Everything in §3 is DONE, LIVE, and Playwright-verified.** Highlights with PRs:
 UX refresh + tile system (#6/#7), motion/physics passes (#11–#13), insights strip
 (#14–#18), no-keyboard-on-open (#20), PWA + capture + push Phase 0 (#22/#23), three-tab
-restructure (#33), Today composition (#34), plus the Logs week index, Trends month
-navigation, optimistic writes, refinement Phases A–D, and Phase E (2026-07-18/19). Full
-history: §7.
+restructure (#33), Today composition (#34), the Today/Trends UI polish pass (#47), plus
+the Logs week index, Trends month navigation, optimistic writes, refinement Phases A–D,
+and Phase E (2026-07-18/19). Full history: §7.
 
 **Phase F (push digest retirement) is DONE**, both in code (2026-07-19, Playwright-verified
 — no bell, no service worker registered, no Firebase requests, all core flows intact) and
@@ -586,6 +595,25 @@ woven into §3.
   zero service-worker registrations, no Firebase/FCM requests, hero/tiles/glance/pace all
   render, budget-left math correct. Owner still to redeploy Apps Script + delete the
   trigger/properties (§6 checklist).
+- **2026-07-21 — Today/Trends UI polish pass (PR #47):** four small visual refinements,
+  each render-loop verified (§3.12; 390/900px × light/dark, mocked GViz, local Chart.js).
+  (1) **Pace-bar redesign** — the Today budget-pace card moved from the single
+  continuous-pill "hybrid" (used+remaining segments) to a **two-bar, state-colour chart**:
+  a `Spent` row and a `Month` row (each `label | track | value%`), a shared dotted 2px
+  "Today" reference line crossing both, and the Spent fill **sienna until it crosses the
+  Month line, then semantic-expense red** (`over` = `forecast > income`, algebraically
+  `usedPct > monthPct`, so bar colour and verdict never disagree). `paceMarkerLeft(pct)`
+  offsets the shared marker/bubble to the track column (`calc(72px + (100% - 136px) *
+  pct)`). `paceBarMemory` now keys `{spent, month, marker}` (§3.5). (2) **Hero border** —
+  the "Budget left" card takes a heavier `1.5px --outline` border (light) /
+  `rgba(255,255,255,.22)` (dark) vs the standard `--outline-variant`, so it reads as the
+  page's focal point (§3.5). (3) **Trends tiles** — `Average Daily Spend` relabelled
+  `Average Daily`; `.tile-block.neutral-block` gained an `--outline` border (the base
+  `--outline-variant` was invisible against `--surface-container`); the overspend
+  treatment kept `color: var(--semantic-expense)` but **lost the `text-shadow` glow** —
+  plainer read (§3.7). (4) **Header height** — `.header-actions` `min-height: 36px`
+  matches the monthnav chip so the header is the same height on Today (chip absent) as on
+  Logs/Trends (§3.3). Squash-merged to `main` as `52527e1`.
 
 ---
 
