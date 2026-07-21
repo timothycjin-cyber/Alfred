@@ -566,10 +566,10 @@
   .archive-verdict .arc-bad { color: var(--semantic-expense); }
   .archive-verdict .arc-flat { color: var(--on-surface-variant); }
 
-  /* Capture heatmap — one cell per day, tinted by how many entries were logged.
-     Sienna wash ramp only (never red/green — those stay semantic). The grid is
-     the reward for the logging habit; no streak counters, no badges. */
-  .heatmap-card .card-title { margin-bottom: 12px; }
+  /* "Spending patterns" grid — one cell per day, tinted by how much was SPENT
+     that day (was capture-count). Sienna INTENSITY ramp only — never red/green
+     — so semantic red stays reserved for expense/overspend figures. The cell
+     ramp reads as heat, not as money valence. */
   .hm-weekdays, .hm-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
   .hm-weekdays { margin-bottom: 6px; }
   .hm-wd { text-align: center; font-size: 9px; font-weight: 700; letter-spacing: 0.3px; color: var(--on-surface-variant); text-transform: uppercase; }
@@ -590,6 +590,36 @@
   .hm-l3 .hm-day, .hm-l4 .hm-day { color: #F5F5F2; }
   .hm-future { background: transparent; border: 1px dashed var(--outline-variant); }
   .hm-future .hm-day { opacity: 0.45; }
+
+  /* Spending-patterns card chrome: header (title + Weekly/Monthly toggle),
+     summary chip, and the Less→More legend framing the grid. */
+  .sp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .sp-title { font-size: 11px; font-weight: 700; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
+  /* Compact card-scoped variant of the modal .type-toggle: smaller, pill
+     radius, neutral active colour (not expense/income), no bottom margin. */
+  .sp-toggle { margin-bottom: 0; flex: 0 0 auto; border-radius: var(--shape-full); padding: 2px; }
+  .sp-toggle .type-toggle-slider { top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); border-radius: var(--shape-full); }
+  .sp-toggle button { padding: 5px 12px; font-size: 11px; }
+  .sp-toggle button.active { color: var(--on-surface); }
+
+  /* Summary chip: month • N days • trend total • daily average. The trend
+     arrow follows Alfred's valence (spend up = expense red, down = income
+     green) — a sanctioned semantic-red use (it's a spend delta). */
+  .sp-chip {
+    display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+    gap: 7px; margin-bottom: 14px; padding: 8px 14px;
+    border: 1px solid var(--outline-variant); border-radius: var(--shape-full);
+    font-size: 12px; font-weight: 600; color: var(--on-surface-variant);
+  }
+  .sp-chip b { font-weight: 800; color: var(--on-surface); }
+  .sp-chip .sp-sep { opacity: 0.4; }
+  .sp-chip .sp-arrow.up { color: var(--semantic-expense); }
+  .sp-chip .sp-arrow.down { color: var(--semantic-income); }
+
+  /* Less → More gradient legend surfacing the hm ramp (reuses hm-l0..l4). */
+  .sp-legend { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; font-size: 10px; font-weight: 700; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.3px; }
+  .sp-swatches { display: flex; gap: 4px; }
+  .sp-swatch { width: 13px; height: 13px; border-radius: 3px; }
 
   /* Blinking caret while the narrative types itself in — sells the "live" feel.
      Sits at the end of the revealed text (trailing empty nodes add no width). */
@@ -1150,7 +1180,7 @@
         </div>
       </div>
     </div>
-    <div id="capture-heatmap"></div>
+    <div id="spending-patterns"></div>
     <div id="month-shelf"></div>
   </div>
 </div>
@@ -1319,6 +1349,10 @@ let activeYear = new Date().getFullYear();
 // ignores it.
 let viewMonth = new Date().getMonth();
 let viewYear = new Date().getFullYear();
+// Spending-patterns card period — 'monthly' (the viewMonth calendar) or
+// 'weekly' (the current Mon–Sun week). Card-local; the rest of Trends still
+// follows the month chip. Default matches the old full-calendar behaviour.
+let patternPeriod = 'monthly';
 let currentView = 'today';
 const VIEW_ORDER = ['today', 'logs', 'trends'];
 
@@ -1833,47 +1867,129 @@ function archiveCardHtml({ net, expense, topCat, topAmt, daysLogged, daysInMonth
     </div>`;
 }
 
-// ── Capture heatmap (Phase 4) ───────────────────────────────────────────────
-// Calendar grid for the viewed month, each day tinted by how many entries were
-// logged (sienna wash ramp). Rewards the logging habit; no moralising on spend.
-function renderCaptureHeatmap() {
-  const el = document.getElementById('capture-heatmap');
+// ── Spending patterns (§6 candidate #3) ─────────────────────────────────────
+// The Trends cell grid, tinted by how much was SPENT each day (sienna intensity
+// ramp — never red/green, those stay semantic). A Weekly/Monthly toggle scopes
+// the grid: Monthly = the viewMonth calendar; Weekly = the current Mon–Sun week
+// (card-local — the rest of Trends still follows the month chip). A summary chip
+// (month • N days • trend total • daily average) and a Less→More legend frame it.
+// The ramp is self-scaling: the window's busiest day sets hm-l4, the rest step
+// proportionally down. Monday-first (was Sunday-first as a capture grid).
+function renderSpendingPatterns() {
+  const el = document.getElementById('spending-patterns');
   if (!el) return;
+  const isExpense = r => String(r.Type || 'Expense').trim().toLowerCase() !== 'income';
   const now = new Date();
-  const isCur = (viewMonth === now.getMonth() && viewYear === now.getFullYear());
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const firstWeekday = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
+  const todayIso = isoDateOf(now);
 
-  const counts = {};
+  // Per-day spend for the active user, keyed by ISO date (expense rows only).
+  const perDay = {};
   allRows.forEach(r => {
-    if (!(activeUser && r.User === activeUser)) return;
-    const d = new Date(r.Date);
-    if (d.getMonth() === viewMonth && d.getFullYear() === viewYear) {
-      counts[d.getDate()] = (counts[d.getDate()] || 0) + 1;
-    }
+    if (!(activeUser && r.User === activeUser) || !r.Date || !r.Amount || !isExpense(r)) return;
+    perDay[r.Date] = (perDay[r.Date] || 0) + r.Amount;
   });
-  const loggedDays = Object.keys(counts).length;
-  const throughDay = isCur ? now.getDate() : daysInMonth;
 
-  const WD = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  let cells = '';
-  for (let i = 0; i < firstWeekday; i++) cells += `<div class="hm-cell hm-blank"></div>`;
-  let idx = 0;
-  for (let day = 1; day <= daysInMonth; day++) {
-    const c = counts[day] || 0;
-    const future = isCur && day > now.getDate();
-    const cls = future ? 'hm-future' : `hm-l${Math.min(c, 4)}`;
-    const delay = 60 + Math.min(idx++, 24) * 12;
-    const n = c === 1 ? 'entry' : 'entries';
-    cells += `<div class="hm-cell ${cls}" style="--d:${delay}ms" title="${MONTHS[viewMonth]} ${day} · ${c} ${n}"><span class="hm-day">${day}</span></div>`;
+  const weekly = patternPeriod === 'weekly';
+
+  // Ordered day cells for the shown window: { iso, dayNum|null, future, spend }.
+  const days = [];
+  let chipLabel, windowDays, leadBlanks = 0;
+
+  if (weekly) {
+    const mondayIso = weekMondayIso(todayIso);
+    const mon = new Date(mondayIso + 'T00:00:00');
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(mon); d.setDate(mon.getDate() + i);
+      const iso = isoDateOf(d);
+      days.push({ iso, dayNum: null, future: iso > todayIso, spend: perDay[iso] || 0 });
+    }
+    windowDays = 7;
+    chipLabel = `${MONTHS[mon.getMonth()]} ${mon.getFullYear()}`;
+  } else {
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const isCur = (viewMonth === now.getMonth() && viewYear === now.getFullYear());
+    const firstWeekday = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
+    leadBlanks = (firstWeekday + 6) % 7; // Monday-first offset
+    for (let day = 1; day <= daysInMonth; day++) {
+      const iso = isoDateOf(new Date(viewYear, viewMonth, day));
+      days.push({ iso, dayNum: day, future: isCur && day > now.getDate(), spend: perDay[iso] || 0 });
+    }
+    windowDays = daysInMonth;
+    chipLabel = `${MONTHS[viewMonth]} ${viewYear}`;
   }
 
+  // Self-scaling ramp: level relative to the busiest non-future day.
+  const maxSpend = Math.max(0, ...days.filter(d => !d.future).map(d => d.spend));
+  const levelOf = spend => (spend <= 0 || maxSpend <= 0) ? 0 : Math.min(4, Math.ceil(spend / maxSpend * 4));
+
+  // Summary chip figures.
+  const total = days.reduce((s, d) => s + d.spend, 0);
+  const avg = windowDays > 0 ? total / windowDays : 0;
+
+  // Trend arrow vs the prior comparable period (prior week / prior month).
+  let prevTotal = null;
+  if (weekly) {
+    const prevMon = new Date(weekMondayIso(todayIso) + 'T00:00:00');
+    prevMon.setDate(prevMon.getDate() - 7);
+    let pt = 0, any = false;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(prevMon); d.setDate(prevMon.getDate() + i);
+      const v = perDay[isoDateOf(d)]; if (v) { pt += v; any = true; }
+    }
+    prevTotal = any ? pt : null;
+  } else {
+    const p = _shiftMonth(viewYear, viewMonth, -1);
+    const prevRows = _expenseRowsFor(p.year, p.month);
+    prevTotal = prevRows.length ? _sum(prevRows) : null;
+  }
+  let arrow = '';
+  if (prevTotal !== null && Math.abs(total - prevTotal) >= 0.005) {
+    arrow = total > prevTotal
+      ? `<span class="sp-arrow up">↗</span>`
+      : `<span class="sp-arrow down">↘</span>`;
+  }
+
+  // Cells.
+  let cells = '';
+  for (let i = 0; i < leadBlanks; i++) cells += `<div class="hm-cell hm-blank"></div>`;
+  let idx = 0;
+  days.forEach(d => {
+    const cls = d.future ? 'hm-future' : `hm-l${levelOf(d.spend)}`;
+    const delay = 60 + Math.min(idx++, 24) * 12;
+    const dd = new Date(d.iso + 'T00:00:00');
+    const tip = `${MONTHS[dd.getMonth()]} ${dd.getDate()} · RM ${formatCurrency(d.spend)}`;
+    const num = d.dayNum !== null ? `<span class="hm-day">${d.dayNum}</span>` : '';
+    cells += `<div class="hm-cell ${cls}" style="--d:${delay}ms" title="${tip}">${num}</div>`;
+  });
+
+  const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const sep = `<span class="sp-sep">•</span>`;
+  const swatches = [0, 1, 2, 3, 4].map(l => `<span class="sp-swatch hm-l${l}"></span>`).join('');
+
   el.innerHTML = `
-    <div class="card heatmap-card">
-      <div class="card-title">${MONTHS[viewMonth]} capture · ${loggedDays} of ${throughDay} days logged</div>
+    <div class="card spending-card">
+      <div class="sp-head">
+        <div class="sp-title">Spending patterns</div>
+        <div class="type-toggle sp-toggle">
+          <div class="type-toggle-slider" style="transform:translateX(${weekly ? '0' : '100%'})"></div>
+          <button type="button" class="${weekly ? 'active' : ''}" onclick="setPatternPeriod('weekly')">Weekly</button>
+          <button type="button" class="${weekly ? '' : 'active'}" onclick="setPatternPeriod('monthly')">Monthly</button>
+        </div>
+      </div>
+      <div class="sp-chip"><b>${chipLabel}</b>${sep}${windowDays} days${sep}${arrow}<b>RM ${formatCurrency(total)}</b>${sep}Avg RM ${formatCurrency(avg)}</div>
       <div class="hm-weekdays">${WD.map(w => `<div class="hm-wd">${w}</div>`).join('')}</div>
       <div class="hm-grid">${cells}</div>
+      <div class="sp-legend"><span>Less</span><div class="sp-swatches">${swatches}</div><span>More</span></div>
     </div>`;
+}
+
+// Toggle handler — card-local re-render only (avoids replaying the insight
+// typewriter / rebuilding charts, and sidesteps the renderedKey skip that keys
+// on viewMonth+dataStamp, which the period intentionally isn't part of).
+function setPatternPeriod(period) {
+  if (period === patternPeriod) return;
+  patternPeriod = period;
+  renderSpendingPatterns();
 }
 
 // ── Insights engine (Phase 1: deterministic) ───────────────────────────────
@@ -2985,7 +3101,7 @@ function calculateAndRender() {
       }
     });
 
-    renderCaptureHeatmap();
+    renderSpendingPatterns();
   }
   animateCounters();
 }
