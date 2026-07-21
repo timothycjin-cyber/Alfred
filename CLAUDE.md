@@ -301,12 +301,18 @@ capture heatmap → archive shelf (bottom).
   - **Typewriter reveal:** `typewriteInto()` sets real innerHTML then types over the
     text nodes (rAF, `clamp(chars·14ms, 500, 1900)`), blinking sienna caret. Reduced
     motion → instant.
-- **Tiles:** live month → Average Daily + `Forecast ~RM x`; closed month → Average
-  Daily + `Total Spent` actuals. **Overspend treatment:** `overspend = isCurrentMonth &&
-  vIncome > 0 && forecast > vIncome` puts `.overspend` on **both** tile values —
-  `color: var(--semantic-expense)`, color only, no glow (the `text-shadow` was removed
+- **Tiles:** live month → `Average Daily` + `Forecast ~RM x`; closed month → `Average
+  Daily` + `Total Spent` actuals (label shortened from "Average Daily Spend"
+  2026-07-21). **Overspend treatment:** `overspend = isCurrentMonth && vIncome > 0 &&
+  forecast > vIncome` puts `.overspend` on **both** tile values — `color:
+  var(--semantic-expense)`, color only, no glow (the `text-shadow` was removed
   2026-07-21 — plain color read as clearer than the soft-glow treatment). Never on
   closed months. This is a sanctioned semantic-red use (overspend warning).
+  `.tile-block.neutral-block` (these two tiles only — they sit directly on the pane,
+  unlike Today's income/expense tiles) also gets a heavier `--outline` border in place
+  of the base tile's `--outline-variant` (2026-07-21), for the same reason as the hero
+  card border above: `--outline-variant` read as almost invisible against
+  `--surface-container`.
 - **Spend-card slot** (`#income-bar-card`): **hidden on the live month** (Today owns the
   pace bar); closed months show the **archive card** (net, top category, days logged
   X of N, quiet pace verdict).

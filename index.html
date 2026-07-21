@@ -374,7 +374,11 @@
   .no-entrance .hero-card, .no-entrance .tile-block { animation: none; }
   .tile-block.income-block { background: var(--wash-income); }
   .tile-block.expense-block { background: var(--wash-expense); }
-  .tile-block.neutral-block { background: var(--surface-container); }
+  /* The Trends Average Daily / Forecast tiles sit directly on the pane
+     background (no wrapping card), so the base tile's --outline-variant
+     border reads as almost invisible against --surface-container — bump to
+     --outline so the tiles read as distinct cards (2026-07-21). */
+  .tile-block.neutral-block { background: var(--surface-container); border-color: var(--outline); }
   .tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
   .tile-val { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
   .tile-block.income-block .tile-val { color: var(--semantic-income); }
@@ -2864,7 +2868,7 @@ function calculateAndRender() {
     }
     document.getElementById('trends-metrics').innerHTML = `
       <div class="tile-block neutral-block">
-        <div class="tile-label">Average Daily Spend</div>
+        <div class="tile-label">Average Daily</div>
         <div class="${valCls}" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM ">RM 0.00</div>
       </div>
       ${secondTile}
