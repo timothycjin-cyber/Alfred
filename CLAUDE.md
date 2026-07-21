@@ -207,11 +207,13 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
 Composition (scroll-peek order): **hero → tiles → glance line → budget-pace card.**
 
 - **Hero** (`.hero-card`, `#today-hero`): label **`Budget left`** (income − expense);
-  ink-black gradient in dark mode, monochrome off-white in light. Privacy blur toggle
-  (`toggleHeroPrivacy()` → `.value-hidden`), embedded 6-month net-trend mini bar chart
-  (`heroChart`, current month sienna, others green/red by sign; `minBarLength: 4` +
-  `heroBaselinePlugin` faint zero line, gated on `canvas.id === 'hero-trend'`). Sub-copy
-  "In the green" / "Watching the leak".
+  ink-black gradient in dark mode, monochrome off-white in light. **1.5px `--outline`
+  border** (light) / `rgba(255,255,255,.22)` (dark) — deliberately heavier than the
+  `--outline-variant` border every other card uses (2026-07-21), so the hero reads as
+  the page's focal point. Privacy blur toggle (`toggleHeroPrivacy()` → `.value-hidden`),
+  embedded 6-month net-trend mini bar chart (`heroChart`, current month sienna, others
+  green/red by sign; `minBarLength: 4` + `heroBaselinePlugin` faint zero line, gated on
+  `canvas.id === 'hero-trend'`). Sub-copy "In the green" / "Watching the leak".
 - **Tiles** (`#today-tiles`): **`Budget`** (month income) / **`Expenses`**,
   tinted surfaces (`--wash-income`/`--wash-expense`), `▲/▼ X% vs last month` chips with
   `.good`/`.bad` valence (expenses dropping reads green).
@@ -302,9 +304,9 @@ capture heatmap → archive shelf (bottom).
 - **Tiles:** live month → Average Daily + `Forecast ~RM x`; closed month → Average
   Daily + `Total Spent` actuals. **Overspend treatment:** `overspend = isCurrentMonth &&
   vIncome > 0 && forecast > vIncome` puts `.overspend` on **both** tile values —
-  `color: var(--semantic-expense)` + `text-shadow: 0 0 12px` at 35% alpha (light
-  `rgba(229,62,62,.35)`, dark `rgba(255,77,77,.35)`). Never on closed months. This is a
-  sanctioned semantic-red use (overspend warning).
+  `color: var(--semantic-expense)`, color only, no glow (the `text-shadow` was removed
+  2026-07-21 — plain color read as clearer than the soft-glow treatment). Never on
+  closed months. This is a sanctioned semantic-red use (overspend warning).
 - **Spend-card slot** (`#income-bar-card`): **hidden on the live month** (Today owns the
   pace bar); closed months show the **archive card** (net, top category, days logged
   X of N, quiet pace verdict).
