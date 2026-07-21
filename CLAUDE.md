@@ -218,20 +218,29 @@ Composition (scroll-peek order): **hero → tiles → glance line → budget-pac
 - **Glance line** (`computeTodayGlance` — the digest math as client-side JS): today's
   spend vs the 30-day spend-day average; zero-state "Nothing logged today yet."
 - **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome,
-  totalExpense)` — single caller), exactly three rows (redesigned 2026-07-19, "pace bar
-  hybrid"): caption `Day X of N` (no-budget state: `No budget set this month`); a
-  **single continuous pill** bar — used (semantic-expense) + remaining
-  (neutral) segments with **no gap**, only the outer corners round
-  (`:first-child`/`:last-child`, so a single rendered segment still gets a full pill) —
-  plus a **thin 1.5px "Today" reference line** (not a fill) at the month-elapsed
-  position with a speech-bubble legend (`.income-bar-bubble` + `.income-bar-bubble-tail`)
-  anchored above the bar (`.income-bar-wrap` reserves the space via `padding-top: 36px`,
-  bubble sits at `top:0`); quiet verdict line (`.income-bar-verdict`) reusing the same
-  forecast-vs-income comparison as the Trends overspend glow — `Overspending — off track
-  by RM X` (semantic-expense) or `On track — budget surplus of RM X` (semantic-income),
-  where X = `|forecast − income|` (avg daily = MTD spend ÷ elapsed days, forecast = avg
-  daily × days in month). `paceBarMemory` (single, nulled when hidden) feeds the
-  mount-then-spring for both the bar segments and the marker/bubble position.
+  totalExpense)` — single caller), **two-bar, state-colour design** (redesigned
+  2026-07-21, superseding the single-continuous-pill "pace bar hybrid" of 2026-07-19):
+  caption `Day X of N` (no-budget state: `No budget set this month`); a **Spent** row and
+  a **Month** row, each `label | track | value%` (`.income-bar-row`, a
+  `60px 1fr 52px` grid) — Spent fills **sienna**, flipping to **semantic-expense red**
+  only once it crosses the Month line (`.income-bar-fill.spent.over`); Month fills a
+  neutral `--outline` gray, always. A shared **dotted 2px "Today" reference line**
+  (`.income-bar-marker`, `repeating-linear-gradient`) crosses both bars at the
+  month-elapsed position, with a speech-bubble legend (`.income-bar-bubble` +
+  `.income-bar-bubble-tail`) anchored above (`.income-bar-wrap` reserves the space via
+  `padding-top: 36px`, bubble sits at `top:0`). Both the marker and bubble are
+  absolutely positioned against the whole wrap but must render aligned to the track
+  column, not the full width — `paceMarkerLeft(pct)` offsets by the grid's fixed
+  `label + gap` (`calc(72px + (100% - 136px) * pct)`); no clamping needed, since the
+  72px/64px side margins already exceed the bubble's ~27px half-width. Quiet verdict
+  line (`.income-bar-verdict`) reusing the same forecast-vs-income comparison as the
+  Trends overspend glow — `Overspending — off track by RM X` (semantic-expense) or `On
+  track — budget surplus of RM X` (semantic-income), where X = `|forecast − income|`
+  (avg daily = MTD spend ÷ elapsed days, forecast = avg daily × days in month); the same
+  `over` boolean drives both the verdict and the Spent bar's colour flip, since
+  `forecast > income` is algebraically equivalent to `usedPct > monthPct`.
+  `paceBarMemory` (single, nulled when hidden) feeds the mount-then-spring for both bars'
+  widths and the marker/bubble position.
 - **Current-month-only rule:** glance + pace render only for the real current month.
 
 ### 3.6 Logs tab
