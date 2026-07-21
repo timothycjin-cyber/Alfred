@@ -182,8 +182,12 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
   `padding-bottom: calc(164px + inset)` clears the cluster; toast sits at
   `bottom: calc(152px + inset)`.
 - **Header:** just "Project Alfred" on Today; on Trends/Logs a contextual month chip
-  appears (§3.4). No bell (the push digest is retired — Phase F removed the button,
-  `togglePush()`, and the Firebase client entirely). No refresh icon (pull-to-refresh
+  appears (§3.4). `.header-actions` carries a `min-height: 36px` (2026-07-21) matching
+  the monthnav chip's rendered height, so the header row is the same total height on
+  Today (chip absent) as on Logs/Trends (chip shown) — without it the row shrank to the
+  title's ~24px line-height whenever the chip was hidden. No bell (the push digest is
+  retired — Phase F removed the button, `togglePush()`, and the Firebase client
+  entirely). No refresh icon (pull-to-refresh
   covers it; `@keyframes refreshSpin` survives for the capture-send spinner).
 
 ### 3.4 Month state — single contextual selector
@@ -207,31 +211,42 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
 Composition (scroll-peek order): **hero → tiles → glance line → budget-pace card.**
 
 - **Hero** (`.hero-card`, `#today-hero`): label **`Budget left`** (income − expense);
-  ink-black gradient in dark mode, monochrome off-white in light. Privacy blur toggle
-  (`toggleHeroPrivacy()` → `.value-hidden`), embedded 6-month net-trend mini bar chart
-  (`heroChart`, current month sienna, others green/red by sign; `minBarLength: 4` +
-  `heroBaselinePlugin` faint zero line, gated on `canvas.id === 'hero-trend'`). Sub-copy
-  "In the green" / "Watching the leak".
+  ink-black gradient in dark mode, monochrome off-white in light. **1.5px `--outline`
+  border** (light) / `rgba(255,255,255,.22)` (dark) — deliberately heavier than the
+  `--outline-variant` border every other card uses (2026-07-21), so the hero reads as
+  the page's focal point. Privacy blur toggle (`toggleHeroPrivacy()` → `.value-hidden`),
+  embedded 6-month net-trend mini bar chart (`heroChart`, current month sienna, others
+  green/red by sign; `minBarLength: 4` + `heroBaselinePlugin` faint zero line, gated on
+  `canvas.id === 'hero-trend'`). Sub-copy "In the green" / "Watching the leak".
 - **Tiles** (`#today-tiles`): **`Budget`** (month income) / **`Expenses`**,
   tinted surfaces (`--wash-income`/`--wash-expense`), `▲/▼ X% vs last month` chips with
   `.good`/`.bad` valence (expenses dropping reads green).
 - **Glance line** (`computeTodayGlance` — the digest math as client-side JS): today's
   spend vs the 30-day spend-day average; zero-state "Nothing logged today yet."
 - **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome,
-  totalExpense)` — single caller), exactly three rows (redesigned 2026-07-19, "pace bar
-  hybrid"): caption `Day X of N` (no-budget state: `No budget set this month`); a
-  **single continuous pill** bar — used (semantic-expense) + remaining
-  (neutral) segments with **no gap**, only the outer corners round
-  (`:first-child`/`:last-child`, so a single rendered segment still gets a full pill) —
-  plus a **thin 1.5px "Today" reference line** (not a fill) at the month-elapsed
-  position with a speech-bubble legend (`.income-bar-bubble` + `.income-bar-bubble-tail`)
-  anchored above the bar (`.income-bar-wrap` reserves the space via `padding-top: 36px`,
-  bubble sits at `top:0`); quiet verdict line (`.income-bar-verdict`) reusing the same
-  forecast-vs-income comparison as the Trends overspend glow — `Overspending — off track
-  by RM X` (semantic-expense) or `On track — budget surplus of RM X` (semantic-income),
-  where X = `|forecast − income|` (avg daily = MTD spend ÷ elapsed days, forecast = avg
-  daily × days in month). `paceBarMemory` (single, nulled when hidden) feeds the
-  mount-then-spring for both the bar segments and the marker/bubble position.
+  totalExpense)` — single caller), **two-bar, state-colour design** (redesigned
+  2026-07-21, superseding the single-continuous-pill "pace bar hybrid" of 2026-07-19):
+  caption `Day X of N` (no-budget state: `No budget set this month`); a **Spent** row and
+  a **Month** row, each `label | track | value%` (`.income-bar-row`, a
+  `60px 1fr 52px` grid) — Spent fills **sienna**, flipping to **semantic-expense red**
+  only once it crosses the Month line (`.income-bar-fill.spent.over`); Month fills a
+  neutral `--outline` gray, always. A shared **dotted 2px "Today" reference line**
+  (`.income-bar-marker`, `repeating-linear-gradient`) crosses both bars at the
+  month-elapsed position, with a speech-bubble legend (`.income-bar-bubble` +
+  `.income-bar-bubble-tail`) anchored above (`.income-bar-wrap` reserves the space via
+  `padding-top: 36px`, bubble sits at `top:0`). Both the marker and bubble are
+  absolutely positioned against the whole wrap but must render aligned to the track
+  column, not the full width — `paceMarkerLeft(pct)` offsets by the grid's fixed
+  `label + gap` (`calc(72px + (100% - 136px) * pct)`); no clamping needed, since the
+  72px/64px side margins already exceed the bubble's ~27px half-width. Quiet verdict
+  line (`.income-bar-verdict`) reusing the same forecast-vs-income comparison as the
+  Trends overspend glow — `Overspending — off track by RM X` (semantic-expense) or `On
+  track — budget surplus of RM X` (semantic-income), where X = `|forecast − income|`
+  (avg daily = MTD spend ÷ elapsed days, forecast = avg daily × days in month); the same
+  `over` boolean drives both the verdict and the Spent bar's colour flip, since
+  `forecast > income` is algebraically equivalent to `usedPct > monthPct`.
+  `paceBarMemory` (single, nulled when hidden) feeds the mount-then-spring for both bars'
+  widths and the marker/bubble position.
 - **Current-month-only rule:** glance + pace render only for the real current month.
 
 ### 3.6 Logs tab
@@ -290,12 +305,18 @@ capture heatmap → archive shelf (bottom).
   - **Typewriter reveal:** `typewriteInto()` sets real innerHTML then types over the
     text nodes (rAF, `clamp(chars·14ms, 500, 1900)`), blinking sienna caret. Reduced
     motion → instant.
-- **Tiles:** live month → Average Daily + `Forecast ~RM x`; closed month → Average
-  Daily + `Total Spent` actuals. **Overspend treatment:** `overspend = isCurrentMonth &&
-  vIncome > 0 && forecast > vIncome` puts `.overspend` on **both** tile values —
-  `color: var(--semantic-expense)` + `text-shadow: 0 0 12px` at 35% alpha (light
-  `rgba(229,62,62,.35)`, dark `rgba(255,77,77,.35)`). Never on closed months. This is a
-  sanctioned semantic-red use (overspend warning).
+- **Tiles:** live month → `Average Daily` + `Forecast ~RM x`; closed month → `Average
+  Daily` + `Total Spent` actuals (label shortened from "Average Daily Spend"
+  2026-07-21). **Overspend treatment:** `overspend = isCurrentMonth && vIncome > 0 &&
+  forecast > vIncome` puts `.overspend` on **both** tile values — `color:
+  var(--semantic-expense)`, color only, no glow (the `text-shadow` was removed
+  2026-07-21 — plain color read as clearer than the soft-glow treatment). Never on
+  closed months. This is a sanctioned semantic-red use (overspend warning).
+  `.tile-block.neutral-block` (these two tiles only — they sit directly on the pane,
+  unlike Today's income/expense tiles) also gets a heavier `--outline` border in place
+  of the base tile's `--outline-variant` (2026-07-21), for the same reason as the hero
+  card border above: `--outline-variant` read as almost invisible against
+  `--surface-container`.
 - **Spend-card slot** (`#income-bar-card`): **hidden on the live month** (Today owns the
   pace bar); closed months show the **archive card** (net, top category, days logged
   X of N, quiet pace verdict).

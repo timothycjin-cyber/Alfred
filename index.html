@@ -127,7 +127,12 @@
     letter-spacing: -0.4px; 
   }
   
-  .header-actions { display: flex; align-items: center; gap: 8px; }
+  /* min-height matches the monthnav chip's rendered height (28px button +
+     2×3px padding + 2×1px border = 36px) so the header is the same total
+     height on Today (no chip) as on Logs/Trends (chip shown) — otherwise
+     the row shrinks to the title's ~24px line-height when the chip is
+     hidden. */
+  .header-actions { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 
   .icon-btn {
     width: 36px;
@@ -318,7 +323,10 @@
     background: var(--surface-container-low);
     color: var(--on-surface);
     border-radius: var(--shape-xl) var(--shape-xs) var(--shape-xl) var(--shape-xs);
-    border: 1px solid var(--outline-variant);
+    /* Darker/heavier than the standard --outline-variant card border (used
+       by tiles etc.) so the hero — the "Budget left" figure — reads as the
+       page's focal point at a glance. */
+    border: 1.5px solid var(--outline);
     padding: 1.5rem 1.5rem 1.1rem;
     margin-bottom: 12px;
     position: relative;
@@ -329,7 +337,7 @@
     .hero-card {
       background: linear-gradient(155deg, #24262B 0%, #0B0C0E 100%);
       color: #F5F5F2;
-      border-color: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.22);
     }
   }
   .hero-top { display: flex; align-items: flex-start; justify-content: space-between; }
@@ -371,7 +379,11 @@
   .no-entrance .hero-card, .no-entrance .tile-block { animation: none; }
   .tile-block.income-block { background: var(--wash-income); }
   .tile-block.expense-block { background: var(--wash-expense); }
-  .tile-block.neutral-block { background: var(--surface-container); }
+  /* The Trends Average Daily / Forecast tiles sit directly on the pane
+     background (no wrapping card), so the base tile's --outline-variant
+     border reads as almost invisible against --surface-container — bump to
+     --outline so the tiles read as distinct cards (2026-07-21). */
+  .tile-block.neutral-block { background: var(--surface-container); border-color: var(--outline); }
   .tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
   .tile-val { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
   .tile-block.income-block .tile-val { color: var(--semantic-income); }
@@ -379,16 +391,10 @@
   .tile-block.neutral-block .tile-val { color: var(--on-surface); }
   /* Overspend warning (Phase C): when the live forecast overshoots the
      month's income, the Trends figures (and the Today stats-line forecast)
-     go semantic-red with a soft glow — a legitimate semantic-red use per the
-     design language (overspend, not decoration). */
+     go semantic-red — a legitimate semantic-red use per the design language
+     (overspend, not decoration). Color only, no glow (2026-07-21). */
   .tile-block.neutral-block .tile-val.overspend {
     color: var(--semantic-expense);
-    text-shadow: 0 0 12px rgba(229, 62, 62, 0.35);
-  }
-  @media (prefers-color-scheme: dark) {
-    .tile-block.neutral-block .tile-val.overspend {
-      text-shadow: 0 0 12px rgba(255, 77, 77, 0.35);
-    }
   }
   .tile-chip {
     display: inline-flex; align-items: center; gap: 3px;
@@ -603,47 +609,32 @@
   
   .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .income-bar-caption { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--on-surface); }
+  .income-bar-caption { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--on-surface); }
   .income-bar-caption b { font-weight: 900; }
 
-  /* Reserves room above the bar for the "Today" legend bubble (Phase G
-     hybrid redesign) — the bubble sits at wrap top:0, the bar starts
-     after the padding, so they never overlap. */
+  /* Two-bar pace chart (Spent vs Month), replacing the single continuous-pill
+     design. Reserves room above for the shared "Today" legend bubble — the
+     bubble sits at wrap top:0, the rows start after the padding. */
   .income-bar-wrap { position: relative; padding-top: 36px; }
-  /* Single continuous pill: no gap between segments, only the outer
-     corners round (handled by :first-child/:last-child below) so used +
-     remaining read as one bar, not two chips. */
-  .income-bar-row { display: flex; gap: 0; }
-  .income-bar-seg {
-    border-radius: 0;
-    padding: 10px 14px;
-    font-size: 13px; font-weight: 800;
-    display: flex; align-items: center; justify-content: flex-start;
-    white-space: nowrap; overflow: hidden;
-    transition: flex-grow var(--motion-wobble);
-    min-width: 4px;
-  }
-  .income-bar-row > .income-bar-seg:first-child { border-radius: var(--shape-full) 0 0 var(--shape-full); }
-  .income-bar-row > .income-bar-seg:last-child { border-radius: 0 var(--shape-full) var(--shape-full) 0; }
-  /* :first-child and :last-child tie in specificity, so when only one segment
-     renders (0% spent, or fully/over spent) the source-order-last rule above
-     would otherwise win outright and leave a square corner — :only-child
-     (declared after both) restores the full pill for that case. */
-  .income-bar-row > .income-bar-seg:only-child { border-radius: var(--shape-full); }
-  .income-bar-seg.used { background: var(--semantic-expense); color: #fff; }
-  .income-bar-seg.rem { background: var(--surface-container); color: var(--on-surface-variant); padding-left: 12px; }
+  .income-bar-row { display: grid; grid-template-columns: 60px 1fr 52px; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .income-bar-row:last-of-type { margin-bottom: 0; }
+  .income-bar-lbl { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--on-surface-variant); }
+  .income-bar-track { height: 14px; border-radius: var(--shape-full); background: var(--surface-container); overflow: hidden; }
+  .income-bar-fill { height: 100%; border-radius: var(--shape-full); transition: width var(--motion-wobble), background var(--motion-wobble); }
+  .income-bar-fill.spent { background: var(--sienna); }
+  .income-bar-fill.spent.over { background: var(--semantic-expense); }
+  .income-bar-fill.month { background: var(--outline); }
+  .income-bar-val { font-size: 13px; font-weight: 900; text-align: right; color: var(--on-surface); transition: color var(--motion-wobble); }
+  .income-bar-val.over { color: var(--semantic-expense); }
+  .income-bar-val.mut { color: var(--on-surface-variant); font-weight: 700; }
 
-  /* "Today" marker: a thin reference line (not a fill) at the
-     month-elapsed position, springing alongside the segments' flex-grow
-     spring (both start values set in markup, finals applied a frame later). */
+  /* "Today" marker: a dotted reference line shared across both bars, at the
+     month-elapsed position, springing alongside the bars' width spring
+     (both start values set in markup, finals applied a frame later). */
   .income-bar-marker {
-    position: absolute; top: 30px; bottom: -6px; width: 1.5px; transform: translateX(-0.75px);
-    background: var(--on-surface);
-    box-shadow: -1px 0 0 rgba(255,255,255,0.55), 1px 0 0 rgba(255,255,255,0.55);
-    pointer-events: none; transition: left var(--motion-wobble);
-  }
-  @media (prefers-color-scheme: dark) {
-    .income-bar-marker { box-shadow: -1px 0 0 rgba(0,0,0,0.5), 1px 0 0 rgba(0,0,0,0.5); }
+    position: absolute; top: 30px; bottom: 2px; width: 2px; transform: translateX(-1px);
+    background: repeating-linear-gradient(to bottom, var(--on-surface) 0 3px, transparent 3px 6px);
+    pointer-events: none; transition: left var(--motion-wobble); z-index: 2;
   }
   /* Speech-bubble legend for the marker, anchored to the wrap's top edge
      (the padding-top above reserves its space) so it reads as a label,
@@ -653,13 +644,13 @@
     background: var(--on-surface); color: var(--surface);
     font-size: 10px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
     padding: 4px 9px; border-radius: var(--shape-full); white-space: nowrap;
-    pointer-events: none; transition: left var(--motion-wobble);
+    pointer-events: none; transition: left var(--motion-wobble); z-index: 3;
   }
   .income-bar-bubble-tail {
     position: absolute; left: 50%; bottom: -3px; width: 7px; height: 7px;
     background: var(--on-surface); transform: translateX(-50%) rotate(45deg); border-radius: 1px;
   }
-  /* Quiet money verdict under the bar (replaces the old avg-daily/forecast
+  /* Quiet money verdict under the bars (replaces the old avg-daily/forecast
      stats line): reuses the same forecast-vs-income comparison as the
      Trends overspend glow, phrased as a single on/off-track line. */
   .income-bar-verdict { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); margin-top: 20px; }
@@ -1468,13 +1459,12 @@ function todayGlanceHtml() {
 // income. Caller guarantees the viewed month IS the current month — Trends
 // shows the archive card for closed months and nothing live.
 
-// The "Today" legend bubble is wide relative to the bar and unclamped
-// left:X% + translateX(-50%) lets it overflow the card at either month
-// boundary (day 1 / the last day). Clamp the anchor to keep the bubble's
-// ~27px half-width fully inside the wrap; the marker's own thin reference
-// line is unaffected and keeps the true elapsed-time position.
-function clampBubbleLeft(pct) {
-  return `clamp(27px, ${pct.toFixed(1)}%, calc(100% - 27px))`;
+// Both bars sit in a `60px label | 1fr track | 52px value` grid (12px gaps),
+// so the shared "Today" marker/bubble — positioned absolutely against the
+// whole wrap — must offset by the label column + gap and scale against the
+// track's share of the width, not the full wrap width.
+function paceMarkerLeft(pct) {
+  return `calc(72px + (100% - 136px) * ${(pct / 100).toFixed(4)})`;
 }
 
 function renderLivePaceBar(totalIncome, totalExpense) {
@@ -1489,32 +1479,38 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const monthPct = Math.min(100, (today.getDate() / daysInMonth) * 100);
   const usedPct = Math.min(100, (totalExpense / totalIncome) * 100);
-  const remPct = Math.max(0, 100 - usedPct);
 
   const avgDaily = totalExpense / today.getDate();
   const forecast = avgDaily * daysInMonth;
+  // Equivalent to usedPct > monthPct (same forecast-vs-income comparison,
+  // scaled) — so the Spent bar's over-pace red and the verdict line always
+  // agree on whether today's spend has crossed the Month line.
   const over = forecast > totalIncome;
   const paceDiff = Math.abs(forecast - totalIncome);
 
-  // Mount the bar at its previous state (or nearly-empty on first render),
-  // then set the real values a frame later so the flex-grow / left
-  // transitions actually spring — elements born at their final state
-  // never animate.
+  // Mount the bars at their previous state (or 0 on first render), then set
+  // the real values a frame later so the width / left transitions actually
+  // spring — elements born at their final state never animate.
   const mem = paceBarMemory;
-  const usedFlex = Math.max(usedPct, 4), remFlex = Math.max(remPct, 4);
-  const startUsed = mem ? mem.used : 4;
-  const startRem = mem ? mem.rem : 96;
+  const startSpent = mem ? mem.spent : 0;
+  const startMonth = mem ? mem.month : 0;
   const markerStart = mem ? mem.marker : 0;
 
   el.innerHTML = `
     <div class="income-bar-caption">Day <b>${today.getDate()}</b> of ${daysInMonth}</div>
     <div class="income-bar-wrap">
-      <div class="income-bar-bubble" style="left:${clampBubbleLeft(markerStart)}">Today<span class="income-bar-bubble-tail"></span></div>
+      <div class="income-bar-bubble" style="left:${paceMarkerLeft(markerStart)}">Today<span class="income-bar-bubble-tail"></span></div>
+      <div class="income-bar-marker" style="left:${paceMarkerLeft(markerStart)}"></div>
       <div class="income-bar-row">
-        ${usedPct >= 1 ? `<div class="income-bar-seg used" style="flex-grow:${startUsed}; flex-basis:0;">${usedPct >= 12 ? usedPct.toFixed(0) + '%' : ''}</div>` : ''}
-        ${remPct >= 1 ? `<div class="income-bar-seg rem" style="flex-grow:${startRem}; flex-basis:0;">${remPct >= 12 ? remPct.toFixed(0) + '%' : ''}</div>` : ''}
+        <span class="income-bar-lbl">Spent</span>
+        <div class="income-bar-track"><div class="income-bar-fill spent${over ? ' over' : ''}" style="width:${startSpent.toFixed(1)}%"></div></div>
+        <span class="income-bar-val${over ? ' over' : ''}">${usedPct.toFixed(0)}%</span>
       </div>
-      <div class="income-bar-marker" style="left:${markerStart.toFixed(1)}%"></div>
+      <div class="income-bar-row">
+        <span class="income-bar-lbl">Month</span>
+        <div class="income-bar-track"><div class="income-bar-fill month" style="width:${startMonth.toFixed(1)}%"></div></div>
+        <span class="income-bar-val mut">${monthPct.toFixed(0)}%</span>
+      </div>
     </div>
     <div class="income-bar-verdict">${over
       ? `<b class="over">Overspending</b> — off track by RM ${formatCurrency(paceDiff)}`
@@ -1522,16 +1518,16 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   `;
 
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    const usedEl = el.querySelector('.income-bar-seg.used');
-    const remEl = el.querySelector('.income-bar-seg.rem');
+    const spentEl = el.querySelector('.income-bar-fill.spent');
+    const monthEl = el.querySelector('.income-bar-fill.month');
     const markerEl = el.querySelector('.income-bar-marker');
     const bubbleEl = el.querySelector('.income-bar-bubble');
-    if (usedEl) usedEl.style.flexGrow = usedFlex;
-    if (remEl) remEl.style.flexGrow = remFlex;
-    if (markerEl) markerEl.style.left = monthPct.toFixed(1) + '%';
-    if (bubbleEl) bubbleEl.style.left = clampBubbleLeft(monthPct);
+    if (spentEl) spentEl.style.width = usedPct.toFixed(1) + '%';
+    if (monthEl) monthEl.style.width = monthPct.toFixed(1) + '%';
+    if (markerEl) markerEl.style.left = paceMarkerLeft(monthPct);
+    if (bubbleEl) bubbleEl.style.left = paceMarkerLeft(monthPct);
   }));
-  paceBarMemory = { used: usedFlex, rem: remFlex, marker: monthPct };
+  paceBarMemory = { spent: usedPct, month: monthPct, marker: monthPct };
 }
 
 // ── Logs week index (roadmap Phase 4; simplified in refinement Phase A) ─────
@@ -2877,7 +2873,7 @@ function calculateAndRender() {
     }
     document.getElementById('trends-metrics').innerHTML = `
       <div class="tile-block neutral-block">
-        <div class="tile-label">Average Daily Spend</div>
+        <div class="tile-label">Average Daily</div>
         <div class="${valCls}" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM ">RM 0.00</div>
       </div>
       ${secondTile}
