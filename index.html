@@ -374,15 +374,18 @@
      `backwards` fill keeps delayed elements hidden until their turn. */
   .tile-row .tile-block:nth-child(1) { animation-delay: 70ms; }
   .tile-row .tile-block:nth-child(2) { animation-delay: 140ms; }
+  .tile-row .tile-block:nth-child(3) { animation-delay: 210ms; }
+  .tile-row .tile-block:nth-child(4) { animation-delay: 280ms; }
   /* A view re-render with the same layout (month switch, post-save refresh)
      should update values, not replay the pop-in ceremony. */
   .no-entrance .hero-card, .no-entrance .tile-block { animation: none; }
   .tile-block.income-block { background: var(--wash-income); }
   .tile-block.expense-block { background: var(--wash-expense); }
-  /* The Trends Average Daily / Forecast tiles sit directly on the pane
-     background (no wrapping card), so the base tile's --outline-variant
-     border reads as almost invisible against --surface-container — bump to
-     --outline so the tiles read as distinct cards (2026-07-21). */
+  /* The Average Daily / Forecast tiles (Today's quadrant bottom row and the
+     Trends closed-month tiles) sit directly on the pane background (no wrapping
+     card), so the base tile's --outline-variant border reads as almost
+     invisible against --surface-container — bump to --outline so the tiles read
+     as distinct cards (2026-07-21; shared with Today 2026-07-23). */
   .tile-block.neutral-block { background: var(--surface-container); border-color: var(--outline); }
   .tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
   .tile-val { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
@@ -591,16 +594,10 @@
   .hm-future { background: transparent; border: 1px dashed var(--outline-variant); }
   .hm-future .hm-day { opacity: 0.45; }
 
-  /* Spending-patterns card chrome: header (title + Weekly/Monthly toggle),
-     summary chip, and the Less→More legend framing the grid. */
+  /* Spending-patterns card chrome: header (title), summary chip, and the
+     Less→More legend framing the grid. */
   .sp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
   .sp-title { font-size: 11px; font-weight: 700; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
-  /* Compact card-scoped variant of the modal .type-toggle: smaller, pill
-     radius, neutral active colour (not expense/income), no bottom margin. */
-  .sp-toggle { margin-bottom: 0; flex: 0 0 auto; border-radius: var(--shape-full); padding: 2px; }
-  .sp-toggle .type-toggle-slider { top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); border-radius: var(--shape-full); }
-  .sp-toggle button { padding: 5px 12px; font-size: 11px; }
-  .sp-toggle button.active { color: var(--on-surface); }
 
   /* Summary chip: month • N days • trend total • daily average. The trend
      arrow follows Alfred's valence (spend up = expense red, down = income
@@ -1158,7 +1155,14 @@
     <div class="card" id="income-bar-card">
       <div id="income-bar-block"></div>
     </div>
+    <div id="spending-patterns"></div>
     <div class="charts-row">
+      <div class="card">
+        <div class="card-title">Expenses by Category</div>
+        <div id="donut-container" style="position:relative; width:100%; height:300px">
+          <canvas id="donut"></canvas>
+        </div>
+      </div>
       <div class="card">
         <div class="card-title">Cumulative Spend</div>
         <div id="cumulative-line-container" style="position:relative; width:100%; height:200px">
@@ -1173,14 +1177,7 @@
           </div>
         </div>
       </div>
-      <div class="card">
-        <div class="card-title">Expenses by Category</div>
-        <div id="donut-container" style="position:relative; width:100%; height:300px">
-          <canvas id="donut"></canvas>
-        </div>
-      </div>
     </div>
-    <div id="spending-patterns"></div>
     <div id="month-shelf"></div>
   </div>
 </div>
@@ -1349,10 +1346,6 @@ let activeYear = new Date().getFullYear();
 // ignores it.
 let viewMonth = new Date().getMonth();
 let viewYear = new Date().getFullYear();
-// Spending-patterns card period — 'monthly' (the viewMonth calendar) or
-// 'weekly' (the current Mon–Sun week). Card-local; the rest of Trends still
-// follows the month chip. Default matches the old full-calendar behaviour.
-let patternPeriod = 'monthly';
 let currentView = 'today';
 const VIEW_ORDER = ['today', 'logs', 'trends'];
 
@@ -1880,7 +1873,6 @@ function renderSpendingPatterns() {
   if (!el) return;
   const isExpense = r => String(r.Type || 'Expense').trim().toLowerCase() !== 'income';
   const now = new Date();
-  const todayIso = isoDateOf(now);
 
   // Per-day spend for the active user, keyed by ISO date (expense rows only).
   const perDay = {};
@@ -1889,59 +1881,35 @@ function renderSpendingPatterns() {
     perDay[r.Date] = (perDay[r.Date] || 0) + r.Amount;
   });
 
-  const weekly = patternPeriod === 'weekly';
-
-  // Ordered day cells for the shown window: { iso, dayNum|null, future, spend }.
+  // Ordered day cells for the viewMonth calendar: { iso, dayNum, future, spend }.
   const days = [];
-  let chipLabel, windowDays, leadBlanks = 0;
-
-  if (weekly) {
-    const mondayIso = weekMondayIso(todayIso);
-    const mon = new Date(mondayIso + 'T00:00:00');
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(mon); d.setDate(mon.getDate() + i);
-      const iso = isoDateOf(d);
-      days.push({ iso, dayNum: null, future: iso > todayIso, spend: perDay[iso] || 0 });
-    }
-    windowDays = 7;
-    chipLabel = `${MONTHS[mon.getMonth()]} ${mon.getFullYear()}`;
-  } else {
-    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-    const isCur = (viewMonth === now.getMonth() && viewYear === now.getFullYear());
-    const firstWeekday = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
-    leadBlanks = (firstWeekday + 6) % 7; // Monday-first offset
-    for (let day = 1; day <= daysInMonth; day++) {
-      const iso = isoDateOf(new Date(viewYear, viewMonth, day));
-      days.push({ iso, dayNum: day, future: isCur && day > now.getDate(), spend: perDay[iso] || 0 });
-    }
-    windowDays = daysInMonth;
-    chipLabel = `${MONTHS[viewMonth]} ${viewYear}`;
+  let leadBlanks = 0;
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const isCur = (viewMonth === now.getMonth() && viewYear === now.getFullYear());
+  const firstWeekday = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
+  leadBlanks = (firstWeekday + 6) % 7; // Monday-first offset
+  for (let day = 1; day <= daysInMonth; day++) {
+    const iso = isoDateOf(new Date(viewYear, viewMonth, day));
+    days.push({ iso, dayNum: day, future: isCur && day > now.getDate(), spend: perDay[iso] || 0 });
   }
+  const chipLabel = `${MONTHS[viewMonth]} ${viewYear}`;
 
   // Self-scaling ramp: level relative to the busiest non-future day.
   const maxSpend = Math.max(0, ...days.filter(d => !d.future).map(d => d.spend));
   const levelOf = spend => (spend <= 0 || maxSpend <= 0) ? 0 : Math.min(4, Math.ceil(spend / maxSpend * 4));
 
-  // Summary chip figures.
+  // Summary chip figures. Average divides by ELAPSED (non-future) days — equals
+  // days-so-far for the live month and the full month for a closed month — so it
+  // matches the Today "Average Daily" tile (MTD spend ÷ days elapsed) exactly.
   const total = days.reduce((s, d) => s + d.spend, 0);
-  const avg = windowDays > 0 ? total / windowDays : 0;
+  const elapsedDays = days.filter(d => !d.future).length;
+  const avg = elapsedDays > 0 ? total / elapsedDays : 0;
 
-  // Trend arrow vs the prior comparable period (prior week / prior month).
+  // Trend arrow vs the prior month.
   let prevTotal = null;
-  if (weekly) {
-    const prevMon = new Date(weekMondayIso(todayIso) + 'T00:00:00');
-    prevMon.setDate(prevMon.getDate() - 7);
-    let pt = 0, any = false;
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(prevMon); d.setDate(prevMon.getDate() + i);
-      const v = perDay[isoDateOf(d)]; if (v) { pt += v; any = true; }
-    }
-    prevTotal = any ? pt : null;
-  } else {
-    const p = _shiftMonth(viewYear, viewMonth, -1);
-    const prevRows = _expenseRowsFor(p.year, p.month);
-    prevTotal = prevRows.length ? _sum(prevRows) : null;
-  }
+  const p = _shiftMonth(viewYear, viewMonth, -1);
+  const prevRows = _expenseRowsFor(p.year, p.month);
+  prevTotal = prevRows.length ? _sum(prevRows) : null;
   let arrow = '';
   if (prevTotal !== null && Math.abs(total - prevTotal) >= 0.005) {
     arrow = total > prevTotal
@@ -1970,26 +1938,12 @@ function renderSpendingPatterns() {
     <div class="card spending-card">
       <div class="sp-head">
         <div class="sp-title">Spending patterns</div>
-        <div class="type-toggle sp-toggle">
-          <div class="type-toggle-slider" style="transform:translateX(${weekly ? '0' : '100%'})"></div>
-          <button type="button" class="${weekly ? 'active' : ''}" onclick="setPatternPeriod('weekly')">Weekly</button>
-          <button type="button" class="${weekly ? '' : 'active'}" onclick="setPatternPeriod('monthly')">Monthly</button>
-        </div>
       </div>
-      <div class="sp-chip"><b>${chipLabel}</b>${sep}${windowDays} days${sep}${arrow}<b>RM ${formatCurrency(total)}</b>${sep}Avg RM ${formatCurrency(avg)}</div>
+      <div class="sp-chip"><b>${chipLabel}</b>${sep}${elapsedDays} days${sep}${arrow}<b>RM ${formatCurrency(total)}</b>${sep}Avg RM ${formatCurrency(avg)}</div>
       <div class="hm-weekdays">${WD.map(w => `<div class="hm-wd">${w}</div>`).join('')}</div>
       <div class="hm-grid">${cells}</div>
       <div class="sp-legend"><span>Less</span><div class="sp-swatches">${swatches}</div><span>More</span></div>
     </div>`;
-}
-
-// Toggle handler — card-local re-render only (avoids replaying the insight
-// typewriter / rebuilding charts, and sidesteps the renderedKey skip that keys
-// on viewMonth+dataStamp, which the period intentionally isn't part of).
-function setPatternPeriod(period) {
-  if (period === patternPeriod) return;
-  patternPeriod = period;
-  renderSpendingPatterns();
 }
 
 // ── Insights engine (Phase 1: deterministic) ───────────────────────────────
@@ -2878,6 +2832,18 @@ function calculateAndRender() {
       </div>
     `;
 
+    // Average Daily + Forecast complete the 2×2 tile quadrant (moved here from
+    // Trends 2026-07-23 — Today owns them for the live month). Same math as the
+    // Trends tiles / pace bar: avg daily = MTD spend ÷ days elapsed, forecast =
+    // avg daily × days in month. Forecast overshooting the month's budget turns
+    // both figures semantic-red (the sanctioned overspend warning).
+    const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
+    const daysElapsed = new Date().getDate();
+    const avgDaily = daysElapsed > 0 ? totalExpense / daysElapsed : 0;
+    const forecast = avgDaily * daysInMonth;
+    const overspend = totalIncome > 0 && forecast > totalIncome;
+    const quadValCls = `tile-val counter-val${overspend ? ' overspend' : ''}`;
+
     document.getElementById('today-tiles').innerHTML = `
       <div class="tile-block income-block">
         <div class="tile-label">Budget</div>
@@ -2888,6 +2854,14 @@ function calculateAndRender() {
         <div class="tile-label">Expenses</div>
         <div class="tile-val counter-val" data-val="${totalExpense}" data-key="home-exp" data-prefix="RM ">RM 0.00</div>
         <div class="tile-chip ${expChangePct <= 0 ? 'good' : 'bad'}">${expChangePct >= 0 ? '▲' : '▼'} ${Math.abs(expChangePct).toFixed(0)}% vs last mo.</div>
+      </div>
+      <div class="tile-block neutral-block">
+        <div class="tile-label">Average Daily</div>
+        <div class="${quadValCls}" data-val="${avgDaily}" data-key="today-avg" data-prefix="RM ">RM 0.00</div>
+      </div>
+      <div class="tile-block neutral-block">
+        <div class="tile-label">Forecast</div>
+        <div class="${quadValCls}" data-val="${forecast}" data-key="today-fc" data-prefix="~RM ">~RM 0.00</div>
       </div>
     `;
 
@@ -2987,13 +2961,23 @@ function calculateAndRender() {
           <div class="tile-val counter-val" data-val="${vExpense}" data-key="an-actual" data-prefix="RM ">RM 0.00</div>
         </div>`;
     }
-    document.getElementById('trends-metrics').innerHTML = `
-      <div class="tile-block neutral-block">
-        <div class="tile-label">Average Daily</div>
-        <div class="${valCls}" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM ">RM 0.00</div>
-      </div>
-      ${secondTile}
-    `;
+    // Average Daily + Forecast moved to Today for the live month (2026-07-23);
+    // Trends keeps the tiles only for closed months (Average Daily + Total
+    // Spent actuals), hidden on the live month so no empty grid gap shows.
+    const trendsMetrics = document.getElementById('trends-metrics');
+    if (isCurrentMonth) {
+      trendsMetrics.innerHTML = '';
+      trendsMetrics.style.display = 'none';
+    } else {
+      trendsMetrics.style.display = '';
+      trendsMetrics.innerHTML = `
+        <div class="tile-block neutral-block">
+          <div class="tile-label">Average Daily</div>
+          <div class="${valCls}" data-val="${dailyBurnRate}" data-key="an-avg" data-prefix="RM ">RM 0.00</div>
+        </div>
+        ${secondTile}
+      `;
+    }
 
     // The live pace bar left Trends in Phase C (it lives on Today). Closed
     // months keep the archive card in this slot; the live month hides it.
