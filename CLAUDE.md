@@ -1,15 +1,22 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-21 — **"Spending patterns" card (§6 candidate #3, §3.7).** The
-Trends capture heatmap was rebuilt into the "Spending patterns" card: each cell now tints
-by **spend per day** (owner-confirmed reframe away from capture-count), keeping the sienna
-intensity ramp so semantic red stays reserved for expense figures (§3.2 rule amended).
-Adds a card-local **Weekly/Monthly toggle**, a summary **chip** (`Month • N days • ↗ RM
-total • Avg RM/day`), a `Less → More` **legend**, and switches to **Monday-first**.
-Weekly = the current Mon–Sun week (single row, no date numbers); Monthly = the `viewMonth`
-calendar. Render-loop verified (Monthly+Weekly × light/dark × 390/900, reduced-motion;
-hand-checked totals/averages, ramp levels, Monday-first alignment, no horizontal overflow
-across toggle flips). Earlier same-day banner — **Today/Trends UI polish pass (PR #47):**
+*Last updated: 2026-07-23 — **Today quadrant + Trends resequence (§3.5, §3.7).** Three
+UI refinements: (1) the `Average Daily` + `Forecast` tiles **moved from Trends to Today**,
+completing a **2×2 tile quadrant** below the hero (Budget · Expenses · Average Daily ·
+Forecast); Today owns them for the live month (overspend turns both semantic-red), while
+Trends keeps `Average Daily` + `Total Spent` **only for closed months** (hidden on the
+live month). (2) the "Spending patterns" card **dropped its Weekly/Monthly toggle
+(monthly-only)** and its chip **`Avg RM/day` now divides by elapsed (non-future) days** —
+matching the Today `Average Daily` tile exactly (was dividing by full days-in-month; the
+mismatch the owner flagged). (3) Trends **resequenced** to insight → spending patterns →
+pie (Expenses by Category) → cumulative spend → archive shelf. Render-loop verified
+(390/900 × light/dark + reduced-motion, mocked GViz, stubbed Chart.js): quadrant geometry,
+avg parity to the cent, monthly-only patterns, closed-month tiles reappear, DOM order, no
+horizontal overflow. Earlier same-day banner (2026-07-21) — **"Spending patterns" card:**
+the Trends capture heatmap was rebuilt tinting by **spend per day** (owner-confirmed
+reframe away from capture-count), keeping the sienna intensity ramp so semantic red stays
+reserved for expense figures (§3.2 rule amended), switched to **Monday-first**. Prior
+banner — **Today/Trends UI polish pass (PR #47):**
 the Today budget-pace card became a **two-bar, state-colour chart** (Spent vs Month rows,
 dotted "Today" line, Spent flips sienna→red on crossing — §3.5); hero + Trends
 `Average Daily`/`Forecast` tiles gained a heavier `--outline` border; the Trends overspend
@@ -226,7 +233,7 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
 
 ### 3.5 Today tab
 
-Composition (scroll-peek order): **hero → tiles → glance line → budget-pace card.**
+Composition (scroll-peek order): **hero → tile quadrant → glance line → budget-pace card.**
 
 - **Hero** (`.hero-card`, `#today-hero`): label **`Budget left`** (income − expense);
   ink-black gradient in dark mode, monochrome off-white in light. **1.5px `--outline`
@@ -236,9 +243,16 @@ Composition (scroll-peek order): **hero → tiles → glance line → budget-pac
   embedded 6-month net-trend mini bar chart (`heroChart`, current month sienna, others
   green/red by sign; `minBarLength: 4` + `heroBaselinePlugin` faint zero line, gated on
   `canvas.id === 'hero-trend'`). Sub-copy "In the green" / "Watching the leak".
-- **Tiles** (`#today-tiles`): **`Budget`** (month income) / **`Expenses`**,
-  tinted surfaces (`--wash-income`/`--wash-expense`), `▲/▼ X% vs last month` chips with
-  `.good`/`.bad` valence (expenses dropping reads green).
+- **Tiles** (`#today-tiles`, a 2-col grid → **2×2 quadrant** of four equal tiles):
+  **`Budget`** (month income) / **`Expenses`** on the top row — tinted surfaces
+  (`--wash-income`/`--wash-expense`), `▲/▼ X% vs last month` chips with `.good`/`.bad`
+  valence (expenses dropping reads green); **`Average Daily`** / **`Forecast`** on the
+  bottom row — neutral `.neutral-block` tiles (moved here from Trends 2026-07-23), same
+  math as the pace bar (`avgDaily = totalExpense ÷ days elapsed`, `forecast = avgDaily ×
+  days in month`), distinct `data-key`s (`today-avg`/`today-fc`) so `counterMemory`
+  doesn't cross-animate with the Trends `an-avg`/`an-fc` tiles. When `forecast >
+  totalIncome` both bottom figures go **`.overspend`** semantic-red (the sanctioned
+  overspend warning). nth-child(3)/(4) entrance delays extend the tile cascade.
 - **Glance line** (`computeTodayGlance` — the digest math as client-side JS): today's
   spend vs the 30-day spend-day average; zero-state "Nothing logged today yet."
 - **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome,
@@ -296,8 +310,9 @@ over **all** the user's rows. Bars for money; no cell grids here.
 ### 3.7 Trends tab
 
 Everything computes from `viewMonth` (`vRows`/`vIncome`/`vExpense`/`vCatData`).
-Composition: insight strip → tiles → spend/archive card slot → cumulative line → pie →
-capture heatmap → archive shelf (bottom).
+Composition (resequenced 2026-07-23): insight strip → tiles (closed months only) →
+archive card slot → spending patterns → pie → cumulative line → archive shelf (bottom).
+The pie now precedes the cumulative line inside `.charts-row`.
 
 - **Insight strip** (`#trends-insight`, `.insight-card`, "What I noticed"):
   - **Deterministic engine** (`buildAnalyticsInsight()` → rendered by
@@ -323,18 +338,15 @@ capture heatmap → archive shelf (bottom).
   - **Typewriter reveal:** `typewriteInto()` sets real innerHTML then types over the
     text nodes (rAF, `clamp(chars·14ms, 500, 1900)`), blinking sienna caret. Reduced
     motion → instant.
-- **Tiles:** live month → `Average Daily` + `Forecast ~RM x`; closed month → `Average
-  Daily` + `Total Spent` actuals (label shortened from "Average Daily Spend"
-  2026-07-21). **Overspend treatment:** `overspend = isCurrentMonth && vIncome > 0 &&
-  forecast > vIncome` puts `.overspend` on **both** tile values — `color:
-  var(--semantic-expense)`, color only, no glow (the `text-shadow` was removed
-  2026-07-21 — plain color read as clearer than the soft-glow treatment). Never on
-  closed months. This is a sanctioned semantic-red use (overspend warning).
-  `.tile-block.neutral-block` (these two tiles only — they sit directly on the pane,
-  unlike Today's income/expense tiles) also gets a heavier `--outline` border in place
-  of the base tile's `--outline-variant` (2026-07-21), for the same reason as the hero
-  card border above: `--outline-variant` read as almost invisible against
-  `--surface-container`.
+- **Tiles** (`#trends-metrics`): **closed months only** (2026-07-23) — the live-month
+  `Average Daily` + `Forecast` moved to Today's quadrant (§3.5). A past month shows
+  `Average Daily` + `Total Spent` actuals; on the live month `#trends-metrics` is emptied
+  and `display:none` (mirroring the `#income-bar-card` show/hide) so no stray margin gap
+  shows. Overspend never applies on closed months, so the `.overspend` semantic-red
+  treatment (color only, no glow) is effectively Today-only now, but the class survives on
+  both surfaces. `.tile-block.neutral-block` keeps its heavier `--outline` border (vs the
+  base `--outline-variant`, invisible against `--surface-container`) — shared with Today's
+  bottom-row tiles.
 - **Spend-card slot** (`#income-bar-card`): **hidden on the live month** (Today owns the
   pace bar); closed months show the **archive card** (net, top category, days logged
   X of N, quiet pace verdict).
@@ -352,21 +364,21 @@ capture heatmap → archive shelf (bottom).
   (deliberate neutral). Semantic expense red is reserved for amounts/deltas — never a
   category.
 - **Spending patterns** (`renderSpendingPatterns`, `#spending-patterns`; was the
-  capture heatmap, rebuilt 2026-07-21): a cell grid tinted by **spend per day** on the
-  sienna `hm-l0..l4` ramp (the ramp lives once in CSS). **Monday-first.** A card-local
-  **Weekly/Monthly toggle** (`.sp-toggle`, reusing the modal `.type-toggle` slider;
-  handler `setPatternPeriod` re-renders **only this card**, so it neither replays the
-  insight typewriter nor needs folding into the Trends `renderedKey`) scopes the grid:
-  **Monthly** = the `viewMonth` calendar with date numbers; **Weekly** = the current
-  Mon–Sun week as a single 7-cell row with **no date numbers** (day identity from the
-  header + tooltip), independent of the month chip (the rest of Trends still follows it).
-  The ramp is **self-scaling**: `level = ceil(spend / maxSpend × 4)` over the window's
-  busiest non-future day (`hm-l0` = zero-spend, `hm-future` = dashed). A summary
-  **chip** (`.sp-chip`) reads `Month Year • N days • ↗/↘ RM total • Avg RM/day` (N =
-  `daysInMonth`/7; avg = total ÷ N; trend arrow vs the prior week/month, omitted with no
-  prior data — arrow valence follows spend delta: up = expense-red, down = income-green)
-  and a `Less → More` **legend** (`.sp-legend`) surfaces the ramp swatches. Spend is
-  summed from expense rows only (`isExpense`), active-user-filtered.
+  capture heatmap, rebuilt 2026-07-21): the **`viewMonth` calendar** as a cell grid tinted
+  by **spend per day** on the sienna `hm-l0..l4` ramp (the ramp lives once in CSS).
+  **Monday-first**, date numbers on each cell. **Monthly-only** — the Weekly/Monthly
+  toggle (`.sp-toggle`, `setPatternPeriod`, `patternPeriod`) was **removed 2026-07-23**;
+  the card follows the month chip like the rest of Trends. The ramp is **self-scaling**:
+  `level = ceil(spend / maxSpend × 4)` over the month's busiest non-future day (`hm-l0` =
+  zero-spend, `hm-future` = dashed). A summary **chip** (`.sp-chip`) reads `Month Year •
+  N days • ↗/↘ RM total • Avg RM/day` where **N = `elapsedDays` (non-future days)** and
+  **avg = total ÷ elapsedDays** — so for the live month it divides by days-so-far and for
+  a closed month by the full month, **matching the Today `Average Daily` tile exactly**
+  (fixed 2026-07-23; previously divided by full `daysInMonth`, which read lower than the
+  Average Daily card). Trend arrow vs the prior month, omitted with no prior data — arrow
+  valence follows spend delta: up = expense-red, down = income-green. A `Less → More`
+  **legend** (`.sp-legend`) surfaces the ramp swatches. Spend is summed from expense rows
+  only (`isExpense`), active-user-filtered.
 - **Archive shelf** (`renderArchiveShelf`, `#month-shelf`, "Archive"): chip row of past
   months holding data; tap sets `viewMonth`. Scrolls inside itself (overflow-x auto
   within the clipped container).
@@ -540,9 +552,9 @@ Each needs its own design/roadmap pass before building.
   Trends heatmap was rebuilt as the "Spending patterns" card: retinted from capture-count
   to **spend-per-day** (owner-confirmed reframe; keeps the sienna ramp per §8 "steal
   patterns, not palettes"), Monday-first, with a Weekly/Monthly toggle, a summary chip,
-  and the `Less → More` legend. One deliberate scope cut: **Weekly = the current week
-  only** (not navigable) — a later pass could add week stepping. (Superseded the old v2
-  Phase 6 heatmap acceptance sweep.)
+  and the `Less → More` legend. (Superseded the old v2 Phase 6 heatmap acceptance sweep.)
+  **Update 2026-07-23:** the Weekly/Monthly toggle was **removed** (monthly-only) and the
+  chip average switched to divide by elapsed days — see §3.7 and the §7 history entry.
 
 **Parked:** FAB long-press accelerator (long-press ~450ms opens the camera flow
 directly, skipping the capture sheet; tap unchanged — old v2 Phase 7, no full spec).
@@ -566,6 +578,24 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-07-23 — Today quadrant + Trends resequence:** three UI refinements, all
+  render-loop verified (§3.12; 390/900 × light/dark + reduced-motion, mocked GViz, stubbed
+  Chart.js). (1) **Moved `Average Daily` + `Forecast` from Trends to Today** — Today's
+  `#today-tiles` now renders a **2×2 quadrant** (Budget · Expenses · Average Daily ·
+  Forecast) with distinct `today-avg`/`today-fc` data-keys and an `.overspend` colour flip
+  when `forecast > totalIncome`; CSS gained nth-child(3)/(4) entrance delays. Trends keeps
+  the tiles (`Average Daily` + `Total Spent`) **only for closed months**, hiding
+  `#trends-metrics` (empty + `display:none`) on the live month. (2) **Spending patterns**
+  (`renderSpendingPatterns`) — removed the Weekly/Monthly toggle (`patternPeriod`,
+  `setPatternPeriod`, `.sp-toggle` markup + CSS all deleted; `weekMondayIso` kept for
+  Logs), monthly-only; the chip average now divides by **elapsed (non-future) days**
+  (`elapsedDays = days.filter(d => !d.future).length`) instead of full `daysInMonth`, so
+  it **matches the Today `Average Daily` tile to the cent** — the mismatch the owner
+  flagged. (3) **Resequenced Trends** DOM to insight → metrics → archive → spending
+  patterns → charts-row (pie now before cumulative) → shelf. Verified: quadrant geometry
+  at both widths, avg parity (450/23 = RM 19.57 on both surfaces), closed-month tiles
+  reappear (June: RM 14.00 avg / RM 420 total), DOM order, `scrollWidth == clientWidth`
+  across tab flips.
 - **2026-07-11 — UX refresh + motion/physics passes** (PRs #6, #7, #11–#13): hero card,
   tile system, pie rework, staggered entrances, no-replay renders, spring easing,
   shared-axis slide, mobile overflow/zoom bugfix.
