@@ -578,7 +578,7 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
-- **2026-07-23 — Today quadrant + Trends resequence:** three UI refinements, all
+- **2026-07-23 — Today quadrant + Trends resequence (PR #49):** three UI refinements, all
   render-loop verified (§3.12; 390/900 × light/dark + reduced-motion, mocked GViz, stubbed
   Chart.js). (1) **Moved `Average Daily` + `Forecast` from Trends to Today** — Today's
   `#today-tiles` now renders a **2×2 quadrant** (Budget · Expenses · Average Daily ·
