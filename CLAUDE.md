@@ -1,6 +1,17 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-23 — **Today quadrant + Trends resequence (§3.5, §3.7).** Three
+*Last updated: 2026-07-24 — **Today quadrant tile alignment (§3.5).** The `Average
+Daily`/`Forecast` tiles now share the same `--outline-variant` border and translucent-wash
+background treatment as `Budget`/`Expenses` (new `--wash-neutral` token, same opacity
+pattern as `--wash-income`/`--wash-expense`, just gray) — the 2026-07-21 `--outline`
+border bump was a workaround for `--outline-variant` being pixel-identical to the old flat
+`--surface-container` fill in dark mode; the wash tint sidesteps that collision instead of
+papering over it with a heavier border, so all four Today tiles read as one family.
+Same class (`.tile-block.neutral-block`) also covers Trends' closed-month tiles — verified
+those still show a visible border standalone (light+dark). Render-loop verified (390/900 ×
+light/dark + reduced-motion, mocked GViz, stubbed Chart.js): quadrant border/background
+parity, overspend red still reads, Trends closed-month tiles unaffected, no horizontal
+overflow. Prior banner (2026-07-23) — **Today quadrant + Trends resequence (§3.5, §3.7).** Three
 UI refinements: (1) the `Average Daily` + `Forecast` tiles **moved from Trends to Today**,
 completing a **2×2 tile quadrant** below the hero (Budget · Expenses · Average Daily ·
 Forecast); Today owns them for the live month (overspend turns both semantic-red), while
@@ -247,7 +258,11 @@ Composition (scroll-peek order): **hero → tile quadrant → glance line → bu
   **`Budget`** (month income) / **`Expenses`** on the top row — tinted surfaces
   (`--wash-income`/`--wash-expense`), `▲/▼ X% vs last month` chips with `.good`/`.bad`
   valence (expenses dropping reads green); **`Average Daily`** / **`Forecast`** on the
-  bottom row — neutral `.neutral-block` tiles (moved here from Trends 2026-07-23), same
+  bottom row — neutral `.neutral-block` tiles (moved here from Trends 2026-07-23), tinted
+  with `--wash-neutral` (gray version of the same translucent-wash pattern as
+  `--wash-income`/`--wash-expense`, 2026-07-24) so all four tiles share one shared
+  `--outline-variant` border instead of the top row's light border vs. the bottom row's
+  heavier one. Same
   math as the pace bar (`avgDaily = totalExpense ÷ days elapsed`, `forecast = avgDaily ×
   days in month`), distinct `data-key`s (`today-avg`/`today-fc`) so `counterMemory`
   doesn't cross-animate with the Trends `an-avg`/`an-fc` tiles. When `forecast >
@@ -344,9 +359,11 @@ The pie now precedes the cumulative line inside `.charts-row`.
   and `display:none` (mirroring the `#income-bar-card` show/hide) so no stray margin gap
   shows. Overspend never applies on closed months, so the `.overspend` semantic-red
   treatment (color only, no glow) is effectively Today-only now, but the class survives on
-  both surfaces. `.tile-block.neutral-block` keeps its heavier `--outline` border (vs the
-  base `--outline-variant`, invisible against `--surface-container`) — shared with Today's
-  bottom-row tiles.
+  both surfaces. `.tile-block.neutral-block` uses the standard `--outline-variant` border
+  and a translucent `--wash-neutral` background (2026-07-24; was a flat `--surface-container`
+  fill + heavier `--outline` border, needed because `--outline-variant` was pixel-identical
+  to that flat fill in dark mode) — shared with Today's bottom-row tiles, and still reads as
+  a distinct card standalone here since the wash is translucent, not a fixed hex.
 - **Spend-card slot** (`#income-bar-card`): **hidden on the live month** (Today owns the
   pace bar); closed months show the **archive card** (net, top category, days logged
   X of N, quiet pace verdict).
@@ -578,6 +595,18 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-07-24 — Today quadrant tile alignment (§3.5):** the `Average Daily`/`Forecast`
+  tiles' styling now matches `Budget`/`Expenses` — added `--wash-neutral` (gray, same
+  0.04/0.06-opacity pattern as `--wash-income`/`--wash-expense`) and switched
+  `.tile-block.neutral-block` from a flat `--surface-container` fill + heavier `--outline`
+  border to that translucent wash + the standard `--outline-variant` border everyone else
+  uses. The heavier border (2026-07-21) was a fix for `--outline-variant` being
+  pixel-identical to the old flat fill in dark mode (`#2D2D2D` on `#2D2D2D` — invisible);
+  the translucent wash sidesteps the collision at its root instead, so the border can go
+  back to matching the rest of the quadrant. Render-loop verified (§3.12; 390/900 ×
+  light/dark + reduced-motion, mocked GViz, stubbed Chart.js): all four Today tiles share
+  one border weight in both themes, overspend red unaffected, Trends' closed-month tiles
+  (same class, standalone context) still read as distinct cards, no horizontal overflow.
 - **2026-07-23 — Today quadrant + Trends resequence (PR #49):** three UI refinements, all
   render-loop verified (§3.12; 390/900 × light/dark + reduced-motion, mocked GViz, stubbed
   Chart.js). (1) **Moved `Average Daily` + `Forecast` from Trends to Today** — Today's

@@ -43,6 +43,7 @@
     --on-surface-variant: #495057;
     --wash-income: rgba(0, 163, 108, 0.04);
     --wash-expense: rgba(229, 62, 62, 0.04);
+    --wash-neutral: rgba(33, 37, 41, 0.04);
     --wash-hero: rgba(33, 37, 41, 0.03);
     --shape-xs: 6px;
     --shape-sm: 10px;
@@ -90,6 +91,7 @@
       --on-surface-variant: #CED4DA;
       --wash-income: rgba(46, 204, 113, 0.06);
       --wash-expense: rgba(255, 77, 77, 0.06);
+      --wash-neutral: rgba(248, 249, 250, 0.06);
       --wash-hero: rgba(248, 249, 250, 0.04);
     }
   }
@@ -382,11 +384,14 @@
   .tile-block.income-block { background: var(--wash-income); }
   .tile-block.expense-block { background: var(--wash-expense); }
   /* The Average Daily / Forecast tiles (Today's quadrant bottom row and the
-     Trends closed-month tiles) sit directly on the pane background (no wrapping
-     card), so the base tile's --outline-variant border reads as almost
-     invisible against --surface-container — bump to --outline so the tiles read
-     as distinct cards (2026-07-21; shared with Today 2026-07-23). */
-  .tile-block.neutral-block { background: var(--surface-container); border-color: var(--outline); }
+     Trends closed-month tiles) take a translucent neutral wash — same treatment
+     as income-block/expense-block, just gray instead of colored — so all four
+     Today tiles read as one family sharing the base --outline-variant border
+     (2026-07-21 bumped this to --outline as a fix for --outline-variant being
+     literally identical to the old flat --surface-container fill in dark mode;
+     the wash tint sidesteps that collision instead, restoring the shared
+     border — 2026-07-24). */
+  .tile-block.neutral-block { background: var(--wash-neutral); }
   .tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
   .tile-val { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
   .tile-block.income-block .tile-val { color: var(--semantic-income); }
