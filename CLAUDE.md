@@ -1,17 +1,30 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-24 — **Today quadrant tile alignment (§3.5).** The `Average
-Daily`/`Forecast` tiles now share the same `--outline-variant` border and translucent-wash
-background treatment as `Budget`/`Expenses` (new `--wash-neutral` token, same opacity
-pattern as `--wash-income`/`--wash-expense`, just gray) — the 2026-07-21 `--outline`
-border bump was a workaround for `--outline-variant` being pixel-identical to the old flat
-`--surface-container` fill in dark mode; the wash tint sidesteps that collision instead of
-papering over it with a heavier border, so all four Today tiles read as one family.
-Same class (`.tile-block.neutral-block`) also covers Trends' closed-month tiles — verified
-those still show a visible border standalone (light+dark). Render-loop verified (390/900 ×
-light/dark + reduced-motion, mocked GViz, stubbed Chart.js): quadrant border/background
-parity, overspend red still reads, Trends closed-month tiles unaffected, no horizontal
-overflow. Prior banner (2026-07-23) — **Today quadrant + Trends resequence (§3.5, §3.7).** Three
+*Last updated: 2026-07-24 — **Today quadrant chips (§3.5).** The `Average Daily` /
+`Forecast` tiles gained the same `▲/▼ X% vs last mo.` chip as `Budget`/`Expenses`, so all
+four quadrant tiles now carry the same three-line layout (label, value, trend chip).
+Last month's comparison figure treats last month as closed: `lastAvgDaily = lastMonth.exp
+÷ daysInLastMonth` (full month, matching the Trends closed-month tile), `lastForecast =
+lastMonth.exp` (a closed month's forecast and actual are identical). Lower reads as good
+news (`.good`/`.bad`) for both, same as the Expenses chip. Chip valence is independent of
+the value's own `.overspend` color flip — verified an overspend scenario shows a red value
+*and* a red "worse" chip simultaneously without conflict. Hand-computed the percentages
+against a mocked dataset (▼73%/▼72%) to confirm exact parity with the on-screen chips.
+Render-loop verified (390/900 × light/dark + reduced-motion, mocked GViz, stubbed
+Chart.js): chip math, overspend + chip coexistence, no horizontal overflow, Trends
+closed-month tiles untouched. Prior banner (same day) — **Today quadrant tile alignment
+(§3.5).** The `Average Daily`/`Forecast` tiles now share the same `--outline-variant`
+border and translucent-wash background treatment as `Budget`/`Expenses` (new
+`--wash-neutral` token, same opacity pattern as `--wash-income`/`--wash-expense`, just
+gray) — the 2026-07-21 `--outline` border bump was a workaround for `--outline-variant`
+being pixel-identical to the old flat `--surface-container` fill in dark mode; the wash
+tint sidesteps that collision instead of papering over it with a heavier border, so all
+four Today tiles read as one family. Same class (`.tile-block.neutral-block`) also covers
+Trends' closed-month tiles — verified those still show a visible border standalone
+(light+dark). Render-loop verified (390/900 × light/dark + reduced-motion, mocked GViz,
+stubbed Chart.js): quadrant border/background parity, overspend red still reads, Trends
+closed-month tiles unaffected, no horizontal overflow. Prior banner (2026-07-23) —
+**Today quadrant + Trends resequence (§3.5, §3.7).** Three
 UI refinements: (1) the `Average Daily` + `Forecast` tiles **moved from Trends to Today**,
 completing a **2×2 tile quadrant** below the hero (Budget · Expenses · Average Daily ·
 Forecast); Today owns them for the live month (overspend turns both semantic-red), while
@@ -267,7 +280,14 @@ Composition (scroll-peek order): **hero → tile quadrant → glance line → bu
   days in month`), distinct `data-key`s (`today-avg`/`today-fc`) so `counterMemory`
   doesn't cross-animate with the Trends `an-avg`/`an-fc` tiles. When `forecast >
   totalIncome` both bottom figures go **`.overspend`** semantic-red (the sanctioned
-  overspend warning). nth-child(3)/(4) entrance delays extend the tile cascade.
+  overspend warning). Both bottom tiles also carry a `▲/▼ X% vs last mo.` chip
+  (2026-07-24), same `.good`/`.bad` valence rule as Expenses (lower reads good) — compared
+  against last month treated as closed: `lastAvgDaily = lastMonth.exp ÷ daysInLastMonth`
+  (full month, matching the Trends closed-month tile), `lastForecast = lastMonth.exp` (a
+  closed month's forecast and its actual spend are the same number). The chip's valence is
+  independent of the value's own `.overspend` flip, so an overspend month can show a red
+  value next to a red "worse" chip without the two rules fighting. nth-child(3)/(4)
+  entrance delays extend the tile cascade.
 - **Glance line** (`computeTodayGlance` — the digest math as client-side JS): today's
   spend vs the 30-day spend-day average; zero-state "Nothing logged today yet."
 - **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome,
@@ -595,6 +615,18 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-07-24 — Today quadrant chips (§3.5):** `Average Daily` / `Forecast` gained a
+  `▲/▼ X% vs last mo.` chip, matching `Budget`/`Expenses` so all four quadrant tiles share
+  the same label/value/chip layout. Last month is treated as closed for the comparison:
+  `lastAvgDaily = lastMonth.exp ÷ daysInLastMonth` (full month, same formula as the Trends
+  closed-month `Average Daily` tile) and `lastForecast = lastMonth.exp` (a closed month's
+  forecast and actual spend are identical, so no separate formula was needed). Chip
+  valence (`.good`/`.bad`) follows the Expenses convention — lower reads as good news —
+  and is independent of the value's own `.overspend` red flip. Render-loop verified
+  (§3.12; 390/900 × light/dark + reduced-motion, mocked GViz, stubbed Chart.js):
+  hand-computed chip percentages matched on-screen exactly (▼73%/▼72% on a test dataset),
+  an overspend scenario showed a red value and a red chip together with no visual clash,
+  no horizontal overflow.
 - **2026-07-24 — Today quadrant tile alignment (§3.5):** the `Average Daily`/`Forecast`
   tiles' styling now matches `Budget`/`Expenses` — added `--wash-neutral` (gray, same
   0.04/0.06-opacity pattern as `--wash-income`/`--wash-expense`) and switched

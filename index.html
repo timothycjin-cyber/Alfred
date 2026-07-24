@@ -2849,6 +2849,15 @@ function calculateAndRender() {
     const overspend = totalIncome > 0 && forecast > totalIncome;
     const quadValCls = `tile-val counter-val${overspend ? ' overspend' : ''}`;
 
+    // Last month's "forecast" is just its actual spend (a closed month has no
+    // days left to project), and its Average Daily uses the full month like
+    // the Trends closed-month tile — so both quadrant chips compare apples to
+    // apples with how those figures are computed once a month closes.
+    const daysInLastMonth = new Date(lastYr, lastMo + 1, 0).getDate();
+    const lastAvgDaily = daysInLastMonth > 0 ? lastMonth.exp / daysInLastMonth : 0;
+    const avgChangePct = lastAvgDaily > 0 ? ((avgDaily - lastAvgDaily) / lastAvgDaily * 100) : (avgDaily > 0 ? 100 : 0);
+    const fcChangePct = lastMonth.exp > 0 ? ((forecast - lastMonth.exp) / lastMonth.exp * 100) : (forecast > 0 ? 100 : 0);
+
     document.getElementById('today-tiles').innerHTML = `
       <div class="tile-block income-block">
         <div class="tile-label">Budget</div>
@@ -2863,10 +2872,12 @@ function calculateAndRender() {
       <div class="tile-block neutral-block">
         <div class="tile-label">Average Daily</div>
         <div class="${quadValCls}" data-val="${avgDaily}" data-key="today-avg" data-prefix="RM ">RM 0.00</div>
+        <div class="tile-chip ${avgChangePct <= 0 ? 'good' : 'bad'}">${avgChangePct >= 0 ? '▲' : '▼'} ${Math.abs(avgChangePct).toFixed(0)}% vs last mo.</div>
       </div>
       <div class="tile-block neutral-block">
         <div class="tile-label">Forecast</div>
         <div class="${quadValCls}" data-val="${forecast}" data-key="today-fc" data-prefix="~RM ">~RM 0.00</div>
+        <div class="tile-chip ${fcChangePct <= 0 ? 'good' : 'bad'}">${fcChangePct >= 0 ? '▲' : '▼'} ${Math.abs(fcChangePct).toFixed(0)}% vs last mo.</div>
       </div>
     `;
 
