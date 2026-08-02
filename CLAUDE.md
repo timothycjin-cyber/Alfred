@@ -11,8 +11,9 @@ double-write. **Nothing is ever written ahead of today** (every live figure divi
 *elapsed* days); "what's coming" is an unwritten `Next …` preview. Monthly **clamps to the
 month's last day**. ⚠️ Two limits that look alike must stay separate — `RECURRENCE_MAX_ITER`
 (loop bound, must reach today) vs `RECURRING_MAX_PER_RUN` (write cap); conflating them was a
-real bug caught in build. **Owner must redeploy Apps Script** before series can be saved
-(§6 Phase G checklist). Render-loop verified 44/44. Prior banner (same day) — **Phase G
+real bug caught in build. **Apps Script is redeployed — the feature is live end to end.**
+Render-loop verified 50/50 (44 from the build, plus a 6-check run added in #53 covering the
+save-failure path). Prior banner (same day) — **Phase G
 designed (§6).** The "Recurring expenses" candidate
 was taken through its design pass and became a fully specified phase — **spec only, no code
 yet.** All three open questions are answered: generation runs **client-side on app open**
@@ -604,10 +605,12 @@ live: Apps Script redeployed, Firebase project deleted. Owner should still doubl
 `sendDailyDigestPush` time trigger and the `FIREBASE_SA_JSON`/`FCM_PROJECT_ID` Script
 Properties are cleared — §6 checklist.
 
-**Phase G (recurring expenses) is DONE in code** (2026-08-02) — render-loop verified,
-44/44 checks. See §3.13. **Owner still needs to redeploy Apps Script** (Manage deployments
-→ Edit → new version) before the `recurring` action and the `handleAdd` duplicate guard
-are live; until then the sheet's saves fail with a neutral toast and nothing is written.
+**Phase G (recurring expenses) is DONE and LIVE** (2026-08-02) — render-loop verified
+50/50, and **Apps Script is redeployed**, so the `recurring` action and the `handleAdd`
+duplicate guard are both live. See §3.13. Follow-up #53 fixed the save-failure path: an
+Apps Script error (including the `unknown action` a stale deployment returns) had been
+reported as the generic offline copy, so the one failure mode that redeploy *was* the fix
+for gave no hint that redeploying was the fix. Errors now surface the server's own reason.
 
 **Pending:** the remaining unscheduled candidate features (§6).
 
@@ -664,15 +667,15 @@ from `Code.gs`, and rewrote the product model here (§0).
 
 ### Phase G — Recurring expenses ✅ DONE (2026-08-02)
 
-Built and render-loop verified (44/44); the shipped behaviour lives in §3.13. The design
-rationale below is kept because it records *why* each fork was taken.
+Built and render-loop verified (50/50 — 44 at build, plus 6 added in #53); the shipped
+behaviour lives in §3.13. The design rationale below is kept because it records *why* each
+fork was taken.
 
-**Owner checklist:**
+**Owner checklist — complete.**
 
-1. Apps Script: **redeploy** via Manage deployments → Edit → new version. Until then the
-   `recurring` action returns `unknown action` and saving a series fails with a neutral
-   toast. Nothing else breaks — materialization simply finds no series.
-2. Nothing to set up in the Sheet: the `Recurring` tab is created on first save.
+1. ✅ Apps Script **redeployed** via Manage deployments → Edit → new version, so the
+   `recurring` action and the `handleAdd` duplicate guard are live.
+2. ✅ Nothing to set up in the Sheet: the `Recurring` tab is created on first save.
 
 Rent, subscriptions and standing bills are the same figure every period, so logging them
 by hand is pure friction — and forgetting to log them makes budget-left, forecast and pace
@@ -752,8 +755,8 @@ recurring charges from amounts stable across ≥3 months, and generated rows are
 stable, so without this the insight strip would report the user's own series back to them
 as a discovery.
 
-**Owner step after merge:** redeploy Apps Script via Manage deployments → **Edit** → new
-version. The `Recurring` tab is created automatically; no manual Sheet setup.
+**Owner step after merge:** ✅ done — Apps Script redeployed via Manage deployments →
+**Edit** → new version. The `Recurring` tab is created automatically; no manual Sheet setup.
 
 ### Candidate features (refined 2026-07-19 — not yet phased)
 
@@ -799,6 +802,18 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-02 — Recurring save errors report their real cause (PR #53):** saving a series
+  routed every failure — network, HTTP, and Apps Script `{success:false, error}` alike —
+  through one generic `Couldn't reach the sheet. Try again.` toast. That copy is a lie for
+  the most likely failure of all: a deployment that hasn't been updated returns
+  `unknown action`, and the toast named the network instead. `saveRecurringSeries()` now
+  surfaces the server's own reason (`Couldn't save: <reason>`), keeping the offline copy
+  only for genuine transport failures. Two-line change; the value is diagnostic, since this
+  is the error a user hits *before* anything else works. Verified with a 6-check run
+  (§3.12) driving all three failure paths plus success. **Also a harness finding:** three
+  Today-figure assertions were quietly timing-dependent — they read the counters mid-
+  animation and reported false failures under load. `verify.mjs` now polls until the value
+  settles rather than sampling once, taking the suite from 44 to 50 checks with no flakes.
 - **2026-08-02 — Phase G built (§3.13):** recurring series shipped. `Code.gs` gained one
   `recurring` action (three ops against a self-creating `Recurring` tab) and a duplicate
   guard in `handleAdd`; `index.html` gained the materializer, the pure `recurrenceDates()`
