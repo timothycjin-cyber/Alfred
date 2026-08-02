@@ -14,9 +14,9 @@
 
 **Logs tab** — the full ledger as a week-by-week accordion under month headers, with spend bars, tap-to-edit entries, and CSV export.
 
-**Trends tab** — an AI-phrased "What I noticed" insights note, month navigation with an archive of past months, cumulative spend vs last month, a category breakdown pie, and a capture heatmap.
+**Trends tab** — an AI-phrased "What I noticed" insights note, month navigation with an archive of past months, a "Spending patterns" calendar tinted by spend per day, a category breakdown pie, and cumulative spend vs last month.
 
-**Push digest** — an installable PWA with a nightly (10pm) spending-summary notification via Firebase Cloud Messaging (slated for retirement).
+**Installable** — a PWA you can add to your home screen.
 
 ---
 
@@ -26,8 +26,7 @@ Fully serverless and free to run:
 
 - **Frontend** — plain HTML/CSS/JS (single file), Chart.js, hosted on GitHub Pages
 - **Data** — one Google Sheet, read via the public GViz JSON endpoint
-- **Backend** — the Sheet's own Google Apps Script Web App (`apps-script/Code.gs`): transaction writes, AI parsing (OpenAI), insights phrasing, push subscriptions, and the scheduled digest
-- **Push** — Firebase Cloud Messaging (free tier), sent by an Apps Script daily trigger
+- **Backend** — the Sheet's own Google Apps Script Web App (`apps-script/Code.gs`): transaction writes, AI parsing (OpenAI), and insights phrasing
 
 (Historical note: capture originally happened through a Telegram bot — [Project-Alfred](https://github.com/timothycjin-cyber/Project-Alfred), decommissioned 2026-07-16 once this app covered everything it did. Rows it wrote remain in the Sheet.)
 
@@ -44,5 +43,6 @@ Fully serverless and free to run:
 | AI insights strip | ✅ Done |
 | Chat + camera capture with confirm flow | ✅ Done |
 | Installable PWA | ✅ Done |
-| Nightly push digest | ✅ Done (retirement planned) |
-| Subscriptions category | ❌ Pending |
+| Subscriptions category | ✅ Done |
+| Nightly push digest | ⬜ Retired — the digest math lives on as the Today glance line |
+| Recurring expenses | 📐 Designed, not built |
