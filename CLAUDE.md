@@ -1,6 +1,18 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-02 — **Phase G shipped (§3.13).** Recurring series are live in code:
+*Last updated: 2026-08-02 — **Today: two tiles + a tap-to-open detail panel (§3.5).** The
+2×2 quadrant collapsed to **two headline tiles** (Budget · Expenses); `Average Daily` and
+`Forecast` moved into `#today-detail`, disclosed by tapping the **Expenses tile** (now a
+real `<button>`) — they're follow-up detail, and holding two of four tile slots overstated
+them. Their **`vs last mo.` chips are gone** (a percentage against a projection is noise),
+which retires the 2026-07-24 chip work and its `lastAvgDaily`/`avgChangePct`/`fcChangePct`
+math. The panel is the **last child of the tile grid** spanning both columns, so it inherits
+the grid gap; `:empty` collapses it when closed. ⚠️ **`animateCounters()` only sweeps at the
+end of `calculateAndRender()`** — markup injected from the click handler must be swept
+explicitly or the figures stay at `RM 0.00`. Overspend red now reads *inside* the panel, so
+**the at-a-glance warning is the pace bar's verdict line** (same `forecast > income`
+boolean). Render-loop verified 78/78. Prior banner (same day) — **Phase G shipped (§3.13).**
+Recurring series are live in code:
 define rent, a subscription or a salary once and Alfred writes the entries itself. A series
 is a definition in a new **`Recurring` tab**; its occurrences are ordinary `Sheet1` rows
 written through the ordinary `add` action, so there is still exactly one row-writing path.
@@ -11,8 +23,9 @@ double-write. **Nothing is ever written ahead of today** (every live figure divi
 *elapsed* days); "what's coming" is an unwritten `Next …` preview. Monthly **clamps to the
 month's last day**. ⚠️ Two limits that look alike must stay separate — `RECURRENCE_MAX_ITER`
 (loop bound, must reach today) vs `RECURRING_MAX_PER_RUN` (write cap); conflating them was a
-real bug caught in build. **Owner must redeploy Apps Script** before series can be saved
-(§6 Phase G checklist). Render-loop verified 44/44. Prior banner (same day) — **Phase G
+real bug caught in build. **Apps Script is redeployed — the feature is live end to end.**
+Render-loop verified 50/50 (44 from the build, plus a 6-check run added in #53 covering the
+save-failure path). Prior banner (same day) — **Phase G
 designed (§6).** The "Recurring expenses" candidate
 was taken through its design pass and became a fully specified phase — **spec only, no code
 yet.** All three open questions are answered: generation runs **client-side on app open**
@@ -291,7 +304,8 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
 
 ### 3.5 Today tab
 
-Composition (scroll-peek order): **hero → tile quadrant → glance line → budget-pace card.**
+Composition (scroll-peek order): **hero → two tiles (+ detail panel) → glance line →
+budget-pace card.**
 
 - **Hero** (`.hero-card`, `#today-hero`): label **`Budget left`** (income − expense);
   ink-black gradient in dark mode, monochrome off-white in light. **1.5px `--outline`
@@ -301,27 +315,34 @@ Composition (scroll-peek order): **hero → tile quadrant → glance line → bu
   embedded 6-month net-trend mini bar chart (`heroChart`, current month sienna, others
   green/red by sign; `minBarLength: 4` + `heroBaselinePlugin` faint zero line, gated on
   `canvas.id === 'hero-trend'`). Sub-copy "In the green" / "Watching the leak".
-- **Tiles** (`#today-tiles`, a 2-col grid → **2×2 quadrant** of four equal tiles):
-  **`Budget`** (month income) / **`Expenses`** on the top row — tinted surfaces
-  (`--wash-income`/`--wash-expense`), `▲/▼ X% vs last month` chips with `.good`/`.bad`
-  valence (expenses dropping reads green); **`Average Daily`** / **`Forecast`** on the
-  bottom row — neutral `.neutral-block` tiles (moved here from Trends 2026-07-23), tinted
-  with `--wash-neutral` (gray version of the same translucent-wash pattern as
-  `--wash-income`/`--wash-expense`, 2026-07-24) so all four tiles share one shared
-  `--outline-variant` border instead of the top row's light border vs. the bottom row's
-  heavier one. Same
-  math as the pace bar (`avgDaily = totalExpense ÷ days elapsed`, `forecast = avgDaily ×
-  days in month`), distinct `data-key`s (`today-avg`/`today-fc`) so `counterMemory`
-  doesn't cross-animate with the Trends `an-avg`/`an-fc` tiles. When `forecast >
-  totalIncome` both bottom figures go **`.overspend`** semantic-red (the sanctioned
-  overspend warning). Both bottom tiles also carry a `▲/▼ X% vs last mo.` chip
-  (2026-07-24), same `.good`/`.bad` valence rule as Expenses (lower reads good) — compared
-  against last month treated as closed: `lastAvgDaily = lastMonth.exp ÷ daysInLastMonth`
-  (full month, matching the Trends closed-month tile), `lastForecast = lastMonth.exp` (a
-  closed month's forecast and its actual spend are the same number). The chip's valence is
-  independent of the value's own `.overspend` flip, so an overspend month can show a red
-  value next to a red "worse" chip without the two rules fighting. nth-child(3)/(4)
-  entrance delays extend the tile cascade.
+- **Tiles** (`#today-tiles`, a 2-col grid → **two headline tiles**): **`Budget`** (month
+  income) / **`Expenses`** — tinted surfaces (`--wash-income`/`--wash-expense`), `▲/▼ X%
+  vs last month` chips with `.good`/`.bad` valence (expenses dropping reads green).
+  Entrance cascade is nth-child(1)/(2) only. **The 2×2 quadrant was collapsed 2026-08-02**
+  — `Average Daily`/`Forecast` are follow-up detail, not headline figures, and holding two
+  of four tile slots overstated them.
+- **Detail panel** (`#today-detail`, `todayDetailHtml()` / `toggleTodayDetail()`):
+  **`Average Daily`** + **`Forecast`**, disclosed by tapping the **Expenses tile** — which
+  is therefore a real `<button>` (`#today-detail-trigger`, `aria-expanded` +
+  `aria-controls`, chevron rotating via the `.week-chev` idiom), not a `<div>`. The panel
+  is the **last child of the `.tile-row` grid** spanning `1 / -1`, so it inherits the 12px
+  gap and the row's bottom margin for free; `#today-detail:empty { display: none }`
+  collapses it when closed, so a closed panel costs no vertical space. Same math as the
+  pace bar (`avgDaily = totalExpense ÷ days elapsed`, `forecast = avgDaily × days in
+  month`), keeping `data-key`s `today-avg`/`today-fc` — reusing the keys preserves
+  `counterMemory` inertia and stays distinct from the Trends `an-avg`/`an-fc` tiles.
+  When `forecast > totalIncome` both figures go **`.overspend`** semantic-red; that red now
+  reads *inside* the panel, so **the at-a-glance overspend warning is the pace bar's
+  verdict line**, driven by the same `forecast > income` comparison. **No `vs last mo.`
+  chips here** — a percentage against a projection is noise (the 2026-07-24 chips are
+  reverted, and `lastAvgDaily`/`avgChangePct`/`fcChangePct` are gone with them).
+  `todayDetailHtml()` is self-contained (computes from `monthTotals`, like
+  `computeTodayGlance`) so the click handler can rebuild the panel without re-entering
+  `calculateAndRender()`. ⚠️ **`animateCounters()` is a DOM sweep that only runs at the end
+  of `calculateAndRender()`** — markup injected from the click handler must be swept
+  explicitly or the figures sit at their literal `RM 0.00` placeholder forever.
+  `todayDetailOpen` is module state, so the panel survives optimistic re-renders the way
+  `expandedWeeks` does for the Logs accordion.
 - **Glance line** (`computeTodayGlance` — the digest math as client-side JS): today's
   spend vs the 30-day spend-day average; zero-state "Nothing logged today yet."
 - **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome,
@@ -413,7 +434,8 @@ The pie now precedes the cumulative line inside `.charts-row`.
     text nodes (rAF, `clamp(chars·14ms, 500, 1900)`), blinking sienna caret. Reduced
     motion → instant.
 - **Tiles** (`#trends-metrics`): **closed months only** (2026-07-23) — the live-month
-  `Average Daily` + `Forecast` moved to Today's quadrant (§3.5). A past month shows
+  `Average Daily` + `Forecast` moved to Today (2026-07-23), and now live in Today's
+  tap-to-open detail panel (§3.5). A past month shows
   `Average Daily` + `Total Spent` actuals; on the live month `#trends-metrics` is emptied
   and `display:none` (mirroring the `#income-bar-card` show/hide) so no stray margin gap
   shows. Overspend never applies on closed months, so the `.overspend` semantic-red
@@ -604,10 +626,12 @@ live: Apps Script redeployed, Firebase project deleted. Owner should still doubl
 `sendDailyDigestPush` time trigger and the `FIREBASE_SA_JSON`/`FCM_PROJECT_ID` Script
 Properties are cleared — §6 checklist.
 
-**Phase G (recurring expenses) is DONE in code** (2026-08-02) — render-loop verified,
-44/44 checks. See §3.13. **Owner still needs to redeploy Apps Script** (Manage deployments
-→ Edit → new version) before the `recurring` action and the `handleAdd` duplicate guard
-are live; until then the sheet's saves fail with a neutral toast and nothing is written.
+**Phase G (recurring expenses) is DONE and LIVE** (2026-08-02) — render-loop verified
+50/50, and **Apps Script is redeployed**, so the `recurring` action and the `handleAdd`
+duplicate guard are both live. See §3.13. Follow-up #53 fixed the save-failure path: an
+Apps Script error (including the `unknown action` a stale deployment returns) had been
+reported as the generic offline copy, so the one failure mode that redeploy *was* the fix
+for gave no hint that redeploying was the fix. Errors now surface the server's own reason.
 
 **Pending:** the remaining unscheduled candidate features (§6).
 
@@ -664,15 +688,15 @@ from `Code.gs`, and rewrote the product model here (§0).
 
 ### Phase G — Recurring expenses ✅ DONE (2026-08-02)
 
-Built and render-loop verified (44/44); the shipped behaviour lives in §3.13. The design
-rationale below is kept because it records *why* each fork was taken.
+Built and render-loop verified (50/50 — 44 at build, plus 6 added in #53); the shipped
+behaviour lives in §3.13. The design rationale below is kept because it records *why* each
+fork was taken.
 
-**Owner checklist:**
+**Owner checklist — complete.**
 
-1. Apps Script: **redeploy** via Manage deployments → Edit → new version. Until then the
-   `recurring` action returns `unknown action` and saving a series fails with a neutral
-   toast. Nothing else breaks — materialization simply finds no series.
-2. Nothing to set up in the Sheet: the `Recurring` tab is created on first save.
+1. ✅ Apps Script **redeployed** via Manage deployments → Edit → new version, so the
+   `recurring` action and the `handleAdd` duplicate guard are live.
+2. ✅ Nothing to set up in the Sheet: the `Recurring` tab is created on first save.
 
 Rent, subscriptions and standing bills are the same figure every period, so logging them
 by hand is pure friction — and forgetting to log them makes budget-left, forecast and pace
@@ -752,8 +776,8 @@ recurring charges from amounts stable across ≥3 months, and generated rows are
 stable, so without this the insight strip would report the user's own series back to them
 as a discovery.
 
-**Owner step after merge:** redeploy Apps Script via Manage deployments → **Edit** → new
-version. The `Recurring` tab is created automatically; no manual Sheet setup.
+**Owner step after merge:** ✅ done — Apps Script redeployed via Manage deployments →
+**Edit** → new version. The `Recurring` tab is created automatically; no manual Sheet setup.
 
 ### Candidate features (refined 2026-07-19 — not yet phased)
 
@@ -799,6 +823,41 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-02 — Today: two tiles + a detail panel (§3.5):** the 2×2 quadrant collapsed to
+  **two headline tiles**; `Average Daily` + `Forecast` moved into `#today-detail`, one tap
+  under the **Expenses tile**, which became a real `<button>` (`aria-expanded`,
+  `aria-controls`, rotating chevron). Their `vs last mo.` chips were **removed** — a
+  percentage against a projection is noise — retiring the 2026-07-24 chip work along with
+  `daysInLastMonth`/`lastAvgDaily`/`avgChangePct`/`fcChangePct` and the `nth-child(3)/(4)`
+  entrance delays. Two decisions worth keeping: an **inline panel over a modal** (dimming
+  the screen for two read-only figures is disproportionate, and a modal would hide the pace
+  bar that gives them meaning), and **the pace bar carries the overspend warning** — it
+  already prints `Overspending — off track by RM X` from the same `forecast > income`
+  boolean, so the `.overspend` red moving inside the panel costs nothing at a glance. The
+  panel is the **last child of the `.tile-row` grid** spanning `1 / -1` (inherits the 12px
+  gap and the row's bottom margin; `:empty` collapses it closed) rather than a sibling
+  needing its own spacing rules. `todayDetailHtml()` computes from `monthTotals` so the
+  click handler needn't re-enter `calculateAndRender()`; `todayDetailOpen` is module state
+  so the panel survives optimistic re-renders. **The one real trap:** `animateCounters()`
+  is a DOM sweep that runs only at the end of `calculateAndRender()`, so handler-injected
+  markup must call it or the figures sit at `RM 0.00` forever — asserted directly rather
+  than left to a screenshot. Render-loop verified (§3.12; 390/900 × light/dark +
+  reduced-motion): **78/78**, with 34 checks added covering panel open/close, keyboard
+  Enter/Space (it must be a real button), state surviving a re-render, no chips inside the
+  panel, overspend red plus the pace-bar verdict together, the shared `.neutral-block` CSS
+  leaving Trends' closed-month tiles intact, and no horizontal overflow with the panel open.
+- **2026-08-02 — Recurring save errors report their real cause (PR #53):** saving a series
+  routed every failure — network, HTTP, and Apps Script `{success:false, error}` alike —
+  through one generic `Couldn't reach the sheet. Try again.` toast. That copy is a lie for
+  the most likely failure of all: a deployment that hasn't been updated returns
+  `unknown action`, and the toast named the network instead. `saveRecurringSeries()` now
+  surfaces the server's own reason (`Couldn't save: <reason>`), keeping the offline copy
+  only for genuine transport failures. Two-line change; the value is diagnostic, since this
+  is the error a user hits *before* anything else works. Verified with a 6-check run
+  (§3.12) driving all three failure paths plus success. **Also a harness finding:** three
+  Today-figure assertions were quietly timing-dependent — they read the counters mid-
+  animation and reported false failures under load. `verify.mjs` now polls until the value
+  settles rather than sampling once, taking the suite from 44 to 50 checks with no flakes.
 - **2026-08-02 — Phase G built (§3.13):** recurring series shipped. `Code.gs` gained one
   `recurring` action (three ops against a self-creating `Recurring` tab) and a duplicate
   guard in `handleAdd`; `index.html` gained the materializer, the pure `recurrenceDates()`

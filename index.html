@@ -293,6 +293,7 @@
      resets them); .settled pins already-seen content so only the section's
      own axis slide plays. */
   .view-section.settled .hero-card, .view-section.settled .tile-block,
+  .view-section.settled .detail-panel,
   .view-section.settled .txn-row, .view-section.settled .txn-icon-chip,
   .view-section.settled .hm-cell { animation: none; }
 
@@ -362,6 +363,7 @@
   #income-bar-card { margin-bottom: 12px; }
 
   .tile-block {
+    position: relative;
     min-width: 0;
     border-radius: var(--shape-lg);
     border: 1px solid var(--outline-variant);
@@ -374,25 +376,37 @@
     transition: transform var(--motion-snap);
   }
   .tile-block:active { transform: scale(0.97); }
+  /* The Expenses tile doubles as the disclosure for Average Daily / Forecast,
+     so it's a real <button> — these are the resets that make a button look
+     like the sibling <div> tile next to it. */
+  button.tile-block {
+    font-family: inherit; color: inherit; text-align: left;
+    width: 100%; cursor: pointer; outline: none;
+  }
+  button.tile-block:focus-visible { border-color: var(--sienna); }
+  .tile-chev {
+    position: absolute; top: 1rem; right: 1.1rem;
+    color: var(--on-surface-variant);
+    transition: transform var(--motion-wobble);
+  }
+  .tile-block.detail-open .tile-chev { transform: rotate(180deg); }
   /* Entrance cascade: hero lands first, then the tiles follow one by one.
      `backwards` fill keeps delayed elements hidden until their turn. */
   .tile-row .tile-block:nth-child(1) { animation-delay: 70ms; }
   .tile-row .tile-block:nth-child(2) { animation-delay: 140ms; }
-  .tile-row .tile-block:nth-child(3) { animation-delay: 210ms; }
-  .tile-row .tile-block:nth-child(4) { animation-delay: 280ms; }
   /* A view re-render with the same layout (month switch, post-save refresh)
      should update values, not replay the pop-in ceremony. */
   .no-entrance .hero-card, .no-entrance .tile-block { animation: none; }
   .tile-block.income-block { background: var(--wash-income); }
   .tile-block.expense-block { background: var(--wash-expense); }
-  /* The Average Daily / Forecast tiles (Today's quadrant bottom row and the
-     Trends closed-month tiles) take a translucent neutral wash — same treatment
-     as income-block/expense-block, just gray instead of colored — so all four
-     Today tiles read as one family sharing the base --outline-variant border
-     (2026-07-21 bumped this to --outline as a fix for --outline-variant being
-     literally identical to the old flat --surface-container fill in dark mode;
-     the wash tint sidesteps that collision instead, restoring the shared
-     border — 2026-07-24). */
+  /* Trends' closed-month tiles take a translucent neutral wash — same treatment
+     as income-block/expense-block, just gray instead of colored — so they read
+     as the same family sharing the base --outline-variant border (2026-07-21
+     bumped this to --outline as a fix for --outline-variant being literally
+     identical to the old flat --surface-container fill in dark mode; the wash
+     tint sidesteps that collision instead, restoring the shared border —
+     2026-07-24). Today used this for its quadrant's bottom row until those two
+     figures moved into #today-detail (2026-08-02), so it's Trends-only now. */
   .tile-block.neutral-block { background: var(--wash-neutral); }
   .tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
   .tile-val { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
@@ -416,6 +430,27 @@
      expenses dropping is good news and should read green. */
   .tile-chip.good { color: var(--semantic-income); border-color: var(--semantic-income); }
   .tile-chip.bad { color: var(--semantic-expense); border-color: var(--semantic-expense); }
+
+  /* Average Daily / Forecast live here, one tap under the Expenses tile
+     (2026-08-02) — they're follow-up detail, not headline figures, so they no
+     longer hold two of the four tile slots. It's the last child of the tile
+     grid spanning both columns, which buys the 12px gap and the row's bottom
+     margin for free; :empty collapses it so a closed panel costs no space.
+     No vs-last-month chips here: a percentage against a projection is noise. */
+  #today-detail { grid-column: 1 / -1; }
+  #today-detail:empty { display: none; }
+  .detail-panel {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px;
+    border: 1px solid var(--outline-variant); border-radius: var(--shape-lg);
+    background: var(--wash-neutral); padding: 0.9rem 1.1rem;
+    animation: tilePopIn var(--motion-wobble) backwards;
+  }
+  .detail-item { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  /* Overspend red still applies to these two figures — it just reads inside
+     the panel now. The at-a-glance warning is the pace bar's verdict line,
+     which is driven by the same forecast > income comparison. */
+  .detail-item .tile-val.overspend { color: var(--semantic-expense); }
+  .no-entrance .detail-panel { animation: none; }
 
   .txn-icon-chip {
     width: 36px; height: 36px; border-radius: var(--shape-sm);
@@ -1597,6 +1632,52 @@ function todayGlanceHtml() {
     <span class="today-label">Today</span>
     <span class="today-body"><b>RM ${formatCurrency(total)}</b> across ${countStr}${verdict}</span>
   </div>`;
+}
+
+// Average Daily / Forecast, disclosed under the Expenses tile. Module state so
+// the panel survives an optimistic re-render, the same way expandedWeeks does
+// for the Logs accordion.
+let todayDetailOpen = false;
+
+// Self-contained like computeTodayGlance/todayGlanceHtml, so the click handler
+// can rebuild the panel without re-entering calculateAndRender. Same math as
+// the pace bar: avg daily = MTD spend ÷ days elapsed, forecast = avg × days in
+// month. Forecast overshooting the month's budget turns both figures
+// semantic-red — the same forecast > income comparison that drives the pace
+// bar's verdict line, which is what carries the warning at a glance.
+function todayDetailHtml() {
+  const { inc, exp } = monthTotals(activeYear, activeMonth);
+  const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
+  const daysElapsed = new Date().getDate();
+  const avgDaily = daysElapsed > 0 ? exp / daysElapsed : 0;
+  const forecast = avgDaily * daysInMonth;
+  const overspend = inc > 0 && forecast > inc;
+  const valCls = `tile-val counter-val${overspend ? ' overspend' : ''}`;
+  return `<div class="detail-panel">
+    <div class="detail-item">
+      <div class="tile-label">Average Daily</div>
+      <div class="${valCls}" data-val="${avgDaily}" data-key="today-avg" data-prefix="RM ">RM 0.00</div>
+    </div>
+    <div class="detail-item">
+      <div class="tile-label">Forecast</div>
+      <div class="${valCls}" data-val="${forecast}" data-key="today-fc" data-prefix="~RM ">~RM 0.00</div>
+    </div>
+  </div>`;
+}
+
+// Same idiom as toggleWeek(): flip the flag, swap the .open class and
+// aria-expanded, set or clear innerHTML. animateCounters() is a DOM sweep that
+// normally only runs at the end of calculateAndRender, so markup injected here
+// has to be swept explicitly or the figures sit at their RM 0.00 placeholder.
+function toggleTodayDetail() {
+  const panel = document.getElementById('today-detail');
+  const trigger = document.getElementById('today-detail-trigger');
+  if (!panel || !trigger) return;
+  todayDetailOpen = !todayDetailOpen;
+  trigger.classList.toggle('detail-open', todayDetailOpen);
+  trigger.setAttribute('aria-expanded', String(todayDetailOpen));
+  panel.innerHTML = todayDetailOpen ? todayDetailHtml() : '';
+  if (todayDetailOpen) animateCounters();
 }
 
 // ── Live budget-pace card (Today only since refinement Phase C) ─────────────
@@ -3190,48 +3271,26 @@ function calculateAndRender() {
       </div>
     `;
 
-    // Average Daily + Forecast complete the 2×2 tile quadrant (moved here from
-    // Trends 2026-07-23 — Today owns them for the live month). Same math as the
-    // Trends tiles / pace bar: avg daily = MTD spend ÷ days elapsed, forecast =
-    // avg daily × days in month. Forecast overshooting the month's budget turns
-    // both figures semantic-red (the sanctioned overspend warning).
-    const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
-    const daysElapsed = new Date().getDate();
-    const avgDaily = daysElapsed > 0 ? totalExpense / daysElapsed : 0;
-    const forecast = avgDaily * daysInMonth;
-    const overspend = totalIncome > 0 && forecast > totalIncome;
-    const quadValCls = `tile-val counter-val${overspend ? ' overspend' : ''}`;
-
-    // Last month's "forecast" is just its actual spend (a closed month has no
-    // days left to project), and its Average Daily uses the full month like
-    // the Trends closed-month tile — so both quadrant chips compare apples to
-    // apples with how those figures are computed once a month closes.
-    const daysInLastMonth = new Date(lastYr, lastMo + 1, 0).getDate();
-    const lastAvgDaily = daysInLastMonth > 0 ? lastMonth.exp / daysInLastMonth : 0;
-    const avgChangePct = lastAvgDaily > 0 ? ((avgDaily - lastAvgDaily) / lastAvgDaily * 100) : (avgDaily > 0 ? 100 : 0);
-    const fcChangePct = lastMonth.exp > 0 ? ((forecast - lastMonth.exp) / lastMonth.exp * 100) : (forecast > 0 ? 100 : 0);
-
+    // Two headline tiles. Average Daily / Forecast used to fill a 2×2 quadrant
+    // here; since 2026-08-02 they sit one tap below, inside #today-detail —
+    // they're follow-up detail, not headline figures. The Expenses tile is the
+    // disclosure trigger, so it renders as a <button>.
     document.getElementById('today-tiles').innerHTML = `
       <div class="tile-block income-block">
         <div class="tile-label">Budget</div>
         <div class="tile-val counter-val" data-val="${totalIncome}" data-key="home-inc" data-prefix="RM ">RM 0.00</div>
         <div class="tile-chip ${incChangePct >= 0 ? 'good' : 'bad'}">${incChangePct >= 0 ? '▲' : '▼'} ${Math.abs(incChangePct).toFixed(0)}% vs last mo.</div>
       </div>
-      <div class="tile-block expense-block">
+      <button type="button" id="today-detail-trigger"
+              class="tile-block expense-block${todayDetailOpen ? ' detail-open' : ''}"
+              aria-expanded="${todayDetailOpen}" aria-controls="today-detail"
+              onclick="toggleTodayDetail()">
         <div class="tile-label">Expenses</div>
         <div class="tile-val counter-val" data-val="${totalExpense}" data-key="home-exp" data-prefix="RM ">RM 0.00</div>
         <div class="tile-chip ${expChangePct <= 0 ? 'good' : 'bad'}">${expChangePct >= 0 ? '▲' : '▼'} ${Math.abs(expChangePct).toFixed(0)}% vs last mo.</div>
-      </div>
-      <div class="tile-block neutral-block">
-        <div class="tile-label">Average Daily</div>
-        <div class="${quadValCls}" data-val="${avgDaily}" data-key="today-avg" data-prefix="RM ">RM 0.00</div>
-        <div class="tile-chip ${avgChangePct <= 0 ? 'good' : 'bad'}">${avgChangePct >= 0 ? '▲' : '▼'} ${Math.abs(avgChangePct).toFixed(0)}% vs last mo.</div>
-      </div>
-      <div class="tile-block neutral-block">
-        <div class="tile-label">Forecast</div>
-        <div class="${quadValCls}" data-val="${forecast}" data-key="today-fc" data-prefix="~RM ">~RM 0.00</div>
-        <div class="tile-chip ${fcChangePct <= 0 ? 'good' : 'bad'}">${fcChangePct >= 0 ? '▲' : '▼'} ${Math.abs(fcChangePct).toFixed(0)}% vs last mo.</div>
-      </div>
+        <svg class="tile-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div id="today-detail">${todayDetailOpen ? todayDetailHtml() : ''}</div>
     `;
 
     // Glance line and pace bar are about the real "now", so they only render
