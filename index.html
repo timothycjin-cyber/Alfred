@@ -153,7 +153,9 @@
     flex-shrink: 0;
   }
   .icon-btn:hover { background: var(--surface-container); }
-  .export-btn:active { transform: scale(0.9); }
+  /* Press feedback belongs to every icon button, not just export — the Logs
+     toolbar has two of them since Phase G. */
+  .icon-btn:active { transform: scale(0.9); }
 
   /* Spin used by the capture-send busy spinner — status feedback. */
   @keyframes refreshSpin { to { transform: rotate(360deg); } }
@@ -765,7 +767,7 @@
 
   /* Logs toolbar — slim right-aligned row above the ledger; holds the export
      trigger since it moved out of the header (Phase B). */
-  .logs-toolbar { display: flex; justify-content: flex-end; margin-bottom: 2px; }
+  .logs-toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 2px; }
 
   /* Logs week index — the ledger as an accordion of Mon–Sun weeks under
      month headers. Bars for money on this tab (no cell grids): each closed
@@ -798,6 +800,12 @@
   }
   .week-row.open .week-body { border-top: 1px solid var(--outline-variant); }
   .txn-date { font-size: 10px; font-weight: 600; color: var(--on-surface-variant); margin-left: 6px; align-self: center; }
+  /* Quiet provenance marker on rows a recurring series wrote — enough to
+     answer "where did this come from?", not enough to compete with the money. */
+  .txn-auto {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase;
+    color: var(--on-surface-variant); opacity: 0.75; margin-left: 6px; align-self: center;
+  }
   
   .badge { font-size: 9px; padding: 1px 6px; border-radius: var(--shape-xs); font-weight: 700; white-space: nowrap; background: transparent; border-width: 1px; border-style: solid; text-transform: uppercase; letter-spacing: 0.3px; }
   .badge.inc-badge { color: var(--semantic-income); border-color: var(--semantic-income); }
@@ -985,6 +993,26 @@
   .export-choice-main { font-size: 14px; font-weight: 700; }
   .export-choice-sub { font-size: 12px; font-weight: 600; color: var(--on-surface-variant); }
 
+  /* ── Recurring series sheet (Phase G) ────────────────────────────────────
+     Rows reuse .export-choice — already the list-row-inside-a-sheet pattern.
+     Only the money line and the paused state need anything extra. */
+  #recurring-list { max-height: 45vh; overflow-y: auto; }
+  .recur-main { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .recur-amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .export-choice.recur-income .recur-amt { color: var(--semantic-income); }
+  /* Paused series stay listed, dimmed — pausing is reversible, and hiding
+     them would read as deletion. */
+  .export-choice.recur-paused { opacity: 0.5; }
+  .recur-paused-tag {
+    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+    border: 1px solid var(--outline); color: var(--on-surface-variant);
+    border-radius: var(--shape-xs); padding: 1px 5px; margin-left: 6px;
+  }
+  .recur-empty { text-align: center; padding: 1.6rem 1rem; color: var(--on-surface-variant); font-size: 13px; }
+  .recur-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .recur-hint { font-size: 11px; color: var(--on-surface-variant); margin-top: -0.4rem; line-height: 1.4; }
+  #recur-pause-actions { margin-top: 8px; }
+
   /* ── Capture bar (chat + camera/gallery → parsed entries) ─────────────────
      Lives inside the FAB's bottom capture sheet — anchored low so it's
      reachable one-handed, unlike its old spot at the top of Home. */
@@ -1145,6 +1173,12 @@
 
   <div id="logs-view" class="view-section">
     <div class="logs-toolbar">
+      <button class="icon-btn" onclick="openRecurringModal()" aria-label="Recurring entries">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>
+      </button>
       <button class="icon-btn export-btn" onclick="openExportModal()" aria-label="Export transactions">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -1270,6 +1304,84 @@
   </div>
 </div>
 
+<!-- Recurring series (Phase G). Deliberately NOT .align-bottom: that variant's
+     transform-origin is anchored to the FAB (§3.3 derived numbers), so a sheet
+     opened from the Logs toolbar would bloom from the wrong place. List and
+     form swap panes in place rather than stacking a second overlay, because
+     trapModalFocus holds exactly one trap at a time. -->
+<div class="modal-overlay" id="recurring-overlay" onclick="if(event.target===this) closeRecurringModal()">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="recurring-title" tabindex="-1">
+    <div class="modal-title" id="recurring-title">Recurring</div>
+    <div class="export-sub" id="recurring-sub">Entries Alfred adds for you, on schedule.</div>
+    <div class="modal-error" id="recurring-error"></div>
+
+    <div id="recurring-list-pane">
+      <div id="recurring-list"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeRecurringModal()">Close</button>
+        <button type="button" class="btn btn-primary" onclick="openRecurringForm('')">Add recurring</button>
+      </div>
+    </div>
+
+    <div id="recurring-form-pane" style="display:none">
+      <input type="hidden" id="recur-id">
+      <div class="type-toggle">
+        <div class="type-toggle-slider" id="recur-type-slider"></div>
+        <button type="button" id="recur-type-expense-btn" onclick="setRecurType('Expense')">Expense</button>
+        <button type="button" id="recur-type-income-btn" onclick="setRecurType('Income')">Budget</button>
+      </div>
+      <input type="hidden" id="recur-type" value="Expense">
+
+      <div class="form-group">
+        <label class="form-label" for="recur-amount">Amount (RM)</label>
+        <input type="number" step="0.01" inputmode="decimal" class="form-input" id="recur-amount">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="recur-category">Category</label>
+        <select class="form-select" id="recur-category"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="recur-desc">Description</label>
+        <input type="text" class="form-input" id="recur-desc">
+      </div>
+      <div class="recur-row">
+        <div class="form-group">
+          <label class="form-label" for="recur-cadence">Repeats</label>
+          <select class="form-select" id="recur-cadence" onchange="renderRecurHint()">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly" selected>Monthly</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="recur-start">Starting</label>
+          <input type="date" class="form-input" id="recur-start" onchange="renderRecurHint()">
+        </div>
+      </div>
+      <div class="recur-hint" id="recur-hint"></div>
+
+      <div class="modal-actions" id="recur-main-actions">
+        <button type="button" class="btn btn-ghost" onclick="showRecurringList()">Back</button>
+        <button type="button" class="btn btn-primary" id="recur-save-btn" onclick="saveRecurringSeries()">Save</button>
+      </div>
+      <!-- Edit-only secondary row. Pause (reversible) sits left of Stop
+           (destructive) so the safer action is the easier reach. -->
+      <div class="modal-actions" id="recur-pause-actions">
+        <button type="button" class="btn btn-ghost" id="recur-pause-btn" onclick="toggleRecurringPause()">Pause</button>
+        <button type="button" class="btn btn-danger" id="recur-delete-btn" onclick="askRecurDeleteConfirm()">Stop</button>
+      </div>
+
+      <div class="modal-confirm" id="recur-confirm">
+        <div class="modal-confirm-text" id="recur-confirm-text"></div>
+        <div class="modal-confirm-actions">
+          <button type="button" class="btn btn-ghost" onclick="cancelRecurDeleteConfirm()">Cancel</button>
+          <button type="button" class="btn btn-danger-solid" id="recur-confirm-delete-btn" onclick="deleteRecurringSeries()">Stop it</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay align-bottom" id="capture-overlay" onclick="if(event.target===this) closeCaptureModal()">
   <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="capture-title" tabindex="-1">
     <div class="modal-title" id="capture-title">Log a transaction</div>
@@ -1310,6 +1422,10 @@
 <script>
 const SHEET_ID = "19_C3gFlY7hDjGm87k3Uke63_Tgg6TQPl6xLiGZvuEis";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Sheet1`;
+// Recurring-series definitions (Phase G) — a second tab, same spreadsheet. The
+// tab is created by Apps Script on first save, so this URL 404s in GViz until
+// then; fetchRecurringSeries() treats that as "no series", never an error.
+const RECURRING_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Recurring`;
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXIWSRt1xVAbLnNPlhiHHaWpTHGB23N1wkoMU74nHifMT9prU3rM4m6/exec";
 const SECRET_KEY = "8891";
 
@@ -1687,6 +1803,7 @@ function weekBodyHtml(wk) {
             <div class="txn-badge-container">
               <span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Budget' : r.Category.split(' ')[0]}</span>
               <span class="txn-date">${MONTHS[d.getMonth()]} ${d.getDate()}</span>
+              ${r.Source === 'recurring' ? '<span class="txn-auto">Auto</span>' : ''}
             </div>
           </div>
         </div>
@@ -2093,9 +2210,14 @@ function _insightStreak() {
 
 // Recurring: descriptions that repeat ~once a month across ≥3 months at a
 // stable amount — subscriptions, bills. Reports the aggregate monthly load.
+//
+// Rows written by a recurring series are excluded (Phase G): they're perfectly
+// stable by construction, so they'd always qualify — and reporting a series the
+// user set up themselves back to them as a discovery is noise, not insight.
 function _insightRecurring() {
   const groups = {};
   _userExpenseRows().forEach(r => {
+    if (r.Source === 'recurring') return;
     const key = (r.Description || '').trim().toLowerCase();
     if (!key || key === 'unlabeled') return;
     const d = new Date(r.Date);
@@ -2553,23 +2675,31 @@ function animateCounters() {
 
 // Maps a parsed GViz response into our field-cased row shape. Shared by the
 // initial load and the background reconcile (see reconcileFromServer).
+// GViz hands dates back as "Date(YYYY,M,D)" with a ZERO-INDEXED month — the +1
+// is the fix. Shared by both tabs (Sheet1 and Recurring) so the correction
+// lives in exactly one place; the else branch strips the leading apostrophe
+// off text-formatted date cells.
+function gvizDateToIso(rawDate) {
+  if (typeof rawDate === 'string' && rawDate.includes('Date')) {
+    const dateParts = rawDate.replace("Date(", "").replace(")", "").split(",");
+    return `${dateParts[0]}-${String(Number(dateParts[1]) + 1).padStart(2, "0")}-${String(dateParts[2]).padStart(2, "0")}`;
+  }
+  return String(rawDate).replace(/^'/, "");
+}
+
 function mapGvizRows(json) {
   return json.table.rows
     .filter(r => r.c && r.c[0]?.v && r.c[1]?.v)
     .map(r => {
-      let rawDate = r.c[0].v;
-      let formattedDate = "";
-      if (typeof rawDate === 'string' && rawDate.includes('Date')) {
-        const dateParts = rawDate.replace("Date(", "").replace(")", "").split(",");
-        formattedDate = `${dateParts[0]}-${String(Number(dateParts[1]) + 1).padStart(2, "0")}-${String(dateParts[2]).padStart(2, "0")}`;
-      } else {
-        formattedDate = String(rawDate).replace(/^'/, "");
-      }
       return {
-        Date: formattedDate,
+        Date: gvizDateToIso(r.c[0].v),
         Amount: Number(r.c[1].v),
         Category: r.c[2]?.v || "Other",
         Description: r.c[3]?.v || "",
+        // Source (col E) is read for the recurring "Auto" marker and to keep
+        // generated rows out of _insightRecurring. Deliberately NOT part of
+        // rowSig — it isn't a render-visible field an edit can move.
+        Source: r.c[4]?.v ? String(r.c[4].v).trim() : "",
         Type: r.c[5]?.v ? String(r.c[5].v).trim() : "Expense",
         UID: r.c[6]?.v ? String(r.c[6].v).trim() : "",
         User: r.c[7]?.v ? String(r.c[7].v).trim() : ""
@@ -2592,6 +2722,10 @@ async function init() {
 
     dataStamp++;
     switchView(currentView);
+
+    // Fire-and-forget on purpose: recurring generation must never delay first
+    // paint, and a failure in it must never surface as a broken load.
+    materializeRecurring();
   } catch(e) {
     console.error(e);
     document.getElementById('main-loader').innerHTML = `<div style="color:var(--semantic-expense); padding:15px; text-align:center;">⚠️ Failed to load data.</div>`;
@@ -2705,6 +2839,225 @@ async function reconcileFromServer() {
 
   allRows = merged;
   applyLocalRender();
+}
+
+// ── Recurring series (Phase G) ───────────────────────────────────────────────
+// A series is a definition in the Recurring tab; its occurrences are written
+// into Sheet1 as ordinary rows through the ordinary `add` action. Generation
+// runs client-side on app open — see CLAUDE.md §6 Phase G for why that beat an
+// Apps Script time trigger.
+//
+// Occurrences are NEVER written ahead of today: avgDaily / forecast / the pace
+// bar / the patterns chip all divide by *elapsed* days, so a future row would
+// corrupt every live figure silently.
+
+let recurringSeries = [];        // definitions for activeUser, newest-first
+let _recurringLoaded = false;    // false until the first fetch resolves either way
+const RECURRING_MAX_PER_RUN = 60; // belt-and-braces cap on a catch-up run
+
+// Occurrence UIDs are DERIVED, not random: the same occurrence computes to the
+// same UID on every device, which is what makes generation idempotent. The
+// backend refuses a UID it already holds (handleAdd's duplicate guard).
+function recurringUID(seriesId, iso) {
+  return `rc-${seriesId}-${iso.replace(/-/g, '')}`;
+}
+
+function daysInMonthOf(year, month) { return new Date(year, month + 1, 0).getDate(); }
+
+// Enumerate every occurrence from StartDate up to and including todayIso (or
+// EndDate, whichever lands first). Pure — no I/O, no clock read — so the
+// verification pass can drive it at any simulated "today".
+//
+// The guard here is a runaway-loop bound, NOT the write cap: enumeration has to
+// be able to walk all the way to today, or a daily series older than the write
+// cap would only ever re-propose its oldest occurrences (all already written)
+// and never reach the present. Writes are capped separately, in
+// materializeRecurring().
+const RECURRENCE_MAX_ITER = 4000;   // ~11 years of daily, cheap to walk
+
+function recurrenceDates(series, todayIso) {
+  const out = [];
+  const start = series.startDate;
+  if (!start || start > todayIso) return out;
+  const stop = (series.endDate && series.endDate < todayIso) ? series.endDate : todayIso;
+
+  const sd = new Date(start + 'T00:00:00');
+  if (isNaN(sd.getTime())) return out;
+
+  if (series.cadence === 'daily' || series.cadence === 'weekly') {
+    const step = series.cadence === 'daily' ? 1 : 7;
+    const d = new Date(sd.getTime());
+    for (let i = 0; i < RECURRENCE_MAX_ITER; i++) {
+      const iso = isoDateOf(d);
+      if (iso > stop) break;
+      out.push(iso);
+      d.setDate(d.getDate() + step);
+    }
+    return out;
+  }
+
+  // Monthly: hold the anchor day-of-month, clamped to each month's last day so
+  // a series anchored on the 31st still fires in November and February rather
+  // than skipping those months entirely.
+  const anchorDay = sd.getDate();
+  let y = sd.getFullYear();
+  let m = sd.getMonth();
+  for (let i = 0; i < RECURRENCE_MAX_ITER; i++) {
+    const day = Math.min(anchorDay, daysInMonthOf(y, m));
+    const iso = isoDateOf(new Date(y, m, day));
+    if (iso > stop) break;
+    if (iso >= start) out.push(iso);
+    m++;
+    if (m > 11) { m = 0; y++; }
+  }
+  return out;
+}
+
+function cadenceLabel(series) {
+  if (series.cadence === 'daily') return 'Every day';
+  if (series.cadence === 'weekly') {
+    const d = new Date(series.startDate + 'T00:00:00');
+    const wd = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+    return `Weekly on ${wd}`;
+  }
+  const day = new Date(series.startDate + 'T00:00:00').getDate();
+  const suffix = (day % 10 === 1 && day !== 11) ? 'st'
+               : (day % 10 === 2 && day !== 12) ? 'nd'
+               : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+  return `Monthly on the ${day}${suffix}`;
+}
+
+// The unwritten preview — what's coming, without polluting the ledger's math.
+// Computed analytically rather than by enumerating from the start date, so it
+// stays O(1) no matter how old the series is.
+function nextOccurrence(series, todayIso) {
+  if (!series.active || !series.startDate) return null;
+
+  const withinEnd = iso => !(series.endDate && iso > series.endDate) ? iso : null;
+  if (series.startDate > todayIso) return withinEnd(series.startDate);
+
+  const sd = new Date(series.startDate + 'T00:00:00');
+  const today = new Date(todayIso + 'T00:00:00');
+  if (isNaN(sd.getTime()) || isNaN(today.getTime())) return null;
+  let next;
+
+  if (series.cadence === 'daily') {
+    next = new Date(today.getTime());
+    next.setDate(next.getDate() + 1);
+  } else if (series.cadence === 'weekly') {
+    // round, not floor — absorbs any DST hour drift in the day count
+    const elapsed = Math.round((today - sd) / 86400000);
+    next = new Date(sd.getTime());
+    next.setDate(next.getDate() + (Math.floor(elapsed / 7) + 1) * 7);
+  } else {
+    const anchorDay = sd.getDate();
+    let y = today.getFullYear(), m = today.getMonth();
+    const thisMonth = new Date(y, m, Math.min(anchorDay, daysInMonthOf(y, m)));
+    if (isoDateOf(thisMonth) > todayIso) {
+      next = thisMonth;
+    } else {
+      m++;
+      if (m > 11) { m = 0; y++; }
+      next = new Date(y, m, Math.min(anchorDay, daysInMonthOf(y, m)));
+    }
+  }
+  return withinEnd(isoDateOf(next));
+}
+
+function mapRecurringRows(json) {
+  return (json.table.rows || [])
+    .filter(r => r.c && r.c[0]?.v)
+    .map(r => ({
+      id: String(r.c[0].v).trim(),
+      user: r.c[1]?.v ? String(r.c[1].v).trim() : "",
+      type: r.c[2]?.v ? String(r.c[2].v).trim() : "Expense",
+      amount: Number(r.c[3]?.v || 0),
+      category: r.c[4]?.v || "Other",
+      description: r.c[5]?.v || "",
+      cadence: r.c[6]?.v ? String(r.c[6].v).trim().toLowerCase() : "monthly",
+      startDate: r.c[7]?.v ? gvizDateToIso(r.c[7].v) : "",
+      endDate: r.c[8]?.v ? gvizDateToIso(r.c[8].v) : "",
+      active: String(r.c[9]?.v ?? 'TRUE').trim().toUpperCase() !== 'FALSE'
+    }));
+}
+
+// Never throws. A missing Recurring tab (before the first save) makes GViz
+// return an error page, which must read as "no series" — not as a broken app.
+async function fetchRecurringSeries() {
+  try {
+    const res = await fetch(RECURRING_SHEET_URL);
+    if (!res.ok) return [];
+    const text = await res.text();
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end === -1) return [];
+    const json = JSON.parse(text.substring(start, end + 1));
+    if (!json.table || !json.table.rows) return [];
+    return mapRecurringRows(json).filter(s => s.id && activeUser && s.user === activeUser);
+  } catch (e) {
+    return [];
+  }
+}
+
+// Runs after first paint and is never awaited by init(), so a slow or absent
+// Recurring tab can't delay or break loading.
+async function materializeRecurring() {
+  if (!activeUser) return;
+  recurringSeries = await fetchRecurringSeries();
+  _recurringLoaded = true;
+  if (!recurringSeries.length) return;
+
+  const todayIso = isoDateOf(new Date());
+  const existing = new Set(allRows.map(r => r.UID));
+  const due = [];
+
+  for (const s of recurringSeries) {
+    if (!s.active) continue;
+    for (const iso of recurrenceDates(s, todayIso)) {
+      const uid = recurringUID(s.id, iso);
+      if (existing.has(uid)) continue;
+      existing.add(uid);
+      due.push({ uid, iso, s });
+      if (due.length >= RECURRING_MAX_PER_RUN) break;
+    }
+    if (due.length >= RECURRING_MAX_PER_RUN) break;
+  }
+  if (!due.length) return;
+
+  // Same optimistic shape as saveReviewAll(): show them, then POST them.
+  for (const d of due) {
+    const row = {
+      Date: d.iso, Amount: d.s.amount, Category: d.s.category,
+      Description: d.s.description, Source: 'recurring', Type: d.s.type,
+      UID: d.uid, User: activeUser
+    };
+    allRows.push(row);
+    pendingWrites.set(d.uid, { type: 'add', row });
+  }
+  applyLocalRender();
+
+  let saved = 0, failed = 0;
+  for (const d of due) {
+    try {
+      await postWrite({
+        action: 'add', uid: d.uid, date: d.iso, amount: d.s.amount,
+        category: d.s.category, description: d.s.description,
+        type: d.s.type, user: activeUser, source: 'recurring'
+      });
+      saved++;
+    } catch (e) {
+      pendingWrites.delete(d.uid);
+      removeRowByUID(d.uid);
+      failed++;
+    }
+  }
+  if (failed) applyLocalRender();
+  if (saved) showToast(`Added ${saved} recurring ${saved === 1 ? 'entry' : 'entries'}`);
+  scheduleReconcile();
+}
+
+async function postRecurring(body) {
+  return postWrite({ action: 'recurring', ...body });
 }
 
 // ── Toast ────────────────────────────────────────────────────────────────────
@@ -3106,8 +3459,8 @@ function calculateAndRender() {
   animateCounters();
 }
 
-function populateCategoryOptions(type, selected) {
-  const sel = document.getElementById('modal-category');
+function populateCategoryOptions(type, selected, selectId = 'modal-category') {
+  const sel = document.getElementById(selectId);
   sel.innerHTML = (type === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(c => `<option value="${c}"${c === selected ? ' selected' : ''}>${c}</option>`).join('');
 }
 
@@ -3117,6 +3470,246 @@ function setModalType(type) {
   document.getElementById('type-income-btn').classList.toggle('active-income', type === 'Income');
   document.getElementById('type-slider').style.transform = type === 'Income' ? 'translateX(100%)' : 'translateX(0)';
   populateCategoryOptions(type, document.getElementById('modal-category').value);
+}
+
+// ── Recurring sheet UI (Phase G) ─────────────────────────────────────────────
+// One overlay, two panes. Series edits are FORWARD-ONLY: changing an amount
+// never rewrites occurrences already written — those are ordinary ledger rows,
+// edited or deleted individually through the txn modal.
+
+function openRecurringModal() {
+  document.body.classList.add('modal-open-state');
+  document.getElementById('recurring-error').style.display = 'none';
+  resetRecurDeleteConfirm();
+  showRecurringList();
+  const overlay = document.getElementById('recurring-overlay');
+  overlay.classList.add('open');
+  trapModalFocus(overlay, overlay.querySelector('.modal-sheet'));
+
+  // Refresh definitions in the background if the boot fetch hasn't landed (or
+  // the user has since added one on another device).
+  if (!_recurringLoaded) {
+    fetchRecurringSeries().then(list => {
+      recurringSeries = list;
+      _recurringLoaded = true;
+      if (document.getElementById('recurring-overlay').classList.contains('open')) renderRecurringList();
+    });
+  }
+}
+
+function closeRecurringModal() {
+  document.body.classList.remove('modal-open-state');
+  document.getElementById('recurring-overlay').classList.remove('open');
+  resetRecurDeleteConfirm();
+  releaseModalFocus();
+}
+
+function showRecurringList() {
+  document.getElementById('recurring-title').textContent = 'Recurring';
+  document.getElementById('recurring-sub').textContent = 'Entries Alfred adds for you, on schedule.';
+  document.getElementById('recurring-sub').style.display = '';
+  document.getElementById('recurring-list-pane').style.display = '';
+  document.getElementById('recurring-form-pane').style.display = 'none';
+  document.getElementById('recurring-error').style.display = 'none';
+  resetRecurDeleteConfirm();
+  renderRecurringList();
+}
+
+function renderRecurringList() {
+  const el = document.getElementById('recurring-list');
+  if (!recurringSeries.length) {
+    el.innerHTML = `<div class="recur-empty">${_recurringLoaded ? 'Nothing recurring yet.' : 'Loading…'}</div>`;
+    return;
+  }
+  const todayIso = isoDateOf(new Date());
+  el.innerHTML = recurringSeries.map(s => {
+    const isInc = s.type === 'Income';
+    const next = nextOccurrence(s, todayIso);
+    const when = !s.active ? 'Paused'
+               : next ? `Next ${MONTHS[new Date(next + 'T00:00:00').getMonth()]} ${new Date(next + 'T00:00:00').getDate()}`
+               : 'Ended';
+    return `
+      <button type="button" class="export-choice${isInc ? ' recur-income' : ''}${s.active ? '' : ' recur-paused'}" onclick="openRecurringForm('${s.id}')">
+        <span class="export-choice-main recur-main">
+          <span>${escapeHtml(s.description)}${s.active ? '' : '<span class="recur-paused-tag">Paused</span>'}</span>
+          <span class="recur-amt">${isInc ? '+ ' : ''}RM ${formatCurrency(s.amount)}</span>
+        </span>
+        <span class="export-choice-sub">${escapeHtml(cadenceLabel(s))} &middot; ${when}</span>
+      </button>`;
+  }).join('');
+}
+
+function setRecurType(type) {
+  document.getElementById('recur-type').value = type;
+  document.getElementById('recur-type-expense-btn').classList.toggle('active-expense', type === 'Expense');
+  document.getElementById('recur-type-income-btn').classList.toggle('active-income', type === 'Income');
+  document.getElementById('recur-type-slider').style.transform = type === 'Income' ? 'translateX(100%)' : 'translateX(0)';
+  populateCategoryOptions(type, document.getElementById('recur-category').value, 'recur-category');
+}
+
+function openRecurringForm(id) {
+  const s = id ? recurringSeries.find(x => x.id === id) : null;
+  const isEdit = !!s;
+  const todayIso = isoDateOf(new Date());
+
+  document.getElementById('recur-id').value = isEdit ? s.id : '';
+  document.getElementById('recurring-title').textContent = isEdit ? 'Edit recurring' : 'New recurring';
+  document.getElementById('recurring-sub').style.display = 'none';
+  document.getElementById('recurring-error').style.display = 'none';
+  resetRecurDeleteConfirm();
+
+  setRecurType(isEdit ? s.type : 'Expense');
+  populateCategoryOptions(isEdit ? s.type : 'Expense', isEdit ? s.category : undefined, 'recur-category');
+  document.getElementById('recur-amount').value = isEdit ? s.amount : '';
+  document.getElementById('recur-desc').value = isEdit ? s.description : '';
+  document.getElementById('recur-cadence').value = isEdit ? s.cadence : 'monthly';
+
+  const startEl = document.getElementById('recur-start');
+  startEl.value = isEdit ? s.startDate : todayIso;
+  // A NEW series can't start in the past, so it can never backfill a closed
+  // month on its first run. An existing one keeps its original anchor.
+  if (isEdit) startEl.removeAttribute('min'); else startEl.min = todayIso;
+
+  document.getElementById('recur-delete-btn').style.display = isEdit ? 'inline-flex' : 'none';
+  document.getElementById('recur-pause-actions').style.display = isEdit ? 'flex' : 'none';
+  document.getElementById('recur-pause-btn').textContent = (isEdit && !s.active) ? 'Resume' : 'Pause';
+
+  document.getElementById('recurring-list-pane').style.display = 'none';
+  document.getElementById('recurring-form-pane').style.display = '';
+  renderRecurHint();
+}
+
+function renderRecurHint() {
+  const cadence = document.getElementById('recur-cadence').value;
+  const start = document.getElementById('recur-start').value;
+  const el = document.getElementById('recur-hint');
+  if (!start) { el.textContent = ''; return; }
+  const d = new Date(start + 'T00:00:00');
+  if (isNaN(d.getTime())) { el.textContent = ''; return; }
+  const label = cadenceLabel({ cadence, startDate: start });
+  const when = `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  el.textContent = `Adds an entry ${label.charAt(0).toLowerCase() + label.slice(1)}, from ${when}. Nothing is added ahead of today.`;
+}
+
+function showRecurError(msg) {
+  const el = document.getElementById('recurring-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function saveRecurringSeries() {
+  const id = document.getElementById('recur-id').value;
+  const isEdit = !!id;
+  const type = document.getElementById('recur-type').value;
+  const amount = parseFloat(document.getElementById('recur-amount').value);
+  const category = document.getElementById('recur-category').value;
+  const description = document.getElementById('recur-desc').value.trim();
+  const cadence = document.getElementById('recur-cadence').value;
+  const startDate = document.getElementById('recur-start').value;
+
+  if (!startDate) return showRecurError('Pick a start date.');
+  if (isNaN(amount) || amount <= 0) return showRecurError('Enter an amount above zero.');
+  if (!description) return showRecurError('Add a description — it becomes the ledger entry.');
+
+  const existing = isEdit ? recurringSeries.find(x => x.id === id) : null;
+  const seriesId = isEdit ? id : clientUID();
+  const series = {
+    id: seriesId, user: activeUser, type, amount, category, description,
+    cadence, startDate, endDate: existing ? existing.endDate : '',
+    active: existing ? existing.active : true
+  };
+
+  const btn = document.getElementById('recur-save-btn');
+  btn.disabled = true;
+  try {
+    await postRecurring({
+      op: isEdit ? 'edit' : 'add', id: seriesId, user: activeUser, type, amount,
+      category, description, cadence, startDate,
+      endDate: series.endDate, active: series.active
+    });
+  } catch (e) {
+    btn.disabled = false;
+    return showRecurError('Could not save that series — check your connection and try again.');
+  }
+  btn.disabled = false;
+
+  if (isEdit) {
+    const i = recurringSeries.findIndex(x => x.id === id);
+    if (i !== -1) recurringSeries[i] = series;
+  } else {
+    recurringSeries.unshift(series);
+  }
+  showRecurringList();
+  // Pick up anything the new/edited series already owes for today.
+  materializeRecurring();
+}
+
+async function toggleRecurringPause() {
+  const id = document.getElementById('recur-id').value;
+  const s = recurringSeries.find(x => x.id === id);
+  if (!s) return;
+  const next = !s.active;
+  const btn = document.getElementById('recur-pause-btn');
+  btn.disabled = true;
+  try {
+    await postRecurring({
+      op: 'edit', id: s.id, user: activeUser, type: s.type, amount: s.amount,
+      category: s.category, description: s.description, cadence: s.cadence,
+      startDate: s.startDate, endDate: s.endDate, active: next
+    });
+  } catch (e) {
+    btn.disabled = false;
+    return showRecurError('Could not update that series — check your connection and try again.');
+  }
+  btn.disabled = false;
+  s.active = next;
+  showRecurringList();
+  if (next) materializeRecurring();
+}
+
+// Delete escalation mirrors the txn modal's: outline trigger → solid-red
+// confirm. The copy has one job — say that written entries survive.
+function askRecurDeleteConfirm() {
+  const id = document.getElementById('recur-id').value;
+  const s = recurringSeries.find(x => x.id === id);
+  const written = s ? allRows.filter(r => r.UID && r.UID.startsWith(`rc-${s.id}-`)).length : 0;
+  const kept = written === 0 ? ''
+    : `<br><b>The ${written} ${written === 1 ? 'entry' : 'entries'} already added stay in your ledger.</b>`;
+  document.getElementById('recur-confirm-text').innerHTML = `Stop this recurring entry?${kept}`;
+  document.getElementById('recur-main-actions').style.display = 'none';
+  document.getElementById('recur-pause-actions').style.display = 'none';
+  document.getElementById('recur-confirm').classList.add('show');
+  document.getElementById('recur-confirm-delete-btn').focus({ preventScroll: true });
+}
+
+function cancelRecurDeleteConfirm() {
+  resetRecurDeleteConfirm();
+  document.getElementById('recur-delete-btn').focus({ preventScroll: true });
+}
+
+function resetRecurDeleteConfirm() {
+  const confirmEl = document.getElementById('recur-confirm');
+  if (!confirmEl) return;
+  confirmEl.classList.remove('show');
+  document.getElementById('recur-main-actions').style.display = 'flex';
+  const isEdit = !!document.getElementById('recur-id').value;
+  document.getElementById('recur-pause-actions').style.display = isEdit ? 'flex' : 'none';
+}
+
+async function deleteRecurringSeries() {
+  const id = document.getElementById('recur-id').value;
+  if (!id) return;
+  const btn = document.getElementById('recur-confirm-delete-btn');
+  btn.disabled = true;
+  try {
+    await postRecurring({ op: 'delete', id });
+  } catch (e) {
+    btn.disabled = false;
+    return showRecurError('Could not stop that series — check your connection and try again.');
+  }
+  btn.disabled = false;
+  recurringSeries = recurringSeries.filter(x => x.id !== id);
+  showRecurringList();
 }
 
 // ── Modal focus management ─────────────────────────────────────────────────
@@ -3165,6 +3758,11 @@ document.addEventListener('keydown', (e) => {
     closeReviewModal();
   } else if (document.getElementById('capture-overlay').classList.contains('open')) {
     closeCaptureModal();
+  } else if (document.getElementById('recurring-overlay').classList.contains('open')) {
+    // Same one-step-back shape as the txn modal: confirm → form → list → closed.
+    if (document.getElementById('recur-confirm').classList.contains('show')) cancelRecurDeleteConfirm();
+    else if (document.getElementById('recurring-form-pane').style.display !== 'none') showRecurringList();
+    else closeRecurringModal();
   }
 });
 

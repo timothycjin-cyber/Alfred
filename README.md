@@ -12,7 +12,7 @@
 
 **Today tab** — "Budget left" hero with a 6-month trend, budget/expense tiles, a today-at-a-glance line, and a live budget-pace bar with avg-daily and forecast figures.
 
-**Logs tab** — the full ledger as a week-by-week accordion under month headers, with spend bars, tap-to-edit entries, and CSV export.
+**Logs tab** — the full ledger as a week-by-week accordion under month headers, with spend bars, tap-to-edit entries, CSV export, and recurring entries (rent, subscriptions, salary) that log themselves on schedule.
 
 **Trends tab** — an AI-phrased "What I noticed" insights note, month navigation with an archive of past months, a "Spending patterns" calendar tinted by spend per day, a category breakdown pie, and cumulative spend vs last month.
 
@@ -45,4 +45,4 @@ Fully serverless and free to run:
 | Installable PWA | ✅ Done |
 | Subscriptions category | ✅ Done |
 | Nightly push digest | ⬜ Retired — the digest math lives on as the Today glance line |
-| Recurring expenses | 📐 Designed, not built |
+| Recurring expenses | ✅ Done |
