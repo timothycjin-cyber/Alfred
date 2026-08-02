@@ -3597,6 +3597,24 @@ function showRecurError(msg) {
   el.style.display = 'block';
 }
 
+// Say what actually went wrong. postWrite() throws with the backend's own
+// message, so blaming the connection for every failure sends the user off to
+// debug their wifi when the real answer is on the Apps Script side — which is
+// exactly what happens while `recurring` is deployed on the client but not yet
+// on the backend.
+function recurErrorText(e, verb) {
+  const msg = String((e && e.message) || '').trim();
+  if (/unknown action/i.test(msg)) {
+    return 'This needs the updated Apps Script. Redeploy it (Manage deployments → Edit → new version), then try again.';
+  }
+  // fetch() rejects with a TypeError when the request never landed; anything
+  // else here is a message the backend deliberately sent back, so show it.
+  if (!msg || (e instanceof TypeError) || /failed to fetch|networkerror|load failed/i.test(msg)) {
+    return `Could not ${verb} that series — check your connection and try again.`;
+  }
+  return `Could not ${verb} that series — ${msg}`;
+}
+
 async function saveRecurringSeries() {
   const id = document.getElementById('recur-id').value;
   const isEdit = !!id;
@@ -3629,7 +3647,7 @@ async function saveRecurringSeries() {
     });
   } catch (e) {
     btn.disabled = false;
-    return showRecurError('Could not save that series — check your connection and try again.');
+    return showRecurError(recurErrorText(e, 'save'));
   }
   btn.disabled = false;
 
@@ -3659,7 +3677,7 @@ async function toggleRecurringPause() {
     });
   } catch (e) {
     btn.disabled = false;
-    return showRecurError('Could not update that series — check your connection and try again.');
+    return showRecurError(recurErrorText(e, 'update'));
   }
   btn.disabled = false;
   s.active = next;
@@ -3705,7 +3723,7 @@ async function deleteRecurringSeries() {
     await postRecurring({ op: 'delete', id });
   } catch (e) {
     btn.disabled = false;
-    return showRecurError('Could not stop that series — check your connection and try again.');
+    return showRecurError(recurErrorText(e, 'stop'));
   }
   btn.disabled = false;
   recurringSeries = recurringSeries.filter(x => x.id !== id);
