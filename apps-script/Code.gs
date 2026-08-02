@@ -28,6 +28,9 @@
 
 var SECRET_KEY = '8891';
 var SHEET_NAME = 'Sheet1';
+// Recurring-series definitions (Phase G). Separate tab so Sheet1 stays purely
+// the ledger; created on demand by getRecurringSheet().
+var RECURRING_SHEET_NAME = 'Recurring';
 
 var OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 var OPENAI_MODEL = 'gpt-4o-mini';
@@ -154,6 +157,7 @@ function doPost(e) {
       case 'add':              return jsonOut(handleAdd(data));
       case 'edit':             return jsonOut(handleEdit(data));
       case 'delete':           return jsonOut(handleDelete(data));
+      case 'recurring':        return jsonOut(handleRecurring(data));
       case 'parse':            return jsonOut(handleParse(data));
       case 'insights':         return jsonOut(handleInsights(data));
       default:                 return jsonOut({ error: 'unknown action' });
@@ -193,6 +197,16 @@ function handleAdd(data) {
   // Honor a client-supplied UID when present (optimistic-save reconcile matches
   // on it); fall back to a server UID for older clients. Backward-compatible.
   var uid = (data.uid && String(data.uid).trim()) ? String(data.uid).trim() : generateUID();
+
+  // Idempotency guard (Phase G). Recurring occurrences carry a *derived* UID
+  // (rc-<seriesId>-<YYYYMMDD>) that two devices compute identically, so the
+  // sheet has to be the arbiter — the client's own "already in allRows?" check
+  // can't see a row the GViz cache hasn't surfaced yet. Normal adds are
+  // unaffected: a clientUID() collision isn't a real possibility.
+  if (data.uid && findRowByUID(uid) !== -1) {
+    return { success: true, uid: uid, duplicate: true };
+  }
+
   getSheet().appendRow([
     data.date,
     Number(data.amount),
@@ -224,6 +238,88 @@ function handleDelete(data) {
   if (row === -1) return { error: 'row not found' };
   getSheet().deleteRow(row);
   return { success: true };
+}
+
+// ── Recurring series (Phase G) ───────────────────────────────────────────────
+// Definitions only — this never writes ledger rows. The client materializes
+// occurrences into Sheet1 through the ordinary `add` action, so there is one
+// row-writing path in the system, not two.
+
+var RECURRING_HEADERS = ['SeriesID', 'User', 'Type', 'Amount', 'Category', 'Description',
+                         'Cadence', 'StartDate', 'EndDate', 'Active', 'Created'];
+
+// Created on demand so shipping this needs no manual Sheet setup.
+function getRecurringSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(RECURRING_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(RECURRING_SHEET_NAME);
+    sheet.appendRow(RECURRING_HEADERS);
+  }
+  return sheet;
+}
+
+// SeriesID lives in column A (1). Returns the 1-based row index, or -1.
+function findRecurringRowById(id) {
+  if (!id) return -1;
+  var sheet = getRecurringSheet();
+  var last = sheet.getLastRow();
+  if (last < 2) return -1;
+  var values = sheet.getRange(1, 1, last, 1).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0]).trim() === String(id).trim()) return i + 1;
+  }
+  return -1;
+}
+
+// One action, three ops — keeps doPost's switch at a single new case while
+// mirroring the add/edit/delete trio the ledger already uses.
+function handleRecurring(data) {
+  var op = String(data.op || '').trim();
+  var sheet = getRecurringSheet();
+
+  if (op === 'add') {
+    var id = (data.id && String(data.id).trim()) ? String(data.id).trim() : generateUID();
+    if (findRecurringRowById(id) !== -1) return { success: true, id: id, duplicate: true };
+    sheet.appendRow([
+      id,
+      String(data.user || ''),
+      data.type,
+      Number(data.amount),
+      data.category,
+      data.description,
+      data.cadence,
+      data.startDate,
+      data.endDate || '',
+      data.active === false ? 'FALSE' : 'TRUE',
+      Utilities.formatDate(new Date(), TIMEZONE, 'yyyy-MM-dd')
+    ]);
+    return { success: true, id: id };
+  }
+
+  if (op === 'edit') {
+    var row = findRecurringRowById(data.id);
+    if (row === -1) return { error: 'series not found' };
+    // Cols A (id), K (created) are immutable; B (user) never changes owner.
+    sheet.getRange(row, 3).setValue(data.type);
+    sheet.getRange(row, 4).setValue(Number(data.amount));
+    sheet.getRange(row, 5).setValue(data.category);
+    sheet.getRange(row, 6).setValue(data.description);
+    sheet.getRange(row, 7).setValue(data.cadence);
+    sheet.getRange(row, 8).setValue(data.startDate);
+    sheet.getRange(row, 9).setValue(data.endDate || '');
+    sheet.getRange(row, 10).setValue(data.active === false ? 'FALSE' : 'TRUE');
+    return { success: true };
+  }
+
+  if (op === 'delete') {
+    var delRow = findRecurringRowById(data.id);
+    if (delRow === -1) return { error: 'series not found' };
+    sheet.deleteRow(delRow);
+    return { success: true };
+  }
+
+  return { error: 'unknown recurring op' };
 }
 
 function backfillUIDs() {
