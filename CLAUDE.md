@@ -1,6 +1,19 @@
 # CLAUDE.md
 
-*Last updated: 2026-07-24 — **Today quadrant chips (§3.5).** The `Average Daily` /
+*Last updated: 2026-08-02 — **Phase G designed (§6).** The "Recurring expenses" candidate
+was taken through its design pass and is now a fully specified phase — **spec only, no code
+yet.** All three open questions are answered: generation runs **client-side on app open**
+(reusing `saveReviewAll()`'s batch writer and the optimistic-write stack — no time trigger,
+no new endpoint for row writes), rows are materialized **up to today and never ahead**, and
+series are **edited forward-only** with pause/delete from a sheet on the Logs page. Series
+definitions live in a new **`Recurring` tab** in the same Sheet; the feature covers **income
+as well as expenses** (a recurring salary populates the month's budget, since budget =
+logged income). Idempotency is a **derived UID** per occurrence (`rc-<seriesId>-<YYYYMMDD>`)
+plus a duplicate guard in `handleAdd`, so two devices can't double-write. The
+no-future-rows rule is load-bearing, not taste: every live figure divides by *elapsed* days
+(`avgDaily`, `forecast`, the pace bar, the patterns chip) and the grid dashes future cells,
+so a pre-written future row corrupts all of them. Prior banner (2026-07-24) — **Today
+quadrant chips (§3.5).** The `Average Daily` /
 `Forecast` tiles gained the same `▲/▼ X% vs last mo.` chip as `Budget`/`Expenses`, so all
 four quadrant tiles now carry the same three-line layout (label, value, trend chip).
 Last month's comparison figure treats last month as closed: `lastAvgDaily = lastMonth.exp
@@ -514,7 +527,10 @@ live: Apps Script redeployed, Firebase project deleted. Owner should still doubl
 `sendDailyDigestPush` time trigger and the `FIREBASE_SA_JSON`/`FCM_PROJECT_ID` Script
 Properties are cleared — §6 checklist.
 
-**Pending:** the unscheduled candidate features (§6).
+**Phase G (recurring expenses) is DESIGNED but NOT BUILT** (2026-08-02) — the spec in §6
+answers all three open questions and is ready to execute; no code has shipped.
+
+**Pending:** Phase G's build, then the remaining unscheduled candidate features (§6).
 
 ---
 
@@ -567,6 +583,89 @@ from `Code.gs`, and rewrote the product model here (§0).
 4. ✅ Firebase project `project-alfred-f7575` **deleted**. Optionally also delete the
    now-inert `PushSubs` tab in the Sheet.
 
+### Phase G — Recurring expenses 📐 DESIGNED (2026-08-02), NOT BUILT
+
+Rent, subscriptions and standing bills are the same figure every period, so logging them
+by hand is pure friction — and forgetting to log them makes budget-left, forecast and pace
+wrong in a way the surfaces can't reveal. A series is defined once; its entries
+materialize into the ledger on their own.
+
+**The three open questions, answered:**
+
+| Question | Decision |
+|---|---|
+| Where generation runs | **Client-side on app open.** Reuses `saveReviewAll()`'s sequential batch writer and the whole optimistic-write stack; no time trigger, no new endpoint for row writes. |
+| How far ahead rows are created | **Never ahead — up to today only.** |
+| How to edit/stop a series | **Forward-only edits**, plus pause and delete, from a sheet on the Logs page. |
+
+Plus two scope calls: definitions live in a new **`Recurring` tab** in the same Sheet
+(synced across devices, survives a reinstall, hand-inspectable), and the feature covers
+**income as well as expenses** — a recurring salary populates the month's budget, which
+matters because a month's budget *is* its logged income (§0).
+
+**Why never future-dated (load-bearing, not taste).** Every live-month figure divides by
+*elapsed* days — `avgDaily = totalExpense ÷ days elapsed`, `forecast = avgDaily ×
+daysInMonth`, the pace bar's `usedPct`/`monthPct`, the patterns chip's `elapsedDays`
+divisor — and the patterns grid dashes future cells (`hm-future`). A pre-written future
+row silently corrupts all of them. "What's coming" is an **unwritten `Next …` preview**
+in the sheet instead. (`validDate()` in `Code.gs` already clamps anything >2 days out back
+to today; `handleAdd` doesn't call it, but the intent is on the record.)
+
+**`Recurring` tab** — `Sheet1` untouched; read client-side via a second GViz query
+(`&sheet=Recurring`). Columns: `SeriesID` · `User` · `Type` · `Amount` · `Category` ·
+`Description` · `Cadence` (`daily`/`weekly`/`monthly`) · `StartDate` (sets the weekday for
+weekly, the day-of-month for monthly) · `EndDate` (blank = open-ended; **reserved, no UI
+this phase** — included now to avoid a Sheet migration later) · `Active` (the pause flag) ·
+`Created`. Generated rows carry a new Source value **`recurring`** in `Sheet1` col E.
+
+**Idempotency — derived UIDs, arbitrated server-side.** Each occurrence gets
+**`rc-<seriesId>-<YYYYMMDD>`**, which computes identically from any device on any day.
+(§1's "UID format is opaque" rule governs *reading* UIDs; minting our own structured one is
+fine.) Two guards, because the GViz read cache lags writes by seconds: the client skips any
+UID already in `allRows`, and `handleAdd` gains a duplicate guard — if a supplied `uid`
+already resolves via `findRowByUID`, return `{success:true, uid, duplicate:true}` without
+appending. Cost: one extra O(rows) column scan per add, negligible at this data scale.
+
+**Generation** (`materializeRecurring()`) runs **after first paint, never awaited**, so a
+slow or missing `Recurring` tab can't delay or break load (§8: make optional calls
+non-blocking). A missing tab makes GViz return an error — catch it and treat as "no
+series". For each active series belonging to `activeUser`, enumerate occurrences from
+`StartDate` by cadence, stopping at today (or `EndDate`), skipping UIDs already present.
+**Monthly clamps to the month's last day** (a series on the 31st fires the 30th in
+November, the 28th/29th in February). Backfill is bounded by the create form's date `min`
+of today — a *new* series can never backfill — with a hard cap of 60 occurrences per run.
+On success: `applyLocalRender()` (bumps `dataStamp`; never call `renderLogsLedger()`
+directly) and a quiet toast, `Added 2 recurring entries`.
+
+**UI** — a second `.icon-btn` in `.logs-toolbar` (repeat glyph) opens `#recurring-overlay`.
+Use a **plain centered `.modal-overlay`, not `.align-bottom`** — that variant's
+`transform-origin` is FAB-anchored (§3.3 derived numbers), so a toolbar-triggered sheet
+would spring from the wrong place. **One overlay, two panes** (`#recurring-list-pane` ⇄
+`#recurring-form-pane`) swapped in place, because `trapModalFocus` supports exactly one
+trap at a time and stacking would clobber the return-focus chain — the same idiom the txn
+modal uses for `#modal-confirm`. Escape backs form → list, then closes. List rows reuse
+`.export-choice`; the form reuses `.type-toggle` (Expense/**Budget**), `.form-input`,
+`.form-select`; delete reuses the `.btn-danger` → `.btn-danger-solid` escalation, with copy
+stating plainly that **already-generated rows stay** (they're ordinary ledger rows from the
+moment they exist — edited or deleted individually through the txn modal).
+
+**Backend** — one new action: `case 'recurring':` → `handleRecurring(data)`, switching on
+`data.op` (`add`/`edit`/`delete`) internally against the new tab. One action rather than
+three keeps the surface as close to the "no new backend endpoints" rule as the feature
+allows. `getRecurringSheet()` follows `getSheet()`'s shape and **creates the tab with its
+header row if missing**, so there's no manual setup.
+
+**Also in scope:** `mapGvizRows` reads col E into `Source` (safe — `rowSig` uses explicit
+fields, `exportCSV` builds columns explicitly); the month-0-index correction is extracted
+into a shared `gvizDateToIso()` used by both tabs; `populateCategoryOptions()` takes a
+select id; and **`_insightRecurring()` excludes `Source === 'recurring'` rows** — it infers
+recurring charges from amounts stable across ≥3 months, and generated rows are *perfectly*
+stable, so without this the insight strip would report the user's own series back to them
+as a discovery.
+
+**Owner step after merge:** redeploy Apps Script via Manage deployments → **Edit** → new
+version. The `Recurring` tab is created automatically; no manual Sheet setup.
+
 ### Candidate features (refined 2026-07-19 — not yet phased)
 
 Each needs its own design/roadmap pass before building.
@@ -579,12 +678,9 @@ Each needs its own design/roadmap pass before building.
   the data model grows past "budget = the month's logged income" (§0) — needs a design
   pass on where trip rows live (tag/flag on rows vs. a separate sheet tab) before any
   build.
-- **Recurring expenses.** An expense that **auto-generates on a daily / weekly / monthly
-  schedule** (rent, subscriptions, standing bills), managed from a **pop-out sheet
-  within the Logs page**. Supersedes the old "future-dated entries UX" note. Open
-  questions for the design pass: where generation runs (an Apps Script time trigger
-  writing rows, mirroring the digest trigger, vs. client-side materialization on load),
-  how far ahead rows are created, and how to edit/stop a series.
+- **Recurring expenses.** ✅ **Designed 2026-08-02 — promoted to Phase G above.** The
+  design pass answered all three open questions; see that section for the spec. Not yet
+  built.
 - **"Spending patterns" — heatmap rebrand + controls. ✅ DONE (2026-07-21, §3.7).** The
   Trends heatmap was rebuilt as the "Spending patterns" card: retinted from capture-count
   to **spend-per-day** (owner-confirmed reframe; keeps the sienna ramp per §8 "steal
@@ -615,6 +711,17 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-02 — Phase G design pass (§6), no code:** the "Recurring expenses" candidate
+  became a specified phase. Decisions: client-side materialization on app open (over an
+  Apps Script time trigger — Phase F deleted every line of trigger code, and `Code.gs` has
+  no row-reading primitive to answer "did I already write this month's rent?", whereas
+  `saveReviewAll()` is already a working N-row optimistic batch writer); a `Recurring` tab
+  for definitions (over localStorage, which would be device-local and lose series on a
+  reinstall); silent auto-add with a toast (the amount was pre-approved when the series was
+  created); income included alongside expenses. Derived per-occurrence UIDs
+  (`rc-<seriesId>-<YYYYMMDD>`) plus a `handleAdd` duplicate guard make generation
+  idempotent across devices. **The only entry in this list that shipped no code** — recorded
+  because the decisions are load-bearing for the build that follows.
 - **2026-07-24 — Today quadrant chips (§3.5):** `Average Daily` / `Forecast` gained a
   `▲/▼ X% vs last mo.` chip, matching `Budget`/`Expenses` so all four quadrant tiles share
   the same label/value/chip layout. Last month is treated as closed for the comparison:
