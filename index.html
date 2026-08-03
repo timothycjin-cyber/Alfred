@@ -45,6 +45,11 @@
     --wash-expense: rgba(229, 62, 62, 0.04);
     --wash-neutral: rgba(33, 37, 41, 0.04);
     --wash-hero: rgba(33, 37, 41, 0.03);
+    /* Solid fill for the pace card's overspend status strip. Deliberately
+       deeper than --semantic-expense: that token is tuned for text ON the
+       surface, and white text on it clears only ~4.0:1 — this clears 4.5:1.
+       The semantic token keeps its own job (figures, bars, deltas). */
+    --strip-over: #D93A31;
     --shape-xs: 6px;
     --shape-sm: 10px;
     --shape-md: 14px;
@@ -93,6 +98,7 @@
       --wash-expense: rgba(255, 77, 77, 0.06);
       --wash-neutral: rgba(248, 249, 250, 0.06);
       --wash-hero: rgba(248, 249, 250, 0.04);
+      --strip-over: #C0392F;
     }
   }
 
@@ -719,13 +725,29 @@
     position: absolute; left: 50%; bottom: -3px; width: 7px; height: 7px;
     background: var(--on-surface); transform: translateX(-50%) rotate(45deg); border-radius: 1px;
   }
-  /* Quiet money verdict under the bars (replaces the old avg-daily/forecast
-     stats line): reuses the same forecast-vs-income comparison as the
-     Trends overspend glow, phrased as a single on/off-track line. */
-  .income-bar-verdict { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); margin-top: 20px; }
-  .income-bar-verdict b { font-weight: 900; }
-  .income-bar-verdict b.over { color: var(--semantic-expense); }
-  .income-bar-verdict b.under { color: var(--semantic-income); }
+  /* Status strip — the pace card's verdict, as a band flush with the card's
+     bottom edge (replaced the inline .income-bar-verdict text line). Same
+     forecast-vs-income comparison as before, phrased in plain language.
+     The negative margins reach the card's padding edge (inside its 1px
+     border) so the band is full-bleed without restructuring .card, and the
+     bottom corners mirror .card's asymmetric radius (lg xs lg xs → the
+     bottom pair is BR lg / BL xs). */
+  .income-bar-status {
+    display: flex; align-items: center; gap: 9px;
+    margin: 20px -1.25rem -1.25rem;
+    padding: 0.72rem 1.25rem;
+    font-size: 12.5px; font-weight: 700; line-height: 1.35;
+    border-radius: 0 0 var(--shape-lg) var(--shape-xs);
+  }
+  .income-bar-status svg { flex-shrink: 0; opacity: 0.95; }
+  /* Overspending is the only state that gets a solid fill — an alert reads as
+     an alert precisely because it isn't always on. On track stays quiet: the
+     same green wash the Budget tile uses, with the figure-colour text. */
+  .income-bar-status.over { background: var(--strip-over); color: #FFFFFF; }
+  .income-bar-status.under {
+    background: var(--wash-income); color: var(--semantic-income);
+    border-top: 1px solid var(--outline-variant);
+  }
 
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
   .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); padding: 4px 12px; border-radius: var(--shape-full); border: 1px solid var(--outline-variant); background: var(--surface-container-low); }
@@ -1681,12 +1703,15 @@ function toggleTodayDetail() {
 }
 
 // ── Live budget-pace card (Today only since refinement Phase C) ─────────────
-// The single pace surface: caption (% spent · % left), the used/left bar with
-// the "Today" month-pace marker, and a quiet stats line (avg daily · forecast,
-// same definitions as the Trends tiles — MTD ÷ elapsed days, × days in month).
-// The forecast figure turns semantic-red when it overshoots the month's
-// income. Caller guarantees the viewed month IS the current month — Trends
-// shows the archive card for closed months and nothing live.
+// The single pace surface: caption (Day X of N), the Spent/Month bars with the
+// shared "Today" month-pace marker, and the status strip banding the card's
+// bottom edge. Caller guarantees the viewed month IS the current month —
+// Trends shows the archive card for closed months and nothing live.
+
+// The status strip's leading glyph: an outline info circle, matching the
+// stroke weight of the other inline icons. Decorative — the strip's own text
+// carries the meaning — so it's aria-hidden.
+const STATUS_ICON_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><line x1="12" y1="11" x2="12" y2="16.5"/><line x1="12" y1="7.4" x2="12" y2="7.5"/></svg>`;
 
 // Both bars sit in a `60px label | 1fr track | 52px value` grid (12px gaps),
 // so the shared "Today" marker/bubble — positioned absolutely against the
@@ -1712,10 +1737,9 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   const avgDaily = totalExpense / today.getDate();
   const forecast = avgDaily * daysInMonth;
   // Equivalent to usedPct > monthPct (same forecast-vs-income comparison,
-  // scaled) — so the Spent bar's over-pace red and the verdict line always
+  // scaled) — so the Spent bar's over-pace red and the status strip always
   // agree on whether today's spend has crossed the Month line.
   const over = forecast > totalIncome;
-  const paceDiff = Math.abs(forecast - totalIncome);
 
   // Mount the bars at their previous state (or 0 on first render), then set
   // the real values a frame later so the width / left transitions actually
@@ -1741,9 +1765,12 @@ function renderLivePaceBar(totalIncome, totalExpense) {
         <span class="income-bar-val mut">${monthPct.toFixed(0)}%</span>
       </div>
     </div>
-    <div class="income-bar-verdict">${over
-      ? `<b class="over">Overspending</b> — off track by RM ${formatCurrency(paceDiff)}`
-      : `<b class="under">On track</b> — budget surplus of RM ${formatCurrency(paceDiff)}`}</div>
+    <div class="income-bar-status ${over ? 'over' : 'under'}">
+      ${STATUS_ICON_SVG}
+      ${over
+        ? 'Your spending is outpacing the budget'
+        : 'Your spending is on track and within budget'}
+    </div>
   `;
 
   requestAnimationFrame(() => requestAnimationFrame(() => {

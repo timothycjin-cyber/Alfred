@@ -1,6 +1,18 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-02 — **Today: two tiles + a tap-to-open detail panel (§3.5).** The
+*Last updated: 2026-08-03 — **Pace card: status strip (§3.5).** The budget-pace card's
+inline verdict line (`Overspending — off track by RM X`) is now a **status strip banding the
+card's bottom edge** (`.income-bar-status`): an info glyph and one plain-language sentence —
+`Your spending is outpacing the budget` / `Your spending is on track and within budget` —
+**with no ringgit figure** (the strip states the verdict; the bars carry the magnitude). The
+`over` boolean is unchanged (`forecast > income` ≡ `usedPct > monthPct`), so strip and Spent
+bar can't disagree. **Only overspending takes a solid fill** — on-track stays a quiet
+`--wash-income` tint, because an alert reads as an alert only if it isn't always on. New
+`--strip-over` token is **deeper than `--semantic-expense`** so white text clears 4.5:1
+(the semantic token clears ~4.0:1 and keeps its own job on figures/bars). Full-bleed via
+negative margins to `.card`'s padding edge — `.card` itself is untouched. **No strip in the
+no-budget state.** Render-loop verified 121/121. Prior banner (2026-08-02) — **Today: two
+tiles + a tap-to-open detail panel (§3.5).** The
 2×2 quadrant collapsed to **two headline tiles** (Budget · Expenses); `Average Daily` and
 `Forecast` moved into `#today-detail`, disclosed by tapping the **Expenses tile** (now a
 real `<button>`) — they're follow-up detail, and holding two of four tile slots overstated
@@ -11,7 +23,8 @@ the grid gap; `:empty` collapses it when closed. ⚠️ **`animateCounters()` on
 end of `calculateAndRender()`** — markup injected from the click handler must be swept
 explicitly or the figures stay at `RM 0.00`. Overspend red now reads *inside* the panel, so
 **the at-a-glance warning is the pace bar's verdict line** (same `forecast > income`
-boolean). Render-loop verified 78/78. Prior banner (same day) — **Phase G shipped (§3.13).**
+boolean — now the status strip above). Render-loop verified 78/78. Prior banner (same day) —
+**Phase G shipped (§3.13).**
 Recurring series are live in code:
 define rent, a subscription or a salary once and Alfred writes the entries itself. A series
 is a definition in a new **`Recurring` tab**; its occurrences are ordinary `Sheet1` rows
@@ -332,8 +345,8 @@ budget-pace card.**
   month`), keeping `data-key`s `today-avg`/`today-fc` — reusing the keys preserves
   `counterMemory` inertia and stays distinct from the Trends `an-avg`/`an-fc` tiles.
   When `forecast > totalIncome` both figures go **`.overspend`** semantic-red; that red now
-  reads *inside* the panel, so **the at-a-glance overspend warning is the pace bar's
-  verdict line**, driven by the same `forecast > income` comparison. **No `vs last mo.`
+  reads *inside* the panel, so **the at-a-glance overspend warning is the pace card's
+  status strip**, driven by the same `forecast > income` comparison. **No `vs last mo.`
   chips here** — a percentage against a projection is noise (the 2026-07-24 chips are
   reverted, and `lastAvgDaily`/`avgChangePct`/`fcChangePct` are gone with them).
   `todayDetailHtml()` is self-contained (computes from `monthTotals`, like
@@ -360,13 +373,24 @@ budget-pace card.**
   absolutely positioned against the whole wrap but must render aligned to the track
   column, not the full width — `paceMarkerLeft(pct)` offsets by the grid's fixed
   `label + gap` (`calc(72px + (100% - 136px) * pct)`); no clamping needed, since the
-  72px/64px side margins already exceed the bubble's ~27px half-width. Quiet verdict
-  line (`.income-bar-verdict`) reusing the same forecast-vs-income comparison as the
-  Trends overspend glow — `Overspending — off track by RM X` (semantic-expense) or `On
-  track — budget surplus of RM X` (semantic-income), where X = `|forecast − income|`
-  (avg daily = MTD spend ÷ elapsed days, forecast = avg daily × days in month); the same
-  `over` boolean drives both the verdict and the Spent bar's colour flip, since
-  `forecast > income` is algebraically equivalent to `usedPct > monthPct`.
+  72px/64px side margins already exceed the bubble's ~27px half-width. The card closes on
+  a **status strip** (`.income-bar-status`, 2026-08-03 — replaced the inline
+  `.income-bar-verdict` text line), a band **flush with the card's bottom edge**: an
+  info glyph plus one plain-language sentence, `Your spending is outpacing the budget` or
+  `Your spending is on track and within budget`. **No ringgit figure** — the strip states
+  the verdict, the bars carry the magnitude. Same `over` boolean as before
+  (`forecast > income`, algebraically `usedPct > monthPct`, avg daily = MTD spend ÷
+  elapsed days), so the strip and the Spent bar's colour flip can never disagree.
+  **Only overspending gets a solid fill** (`--strip-over`, white text): an alert reads as
+  an alert because it isn't always on, so on-track stays quiet — `--wash-income`
+  background, `--semantic-income` text, hairline top border. `--strip-over` is
+  deliberately **deeper than `--semantic-expense`** (#D93A31 / #C0392F dark): the semantic
+  token is tuned for text *on* the surface and clears only ~4.0:1 under white, where the
+  strip token clears 4.5:1. Full-bleed comes from negative margins
+  (`20px -1.25rem -1.25rem`) reaching `.card`'s padding edge inside its 1px border — no
+  restructuring of `.card` — and the bottom corners mirror its asymmetric radius
+  (`0 0 var(--shape-lg) var(--shape-xs)`). No strip in the no-budget state: "within
+  budget" with no budget would be a false statement.
   `paceBarMemory` (single, nulled when hidden) feeds the mount-then-spring for both bars'
   widths and the marker/bubble position.
 - **Current-month-only rule:** glance + pace render only for the real current month.
@@ -823,6 +847,31 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-03 — Pace card status strip (§3.5):** the budget-pace card's inline verdict
+  line became a full-bleed band at the card's bottom edge, styled after a reference the
+  owner supplied (a card closing on a solid alert strip). Copy is owner-specified and
+  carries **no ringgit figure** — the verdict is qualitative, the bars are where magnitude
+  lives; that drops the `paceDiff` math the old line used. **The math underneath did not
+  change**: the same `over = forecast > totalIncome` boolean that flips the Spent bar
+  sienna→red drives the strip, so the two surfaces are incapable of disagreeing — worth
+  reusing rather than re-deriving "overspending relative to days elapsed" a second time.
+  Two decisions worth keeping: **only overspending gets a solid fill** (on-track is a
+  quiet `--wash-income` tint with green text), since a permanently-coloured band would
+  make the alert state unreadable *as* an alert and would put semantic colour to
+  decorative use against §3.2; and the new **`--strip-over` token is deeper than
+  `--semantic-expense`** (#D93A31 / #C0392F) because the semantic token is tuned for text
+  *on* a surface and only clears ~4.0:1 under white — reusing it would have quietly
+  shipped sub-4.5:1 body text. Full-bleed is negative margins reaching `.card`'s padding
+  edge inside its 1px border, with the bottom corners mirroring the card's asymmetric
+  radius, so `.card` needed no `overflow` change or restructuring. **No strip when no
+  budget is set** — "within budget" with no budget is a false statement, and the card
+  already returns early with its own caption there. Render-loop verified (§3.12; 390/900 ×
+  light/dark + reduced-motion, mocked GViz, stubbed Chart.js, clock pinned to 2026-08-18):
+  **121/121**, including strip geometry measured against the card box (full-bleed to the
+  pixel, flush bottom), computed white-on-fill contrast ≥ 4.5:1 asserted directly rather
+  than eyeballed, both copy strings exact, the Spent bar agreeing with the strip in both
+  states, the glance line above verified *unchanged*, the strip flipping to overspending
+  through an optimistic local add, and `scrollWidth == clientWidth` across tab flips.
 - **2026-08-02 — Today: two tiles + a detail panel (§3.5):** the 2×2 quadrant collapsed to
   **two headline tiles**; `Average Daily` + `Forecast` moved into `#today-detail`, one tap
   under the **Expenses tile**, which became a real `<button>` (`aria-expanded`,
