@@ -10,9 +10,11 @@ row. `pieLabelsPlugin` and `variableRadiusPlugin` are **deleted** — nothing is
 canvas but arcs, and `Chart.register()` now takes `heroBaselinePlugin` alone. ⚠️
 `variableRadius` scaled `outerRadius` only, so keeping it would have varied **ring thickness**
 per segment. ⚠️ The render **wipes `#donut-container.innerHTML`**, so the centre overlay is
-re-injected in that same statement. `.charts-row` is **gone** — the donut and cumulative
+re-injected in that same statement. ⚠️ **A single category is a full circle with no ends** —
+`spacing` *and* `borderRadius` are both guarded to `0` there, or the ring shows a seam / a
+pinched beak at 12 o'clock. `.charts-row` is **gone** — the donut and cumulative
 cards are separate full-width blocks (`#category-card` / `#cumulative-card`). Render-loop
-verified 363/363. Two harness lessons that first shipped a false pass: a frozen `Date.now()`
+verified 393/393. Two harness lessons that first shipped a false pass: a frozen `Date.now()`
 freezes **Chart.js's animator** (arcs stay at circumference 0 — blank ring, green
 assertions), and a chart's config being right is no evidence it **painted** — read pixels
 back, sampling a segment's mid-angle, since 12 o'clock is a seam once `spacing` is on.
@@ -507,8 +509,11 @@ card a large dead area.
     callouts and is down to `4`. `variableRadius` had to go on correctness as well as
     taste — it scaled `outerRadius` per arc but never `innerRadius`, so with a `cutout` set
     it would make **ring thickness vary per segment**.
-  - `spacing` is guarded to `0` for a single category — on a lone full-circle arc it cuts a
-    visible seam. `borderWidth:0` also retires a latent bug: the old
+  - **A single category is a full circle, so it has no ends** — both `spacing` *and*
+    `borderRadius` are guarded to `0` there (`vCatData.length > 1 ? … : 0`). `spacing` would
+    cut a seam into a closed ring, and rounding two caps that meet at 12 o'clock pinches them
+    into a visible beak; with both off it closes cleanly. `borderWidth:0` also retires a
+    latent bug: the old
     `borderColor: 'var(--surface-container-low)'` never worked, since canvas 2D can't
     resolve a CSS custom property.
   - **Centre total is an HTML overlay** (`.donut-center`), not canvas text — so it gets the
@@ -895,6 +900,17 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-04 — Single-category donut closes into a clean ring (§3.7):** with one category
+  the ring is a single full-circle arc, so `borderRadius:12` rounded two caps that meet at
+  12 o'clock and pinched them into a visible beak (owner-reported, RM 289.10 / Food & Dining
+  month). `borderRadius` is now guarded to `0` alongside the `spacing` guard that was already
+  there — a full circle has no ends to round. **The lesson is in the test, not the fix:** the
+  ring-continuity probe written for exactly this case walked the ring's *mid-band* and
+  **passed against the unfixed code**, because the notch bites in from the inner edge while
+  the caps still touch at mid-radius. Sampling three radii (inner/mid/outer) the whole way
+  round reports 14 transparent pixels clustered at 0–358°, precisely at 12 o'clock. Verified
+  as a negative control before the fix went back in. 393/393 (up from 363; six new
+  single-category checks).
 - **2026-08-04 — Trends: segmented donut + category breakdown (§3.7):** the "Expenses by
   Category" pie became a **segmented donut** (gapped, round-capped arcs via `spacing` +
   `borderRadius`) with the month's expense total in the hole and a **ranked category list**
@@ -1184,6 +1200,11 @@ woven into §3.
   arc radii and colours can all be correct while the canvas is blank. Reading pixels back
   (`getImageData`) is the only check that catches it — and sample a segment's *mid-angle*,
   since 12 o'clock is a seam once `spacing` is on.
+- **Run a new pixel probe as a negative control before trusting it.** The single-category
+  ring-continuity check walked the ring's *mid-band* and passed against the very defect it
+  was written for: rounded caps bite a notch out of the **inner** edge while still touching
+  at mid-radius. One radius is not a ring — sample inner, mid and outer. A probe that has
+  never been seen to fail is not evidence of anything.
 - **Pinning a clock in the render loop freezes Chart.js too.** Its animator reads
   `Date.now()`, so a constant stub leaves every arc at circumference 0 — a blank chart that
   config-level assertions pass happily. Pin the *date* with an offset that still advances.
