@@ -466,19 +466,71 @@
     animation-delay: var(--d, 0ms);
   }
 
-  .charts-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 16px;
-    margin-bottom: 1.5rem;
-    width: 100%;
+  /* The category card and the cumulative card are separate full-width blocks
+     rather than a two-up grid: the category card carries a breakdown list under
+     its donut, so pairing them would leave the shorter card a large dead area.
+     Longhand margins only — the mobile rule below sets margin-left/right at the
+     same specificity, and a `margin` shorthand here would clobber the centering. */
+  #category-card { margin-bottom: 12px; }
+  #cumulative-card { margin-bottom: 1.5rem; }
+
+  /* Donut over list on a phone; donut beside list once there's width to spend.
+     minmax(0, ..) stops the canvas's intrinsic size from blowing out past its
+     track and drifting off-center. */
+  .cat-card-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  @media (min-width: 769px) {
+    .cat-card-body {
+      grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+      align-items: center;
+    }
   }
-  /* minmax(0, ..) stops a grid item's intrinsic content (canvas, nowrap legend
-     text) from blowing out past its track's width and drifting off-center. */
-  .charts-row > .card { min-width: 0; }
+
+  /* Total sits in the ring's hole as real DOM, not canvas text — so it picks up
+     the theme tokens, the UI font, and the .counter-val inertia sweep. */
+  .donut-center {
+    position: absolute; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  }
+  .donut-center-lbl {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--on-surface-variant);
+  }
+  .donut-center-val {
+    font-size: 20px; font-weight: 900; letter-spacing: -0.02em; color: var(--on-surface);
+  }
+
+  /* Category breakdown — the ring's legend, carrying every name, share and
+     amount the retired on-canvas callouts used to. Rows sit inside a .card that
+     already has a border, so they get hairline separators, not a nested box. */
+  .cat-row {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--outline-variant);
+    animation: rowIn var(--motion-snap) backwards;
+    animation-delay: var(--d, 0ms);
+  }
+  .cat-row:first-child { padding-top: 0; }
+  .cat-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .cat-top { display: flex; align-items: center; gap: 12px; }
+  .cat-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .cat-name {
+    font-size: 13.5px; font-weight: 700; color: var(--on-surface); line-height: 1.25;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .cat-share { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
+  .cat-amt { font-size: 13.5px; font-weight: 800; color: var(--on-surface); flex-shrink: 0; }
+  /* Same metrics as .week-bar, but the fill takes the category's own hue —
+     semantic red stays reserved for expense figures, never decoration. */
+  .cat-bar {
+    height: 6px; border-radius: var(--shape-full);
+    background: var(--surface-container); margin-top: 10px; overflow: hidden;
+  }
+  .cat-bar-fill {
+    height: 100%; border-radius: var(--shape-full); width: 0;
+    transition: width var(--motion-wobble);
+  }
+  .cat-empty { font-size: 13px; color: var(--on-surface-variant); padding: 4px 0; }
 
   @media (max-width: 768px) {
-    .charts-row { grid-template-columns: minmax(0, 1fr); }
     /* Every Trends block shares one width + centering so nothing drifts. */
     #trends-view > * {
       max-width: 440px;
@@ -1252,25 +1304,26 @@
       <div id="income-bar-block"></div>
     </div>
     <div id="spending-patterns"></div>
-    <div class="charts-row">
-      <div class="card">
-        <div class="card-title">Expenses by Category</div>
-        <div id="donut-container" style="position:relative; width:100%; height:300px">
+    <div class="card" id="category-card">
+      <div class="card-title">Expenses by Category</div>
+      <div class="cat-card-body">
+        <div id="donut-container" style="position:relative; width:100%; height:260px">
           <canvas id="donut"></canvas>
         </div>
+        <div id="category-breakdown"></div>
       </div>
-      <div class="card">
-        <div class="card-title">Cumulative Spend</div>
-        <div id="cumulative-line-container" style="position:relative; width:100%; height:200px">
-          <canvas id="cumulative-line"></canvas>
+    </div>
+    <div class="card" id="cumulative-card">
+      <div class="card-title">Cumulative Spend</div>
+      <div id="cumulative-line-container" style="position:relative; width:100%; height:200px">
+        <canvas id="cumulative-line"></canvas>
+      </div>
+      <div class="custom-pill-legend">
+        <div class="pill-item">
+          <div class="pill-dot pill-dot-this"></div>This month
         </div>
-        <div class="custom-pill-legend">
-          <div class="pill-item">
-            <div class="pill-dot pill-dot-this"></div>This month
-          </div>
-          <div class="pill-item">
-            <div class="pill-dot pill-dot-last"></div>Last month
-          </div>
+        <div class="pill-item">
+          <div class="pill-dot pill-dot-last"></div>Last month
         </div>
       </div>
     </div>
@@ -2090,6 +2143,41 @@ function archiveCardHtml({ net, expense, topCat, topAmt, daysLogged, daysInMonth
     </div>`;
 }
 
+// The donut's legend, in DOM. Replaced the on-canvas name/amount callouts and
+// on-slice percentages (retired 2026-08-04) — those were the only way to read a
+// slice, and they had to lay themselves out by hand around the ring. A ranked
+// list says the same thing with real text, and can carry share-of-total besides.
+// catData arrives already sorted descending from vCatData.
+// Bars scale to share of total, matching the "% of total" printed on the same
+// row — not to share of max, which would make the top row's bar always full.
+function categoryBreakdownHtml(catData, total) {
+  if (!catData.length || total <= 0) {
+    return `<div class="cat-empty">No expenses logged this month.</div>`;
+  }
+  return catData.map(([cat, amt], i) => {
+    const hex = (CAT_COLORS[cat] || CAT_COLORS['Other']).hex;
+    const icon = CAT_ICONS[cat] || CAT_ICONS['Other'];
+    const pct = (amt / total) * 100;
+    // One decimal below 10% so small categories don't all collapse to the same
+    // rounded integer; whole numbers above it, where the extra digit is noise.
+    const pctStr = pct < 10 ? pct.toFixed(1) : pct.toFixed(0);
+    return `
+      <div class="cat-row" style="--d:${Math.min(i, 10) * 35}ms">
+        <div class="cat-top">
+          <div class="txn-icon-chip" style="background:${hexToRgba(hex, 0.14)}">${icon}</div>
+          <div class="cat-meta">
+            <div class="cat-name">${escapeHtml(cat)}</div>
+            <div class="cat-share">${pctStr}% of total</div>
+          </div>
+          <span class="cat-amt">RM ${formatCurrency(amt)}</span>
+        </div>
+        <div class="cat-bar">
+          <div class="cat-bar-fill" data-w="${pct.toFixed(2)}" style="background:${hex}"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
 // ── Spending patterns (§6 candidate #3) ─────────────────────────────────────
 // The Trends cell grid, tinted by how much was SPENT each day (sienna intensity
 // ramp — never red/green, those stay semantic). A Weekly/Monthly toggle scopes
@@ -2607,123 +2695,6 @@ function triggerDownload(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-const pieLabelsPlugin = {
-  id: 'pieLabels',
-  afterDatasetsDraw: (chart) => {
-    if (chart.canvas.id !== 'donut') return;
-    const meta = chart.getDatasetMeta(0);
-    const dataset = chart.data.datasets[0];
-    if (!meta.data.length) return;
-    const total = dataset.data.reduce((a, b) => a + b, 0);
-    if (!total) return;
-
-    const { ctx } = chart;
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    // Bold % centered inside the slice — only where it's wide enough to hold it.
-    meta.data.forEach((arc, i) => {
-      const pct = (dataset.data[i] / total) * 100;
-      if (pct < 8) return;
-      const pos = arc.tooltipPosition();
-      ctx.save();
-      ctx.font = '800 13px -apple-system, sans-serif';
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.shadowColor = 'rgba(0,0,0,0.35)';
-      ctx.shadowBlur = 3;
-      ctx.fillText(Math.round(pct) + '%', pos.x, pos.y);
-      ctx.restore();
-    });
-
-    // Every slice gets a name + amount callout (tooltips are disabled, so
-    // this is the only way to identify small categories). Callouts route to
-    // a left or right column by slice angle, then get pushed apart
-    // vertically so clustered thin slices never overlap.
-    const sides = { left: [], right: [] };
-    meta.data.forEach((arc, i) => {
-      const angle = (arc.startAngle + arc.endAngle) / 2;
-      const cos = Math.cos(angle), sin = Math.sin(angle);
-      sides[cos >= 0 ? 'right' : 'left'].push({
-        i, cos,
-        edgeX: arc.x + cos * arc.outerRadius,
-        edgeY: arc.y + sin * arc.outerRadius,
-        y: arc.y + sin * (arc.outerRadius + 16)
-      });
-    });
-
-    const minGap = 32; // two-line text block is ~30px tall
-    for (const side of ['left', 'right']) {
-      const items = sides[side].sort((a, b) => a.y - b.y);
-      for (let k = 1; k < items.length; k++)
-        if (items[k].y < items[k - 1].y + minGap) items[k].y = items[k - 1].y + minGap;
-      // Keep the stack on-canvas: shift up if it ran off the bottom, then
-      // clamp the top and re-space downward.
-      if (items.length) {
-        const overflow = items[items.length - 1].y + 16 - chart.height;
-        if (overflow > 0) items.forEach(it => { it.y -= overflow; });
-        items[0].y = Math.max(items[0].y, 18);
-        for (let k = 1; k < items.length; k++)
-          if (items[k].y < items[k - 1].y + minGap) items[k].y = items[k - 1].y + minGap;
-      }
-
-      for (const it of items) {
-        const right = side === 'right';
-        const hx = right ? chart.chartArea.right + 40 : chart.chartArea.left - 40;
-        const name = chart.data.labels[it.i].split(' ')[0];
-        const amt = 'RM ' + formatCurrency(dataset.data[it.i]);
-
-        ctx.save();
-        ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
-        ctx.lineWidth = 1;
-
-        // One straight segment from slice edge to just short of the text.
-        // Anchors and labels share the same top-to-bottom order (both follow
-        // slice angle, and de-collision preserves it), so straight leaders
-        // can never cross — the old radial-stub elbow could, when adjacent
-        // small slices had their labels pushed apart.
-        ctx.font = '800 11.5px -apple-system, sans-serif';
-        const nameW = ctx.measureText(name).width;
-        ctx.font = '600 10px -apple-system, sans-serif';
-        const blockW = Math.max(nameW, ctx.measureText(amt).width);
-        const lineEndX = right ? hx - blockW - 6 : hx + blockW + 6;
-
-        ctx.beginPath();
-        ctx.moveTo(it.edgeX, it.edgeY);
-        ctx.lineTo(lineEndX, it.y);
-        ctx.stroke();
-
-        ctx.textAlign = right ? 'right' : 'left';
-        ctx.font = '800 11.5px -apple-system, sans-serif';
-        ctx.fillStyle = isDark ? '#F8F9FA' : '#212529';
-        ctx.fillText(name, hx, it.y - 3);
-        ctx.font = '600 10px -apple-system, sans-serif';
-        ctx.fillStyle = isDark ? '#ADB5BD' : '#6C757D';
-        ctx.fillText(amt, hx, it.y + 12);
-        ctx.restore();
-      }
-    }
-  }
-};
-// Scale each slice's outer radius slightly by its share of the largest
-// category — just enough to hint at hierarchy without an ungainly lopsided
-// circle when one category (usually Food) dominates.
-// Runs every draw frame so the values never compound.
-const variableRadiusPlugin = {
-  id: 'variableRadius',
-  beforeDatasetsDraw: (chart) => {
-    if (chart.canvas.id !== 'donut') return;
-    const meta = chart.getDatasetMeta(0);
-    const data = chart.data.datasets[0].data;
-    if (!meta.data.length) return;
-    const maxVal = Math.max(...data);
-    if (!maxVal) return;
-    const base = meta.controller.outerRadius;
-    meta.data.forEach((arc, i) => {
-      arc.outerRadius = base * (0.92 + 0.08 * (data[i] / maxVal));
-    });
-  }
-};
 // Faint zero line behind the hero trend bars so negative months read as
 // "below the line" instead of vanishing (paired with minBarLength on the
 // dataset, which guarantees every month at least a visible sliver).
@@ -2747,7 +2718,7 @@ const heroBaselinePlugin = {
     ctx.restore();
   }
 };
-Chart.register(variableRadiusPlugin, pieLabelsPlugin, heroBaselinePlugin);
+Chart.register(heroBaselinePlugin);
 if (REDUCED_MOTION) Chart.defaults.animation = false;
 
 function animateCounters() {
@@ -3458,31 +3429,64 @@ function calculateAndRender() {
       document.getElementById('income-bar-block').innerHTML = '';
     }
 
+    // Segmented donut + centre total + breakdown list. The centre figure is an
+    // HTML overlay, not canvas text: it lands inside the ring's hole with the UI
+    // font, the theme tokens and the .counter-val inertia sweep (animateCounters()
+    // runs at the end of this render, so it needs no explicit call). The container
+    // is wiped on every render, so the overlay has to be re-injected with it.
     const donutContainer = document.getElementById('donut-container');
-    if (donutContainer) donutContainer.innerHTML = '<canvas id="donut"></canvas>';
+    const hasCats = vCatData.length > 0 && vExpense > 0;
+    if (donutContainer) {
+      donutContainer.innerHTML = '<canvas id="donut"></canvas>' + (hasCats ? `
+        <div class="donut-center">
+          <div class="donut-center-lbl">Total Expenses</div>
+          <div class="donut-center-val counter-val" data-key="an-cat-total"
+               data-val="${vExpense}" data-prefix="RM "></div>
+        </div>` : '');
+      donutContainer.style.display = hasCats ? '' : 'none';
+    }
 
     if (donutChart) donutChart.destroy();
-    if (vCatData.length) {
+    if (hasCats) {
       donutChart = new Chart(document.getElementById('donut'), {
-        type: 'pie',
+        type: 'doughnut',
         data: {
           labels: vCatData.map(d => d[0]),
           datasets: [{
             data: vCatData.map(d => d[1]),
             backgroundColor: vCatData.map(([cat]) => (CAT_COLORS[cat] || CAT_COLORS["Other"]).hex),
-            borderWidth: 1,
-            borderColor: 'var(--surface-container-low)',
+            // spacing + borderRadius make the gapped, round-capped segments;
+            // a border would have to know the card's surface colour, and the
+            // old borderColor never worked — canvas can't resolve a CSS var.
+            borderWidth: 0,
+            // A lone category is a full circle: spacing would cut a seam in it.
+            spacing: vCatData.length > 1 ? 6 : 0,
+            borderRadius: 12,
             offset: 0
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          radius: '90%',
-          layout: { padding: { top: 36, bottom: 36, left: 52, right: 52 } },
+          radius: '92%',
+          cutout: '70%',
+          layout: { padding: 4 },
           plugins: { legend: { display: false }, tooltip: { enabled: false } }
         }
       });
+    } else {
+      donutChart = null;
+    }
+
+    const breakdownEl = document.getElementById('category-breakdown');
+    if (breakdownEl) {
+      breakdownEl.innerHTML = categoryBreakdownHtml(vCatData, vExpense);
+      // Mount-then-spring: the fills are born at width 0 and get their real
+      // width one frame later, so the wobble transition actually fires.
+      const fills = breakdownEl.querySelectorAll('.cat-bar-fill');
+      const paint = () => fills.forEach(f => { f.style.width = f.dataset.w + '%'; });
+      if (REDUCED_MOTION) paint();
+      else requestAnimationFrame(() => requestAnimationFrame(paint));
     }
 
     let lastMo = viewMonth - 1, lastYr = viewYear;

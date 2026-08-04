@@ -1,6 +1,22 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-03 — **Pace card: status strip (§3.5).** The budget-pace card's
+*Last updated: 2026-08-04 — **Trends: segmented donut + category breakdown (§3.7).** The
+"Expenses by Category" pie is now a **segmented donut** (`cutout:'70%'`, `spacing:6`,
+`borderRadius:12`) with the month's expense total in the hole as an **HTML overlay**
+(`.donut-center`, a `.counter-val`), and a **ranked category list** below it — icon, name,
+`X% of total`, amount, and a share bar in the category's own colour, scaled to share of
+total. **Expenses only** (no remaining-budget segment) and **no `vs last month` chip** per
+row. `pieLabelsPlugin` and `variableRadiusPlugin` are **deleted** — nothing is drawn on that
+canvas but arcs, and `Chart.register()` now takes `heroBaselinePlugin` alone. ⚠️
+`variableRadius` scaled `outerRadius` only, so keeping it would have varied **ring thickness**
+per segment. ⚠️ The render **wipes `#donut-container.innerHTML`**, so the centre overlay is
+re-injected in that same statement. `.charts-row` is **gone** — the donut and cumulative
+cards are separate full-width blocks (`#category-card` / `#cumulative-card`). Render-loop
+verified 363/363. Two harness lessons that first shipped a false pass: a frozen `Date.now()`
+freezes **Chart.js's animator** (arcs stay at circumference 0 — blank ring, green
+assertions), and a chart's config being right is no evidence it **painted** — read pixels
+back, sampling a segment's mid-angle, since 12 o'clock is a seam once `spacing` is on.
+Prior banner (2026-08-03) — **Pace card: status strip (§3.5).** The budget-pace card's
 inline verdict line (`Overspending — off track by RM X`) is now a **status strip banding the
 card's bottom edge** (`.income-bar-status`): an info glyph and one plain-language sentence —
 `Your spending is outpacing the budget` / `Your spending is on track and within budget` —
@@ -240,7 +256,11 @@ bar; the Trends cell grid = sienna intensity ramp** (the only cell grid). The gr
 retinted from capture-count to **spend-per-day** (2026-07-21, §3.7) — sienna reads as
 *heat*, not money valence, so **semantic red stays reserved for expense/overspend
 figures and deltas**; a whole grid never goes red/green. (Earlier framing was "cells for
-habit" when the grid counted logging activity; that habit metric is retired.)
+habit" when the grid counted logging activity; that habit metric is retired.) The Trends
+donut follows the same grammar (2026-08-04): the ring is a **shape**, carrying no text of
+its own, and the category list beneath it does the labelling — with the per-row share bar
+being the same horizontal-bar-for-magnitude idiom, tinted by the **category palette**, never
+semantic red.
 
 **Motion tokens:** `--motion-wobble` (overshoot spring; hero/tile/chip pop-ins, FAB
 bloom, bar transitions), `--motion-snap` (taps), `--motion-wobble-nav` (nav-only, ≈20%
@@ -430,8 +450,11 @@ over **all** the user's rows. Bars for money; no cell grids here.
 
 Everything computes from `viewMonth` (`vRows`/`vIncome`/`vExpense`/`vCatData`).
 Composition (resequenced 2026-07-23): insight strip → tiles (closed months only) →
-archive card slot → spending patterns → pie → cumulative line → archive shelf (bottom).
-The pie now precedes the cumulative line inside `.charts-row`.
+archive card slot → spending patterns → donut → cumulative line → archive shelf (bottom).
+The donut card (`#category-card`) and the cumulative card (`#cumulative-card`) are now
+**separate full-width blocks**, not a two-up grid — `.charts-row` was deleted 2026-08-04,
+because the donut card carries a breakdown list under it and pairing them left the shorter
+card a large dead area.
 
 - **Insight strip** (`#trends-insight`, `.insight-card`, "What I noticed"):
   - **Deterministic engine** (`buildAnalyticsInsight()` → rendered by
@@ -474,12 +497,37 @@ The pie now precedes the cumulative line inside `.charts-row`.
   X of N, quiet pace verdict).
 - **Cumulative line:** current cumulative vs "last month" (= viewMonth−1) reference line
   in outline gray per theme (`#6C757D`/`#ADB5BD`) — reference, not warning.
-- **Pie:** solid, variable-radius (`0.92 + 0.08 × share` — restraint deliberate),
-  `pieLabelsPlugin` on-slice bold %s (≥8%) + name+amount callouts with elbow leaders for
-  **every** slice (tooltips disabled; callouts route left/right by angle, de-collide
-  vertically, 32px min gap). Drawn in `layout.padding`; pie at `radius:'90%'` in a
-  380px container. ⚠️ **Both plugins gated on `chart.canvas.id === 'donut'`** — ungated
-  plugins bleed onto every chart.
+- **Donut + category breakdown** (`#category-card`, redesigned 2026-08-04 — replaced the
+  solid variable-radius pie): a **segmented donut** (`type:'doughnut'`, `cutout:'70%'`,
+  `radius:'92%'`, `spacing:6`, `borderRadius:12`, `borderWidth:0`) in a 260px container,
+  the month's expense total in the hole, and a **ranked category list** below.
+  - **Nothing is drawn on the canvas but arcs.** `pieLabelsPlugin` (on-slice %s + elbow
+    callouts) and `variableRadiusPlugin` are **deleted**; `Chart.register()` now takes
+    `heroBaselinePlugin` alone. The old `layout.padding` of 52/36 existed only to hold the
+    callouts and is down to `4`. `variableRadius` had to go on correctness as well as
+    taste — it scaled `outerRadius` per arc but never `innerRadius`, so with a `cutout` set
+    it would make **ring thickness vary per segment**.
+  - `spacing` is guarded to `0` for a single category — on a lone full-circle arc it cuts a
+    visible seam. `borderWidth:0` also retires a latent bug: the old
+    `borderColor: 'var(--surface-container-low)'` never worked, since canvas 2D can't
+    resolve a CSS custom property.
+  - **Centre total is an HTML overlay** (`.donut-center`), not canvas text — so it gets the
+    UI font, the theme tokens and `.counter-val` inertia (`data-key="an-cat-total"`, swept
+    by the `animateCounters()` call that already ends `calculateAndRender()`). ⚠️ The render
+    **wipes `#donut-container.innerHTML`** each pass, so the overlay is re-injected in that
+    same statement or it vanishes on re-render.
+  - **List** (`categoryBreakdownHtml()` → `#category-breakdown`): icon chip (reusing
+    `.txn-icon-chip` + `hexToRgba(hex, 0.14)`), name, `X% of total`, amount, and a share bar
+    in the category's own hue on `.week-bar`'s metrics. Bars scale to **share of total**,
+    matching the percentage printed on the same row — not share of max, which would always
+    fill the top row. Shares print one decimal below 10% so small categories don't all
+    round to the same integer. Bars mount at `width:0` and get their real width one frame
+    later (the pace-bar mount-then-spring idiom). Rows are hairline-separated, not a nested
+    `.txn-list` box, since they sit inside a `.card` that already has a border.
+  - **Empty month** (no expense rows): `#donut-container` is `display:none`, no centre
+    overlay, and the list reads `No expenses logged this month.`
+  - Layout: `.cat-card-body` is one column on a phone, `minmax(0,300px) minmax(0,1fr)`
+    (donut left, list right) from 769px up.
 - **Category palette** (validated with the dataviz six-checks, light+dark): Food &
   Dining `#C2542D`, Transport `#0891B2`, Bills & Utilities `#D97706`, Shopping &
   Groceries `#2684FF`, Subscriptions `#6554C0`, Entertainment `#DB2777`, Other `#495057`
@@ -847,6 +895,36 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-04 — Trends: segmented donut + category breakdown (§3.7):** the "Expenses by
+  Category" pie became a **segmented donut** (gapped, round-capped arcs via `spacing` +
+  `borderRadius`) with the month's expense total in the hole and a **ranked category list**
+  below — icon, name, `X% of total`, amount, and a share bar in the category's own colour.
+  Built from a reference the owner supplied. Scope calls: **expenses only** (no striped
+  remaining-budget segment — the ring stays 100% of what was spent), **no `vs last month`
+  chip** per row (noise on sparse months, and the quiet ledger voice doesn't want a second
+  delta next to every figure), and the on-canvas labels **dropped outright** rather than
+  half-kept. Net −120 lines: `pieLabelsPlugin` and `variableRadiusPlugin` are both gone.
+  Three decisions worth keeping: **labels belong in DOM once DOM can hold them** — the
+  callouts needed hand-rolled angle routing, vertical de-collision and on-canvas clamping to
+  say what a list says for free, and the list has room for share-of-total besides;
+  **`variableRadius` was a correctness fix, not taste** — it scaled `outerRadius` only, so
+  with a `cutout` it would have varied *ring thickness* per segment; and the **centre total
+  is an HTML overlay**, not canvas text, so it inherits the UI font, the theme tokens and
+  `.counter-val` inertia (its trap: the render wipes `#donut-container.innerHTML`, so the
+  overlay must be re-injected in that same statement). Also retired a latent bug —
+  `borderColor: 'var(--surface-container-low)'` never painted anything, because canvas 2D
+  can't resolve a CSS custom property. `.charts-row` was deleted and the two chart cards are
+  now full-width blocks, since a tall donut card paired against the short cumulative card
+  left the latter a large dead area. Render-loop verified (§3.12; 390/900 × light/dark +
+  reduced-motion, mocked GViz, local Chart.js, stubbed Apps Script, clock pinned to
+  2026-08-18): **363/363**, including hand-computed shares to the printed digit
+  (36/24/18/12/6.0/3.0/1.5% of RM 3,350.00), bar widths measured against those shares, the
+  empty-month and single-category paths, and DOM order. **Two harness lessons, both of which
+  first shipped a false pass:** a *frozen* `Date.now()` also freezes Chart.js's animator, so
+  every arc sat at circumference 0 and the ring rendered blank while all the config-level
+  assertions passed — the clock stub now advances from the pinned date; and the suite now
+  reads **canvas pixels back** (`getImageData`) to prove the ring painted, sampling each
+  segment's *mid-angle*, since 12 o'clock is a seam once `spacing` is on.
 - **2026-08-03 — Pace card status strip (§3.5):** the budget-pace card's inline verdict
   line became a full-bleed band at the card's bottom edge, styled after a reference the
   owner supplied (a card closing on a solid alert strip). Copy is owner-specified and
@@ -1094,7 +1172,21 @@ woven into §3.
 - **A metric is more useful paired with its baseline** (the pace bar only became
   meaningful with the "Today" marker to read it against).
 - **Variable-radius pie needs restraint** (`0.92 + 0.08×share`; the first pass at
-  `0.72 + 0.28` lopsided the circle).
+  `0.72 + 0.28` lopsided the circle). **Retired 2026-08-04** when the chart became a
+  donut — the effect scaled `outerRadius` only, which reads as varying *ring thickness*
+  once there's a hole. An encoding that was merely subtle on a pie became wrong on a ring.
+- **Move labels off the canvas the moment there's DOM that can hold them.** The pie's
+  name+amount callouts needed ~100 lines of hand-rolled canvas layout — angle routing,
+  vertical de-collision, on-canvas clamping — to say what a plain list says for free, with
+  real text, theme tokens and the existing counter/bar animations. The list also had room
+  for share-of-total, which the callouts never could.
+- **Assert that a chart *painted*, not just that it's configured.** The donut's config,
+  arc radii and colours can all be correct while the canvas is blank. Reading pixels back
+  (`getImageData`) is the only check that catches it — and sample a segment's *mid-angle*,
+  since 12 o'clock is a seam once `spacing` is on.
+- **Pinning a clock in the render loop freezes Chart.js too.** Its animator reads
+  `Date.now()`, so a constant stub leaves every arc at circumference 0 — a blank chart that
+  config-level assertions pass happily. Pin the *date* with an offset that still advances.
 - **Chart.js custom canvas draws must be gated by `canvas.id`** — ungated plugins bleed
   onto every chart on the page.
 - **Always eyeball mobile widths, not just desktop** — tiles going full-width while
