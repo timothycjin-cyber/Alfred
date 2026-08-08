@@ -518,7 +518,7 @@
   }
   .cat-share { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
   .cat-amt { font-size: 13.5px; font-weight: 800; color: var(--on-surface); flex-shrink: 0; }
-  /* A money bar like the Logs day segments, but the fill takes the category's
+  /* A horizontal money bar, but the fill takes the category's
      own hue — semantic red stays reserved for expense figures, never
      decoration. */
   .cat-bar {
@@ -890,46 +890,49 @@
     border: 1px solid var(--outline-variant); border-radius: var(--shape-lg);
     background: var(--surface-container-low); overflow: hidden; margin-bottom: 8px;
   }
-  .week-head {
-    display: block; width: 100%; padding: 12px 1.25rem 4px; text-align: left;
-    background: transparent; border: none; cursor: pointer; outline: none;
-    font-family: inherit; color: var(--on-surface);
-  }
-  .week-head:active { background: rgba(0, 0, 0, 0.04); }
-  @media (prefers-color-scheme: dark) { .week-head:active { background: rgba(255, 255, 255, 0.04); } }
+  /* The week header is informational only — Logs has no accordion. Nothing
+     here may read as interactive: no cursor, no press state, no chevron. */
+  .week-head { display: block; padding: 12px 1.25rem 8px; text-align: left; color: var(--on-surface); }
   .week-top { display: flex; align-items: baseline; gap: 8px; }
   .week-range { font-size: 13.5px; font-weight: 800; letter-spacing: -0.2px; }
   .week-count { flex: 1; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
   .week-total { font-size: 13.5px; font-weight: 800; color: var(--semantic-expense); }
-  .week-chev { color: var(--on-surface-variant); align-self: center; flex-shrink: 0; transition: transform var(--motion-wobble); }
-  .week-row.open .week-chev { transform: rotate(180deg); }
-  /* Day segments — the week's single aggregate bar, split into one tappable
-     segment per day (Mon–Sun, clipped to the month: a boundary week is short
-     by design, not broken). Segment width is that day's share of the week's
-     busiest day over a 14px basis floor, so a zero-spend day still renders
-     and still opens its sheet. The button is 44px tall for the tap target;
-     the visual bar inside stays 8px — pad the target, don't shrink it.
-     .week-days sits OUTSIDE .week-head: a button can't nest in a button, and
-     the segments need their own click target anyway. */
-  .week-days { display: flex; align-items: stretch; gap: 3px; padding: 0 1.25rem 6px; }
-  .day-seg {
-    flex: 0 1 14px; min-width: 0; height: 44px; padding: 0;
+
+  /* Day columns — one per in-month day of the week (clipped: a month-edge week
+     is short by design, not broken). Columns are FIXED WIDTH at a seventh of
+     the track and are never grown, so a 2-day week's columns line up with a
+     7-day week's down the page; HEIGHT carries the money, scaled to that
+     week's own busiest day. Width can't encode spend here — the column is the
+     only route to a day's transactions, so it must not shrink with it. */
+  .week-days { display: flex; align-items: flex-end; gap: 4px; padding: 0 1.25rem 10px; }
+  .day-col {
+    flex: 0 0 calc((100% - 6 * 4px) / 7); min-width: 0; padding: 0;
+    /* Capped so a wide viewport doesn't turn a 48px-tall column into a 200px
+       slab — past the cap the row just left-aligns, which keeps every column
+       the same width whatever the screen. */
+    max-width: 64px;
     border: none; background: transparent; cursor: pointer; outline: none;
-    display: flex; flex-direction: column; justify-content: center;
-    transition: flex-grow var(--motion-wobble);
-    -webkit-tap-highlight-color: transparent;
+    font-family: inherit; -webkit-tap-highlight-color: transparent;
   }
-  .day-seg-bar {
-    height: 8px; border-radius: var(--shape-full);
+  /* The whole cell is the tap target — full allotted width, the chart row and
+     the label. Pad the target; never shrink it to the filled portion. */
+  .day-col-track { height: 48px; display: flex; align-items: flex-end; }
+  .day-col-bar {
+    width: 100%; height: 0; min-height: 4px;
+    border-radius: var(--shape-xs) var(--shape-xs) 2px 2px;
     background: var(--semantic-expense); opacity: 0.5;
-    transition: opacity var(--motion-snap), transform var(--motion-snap);
+    transition: height var(--motion-wobble), opacity var(--motion-snap);
   }
   /* A zero-spend day is a rail, not an expense — semantic red stays on money. */
-  .day-seg.zero .day-seg-bar { background: var(--outline-variant); opacity: 1; }
-  .day-seg:active .day-seg-bar { opacity: 0.85; transform: scaleY(1.5); }
-  .day-seg:focus-visible .day-seg-bar { outline: 2px solid var(--primary); outline-offset: 3px; }
+  .day-col.zero .day-col-bar { background: var(--outline-variant); opacity: 1; }
+  .day-col:active .day-col-bar { opacity: 0.85; }
+  .day-col-lbl {
+    display: block; margin-top: 6px; text-align: center;
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.2px;
+    color: var(--on-surface-variant);
+  }
+  .day-col:focus-visible .day-col-track { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--shape-xs); }
 
-  .week-row.open .week-body { border-top: 1px solid var(--outline-variant); }
   .txn-date { font-size: 10px; font-weight: 600; color: var(--on-surface-variant); margin-left: 6px; align-self: center; }
   /* Quiet provenance marker on rows a recurring series wrote — enough to
      answer "where did this come from?", not enough to compete with the money. */
@@ -1225,7 +1228,7 @@
      zone, same clearance above the nav cluster), but it RISES from its own
      bottom edge rather than blooming out of the FAB. .align-bottom's
      transform-origin is FAB-anchored by construction (see the geometry note
-     above); this sheet is triggered by a day segment mid-page, so a bloom
+     above); this sheet is triggered by a day column mid-page, so a bloom
      would spring from a spot nothing was tapped at. */
   .modal-overlay.align-bottom.sheet-rise .modal-sheet {
     transform-origin: 50% 100%;
@@ -1577,7 +1580,7 @@
   </div>
 </div>
 
-<!-- Day drill-in — opened by tapping a day segment on a Logs week row. Rows
+<!-- Day drill-in — opened by tapping a day column on a Logs week row. Rows
      reuse the ledger's own txn markup and hand off to openTxnModal(), so
      edit/delete stay in exactly one place. -->
 <div class="modal-overlay align-bottom sheet-rise" id="day-overlay" onclick="if(event.target===this) closeDayModal()">
@@ -1662,23 +1665,21 @@ const counterMemory = {};
 // state since refinement Phase C — the bar lives only on Today now.
 let paceBarMemory = null;
 
-// Logs week-index state — lives outside the render so an optimistic edit's
-// re-render doesn't collapse the accordion. Weeks are keyed by the ISO date of
-// their first day IN THE MONTH they render under (weeks clip to the month —
-// see weekSpanFor), which is unique per week per month; logsMonthsShown is the
-// lazy window (current + previous month first, older blocks appended as the
-// sentinel scrolls into view).
-const expandedWeeks = new Set();
+// Logs week-index state. Weeks are keyed by the ISO date of their first day IN
+// THE MONTH they render under (weeks clip to the month — see weekSpanFor),
+// which is unique per week per month; logsMonthsShown is the lazy window
+// (current + previous month first, older blocks appended as the sentinel
+// scrolls into view). There is no expand/collapse state — Logs has no
+// accordion; the day sheet is the only drill-in.
 let logsMonthsShown = 2;
-let logsSeeded = false;      // current week auto-expands once, on first render
 let _logsObserver = null;
 let _logsWeeks = {};         // weekKey → { y, m, startIso, endIso, rows, days }
 let _logsTotalMonths = 0;    // months holding data, set each render — lets the
                              // header chip grow the window to reach one
-// Day-segment widths from the previous render, so an optimistic write springs
-// the bars from where they were instead of replaying from empty. Same idiom as
-// counterMemory / paceBarMemory.
-let _dayGrowMemory = {};     // dayIso → flex-grow used last render
+// Day-column heights from the previous render, so an optimistic write springs
+// the columns from where they were instead of replaying from empty. Same idiom
+// as counterMemory / paceBarMemory.
+let _dayHeightMemory = {};   // dayIso → height % used last render
 let dayModalIso = null;      // the day the drill-in sheet is showing, or null
 
 let donutChart = null;
@@ -1785,8 +1786,8 @@ function todayGlanceHtml() {
 }
 
 // Average Daily / Forecast, disclosed under the Expenses tile. Module state so
-// the panel survives an optimistic re-render, the same way expandedWeeks does
-// for the Logs accordion.
+// the panel survives an optimistic re-render (the same reason dayModalIso is
+// module state for the Logs day sheet).
 let todayDetailOpen = false;
 
 // Self-contained like computeTodayGlance/todayGlanceHtml, so the click handler
@@ -1815,8 +1816,8 @@ function todayDetailHtml() {
   </div>`;
 }
 
-// Same idiom as toggleWeek(): flip the flag, swap the .open class and
-// aria-expanded, set or clear innerHTML. animateCounters() is a DOM sweep that
+// Flip the flag, swap the .open class and aria-expanded, set or clear
+// innerHTML. ⚠️ animateCounters() is a DOM sweep that
 // normally only runs at the end of calculateAndRender, so markup injected here
 // has to be swept explicitly or the figures sit at their RM 0.00 placeholder.
 function toggleTodayDetail() {
@@ -1915,15 +1916,16 @@ function renderLivePaceBar(totalIncome, totalExpense) {
 }
 
 // ── Logs week index (roadmap Phase 4; simplified in refinement Phase A) ─────
-// The ledger: week rows grouped under month headers, expanding in place into
-// the classic transaction rows. Bars for money (no cell grids on this tab) —
-// each row's bar is split into one tappable segment per day, and tapping a
-// segment drills into that day's transactions.
+// The ledger: STATIC week rows under month headers — label, entry count, week
+// spend total, and a day-column chart. THERE IS NO ACCORDION. The week header
+// is informational only and must never read as interactive; tapping a day
+// column is the sole drill-in, and the week-level transaction list is
+// deliberately gone (seeing a whole week at once is accepted as removed).
 //
 // Weeks CLIP TO THE MONTH they render under. A calendar Mon–Sun week that
 // straddles two months appears once under each, carrying only that month's
 // days: the week holding the 1st starts at the 1st, the week holding the last
-// day ends there. Short weeks (fewer than 7 segments) at a month boundary are
+// day ends there. Short weeks (fewer than 7 columns) at a month boundary are
 // therefore correct, not a bug. Every row still lands in exactly one bucket,
 // because a row has exactly one month and exactly one Monday-week — which is
 // what lets the clipped start date serve as the bucket key.
@@ -1960,7 +1962,7 @@ function weekRangeLabel(w) {
 }
 
 // One slot per day in the clipped span, carrying that day's expense total.
-// Income never enters a segment — the bar is a spend bar, same as the week
+// Income never enters a column — the chart is a spend chart, same as the week
 // total printed beside it.
 function weekDaySlots(w, rows) {
   const spend = {};
@@ -1980,24 +1982,27 @@ function _weekSpend(wk) {
   return (_logsWeeks[wk] ? _logsWeeks[wk].rows : []).reduce((s, r) => s + (r.Type !== 'Income' ? r.Amount : 0), 0);
 }
 
-// Segments are flex items grown to their day's share of the week's busiest
-// day, over a 14px flex-basis floor (CSS) so a zero-spend day keeps a visible,
-// tappable sliver rather than collapsing. They mount at their previous grow
-// value and get the real one a frame later, so the transition actually fires.
+// Columns are fixed-width (CSS) and encode the day's spend in their HEIGHT,
+// as a share of the week's own busiest day; a zero-spend day keeps a 4px stub
+// (CSS min-height) so it stays visible and tappable. They mount at their
+// previous height and get the real one a frame later, so the transition fires.
 function weekDaysHtml(wk) {
   const w = _logsWeeks[wk];
   const maxDay = w.days.reduce((mx, d) => Math.max(mx, d.spend), 0);
-  const segs = w.days.map(d => {
-    const grow = maxDay > 0 ? d.spend / maxDay : 0;
-    const start = _dayGrowMemory[d.iso] !== undefined ? _dayGrowMemory[d.iso] : 0;
-    _dayGrowMemory[d.iso] = grow;
-    // The bar alone says nothing to a screen reader — the label carries the
-    // day and the figure.
+  const cols = w.days.map(d => {
+    const pct = maxDay > 0 ? (d.spend / maxDay) * 100 : 0;
+    const start = _dayHeightMemory[d.iso] !== undefined ? _dayHeightMemory[d.iso] : 0;
+    _dayHeightMemory[d.iso] = pct;
+    // The column alone says nothing to a screen reader — the label carries the
+    // day and the figure. The weekday letter under it is decorative by
+    // comparison, so it's aria-hidden rather than read out twice.
     const label = `${WEEKDAYS_MON[d.dow]} ${d.date} ${MONTHS[w.m]}, RM ${formatCurrency(d.spend)}`;
-    return `<button type="button" class="day-seg${d.spend > 0 ? '' : ' zero'}" data-date="${d.iso}"
-      data-g="${grow.toFixed(4)}" style="flex-grow:${start.toFixed(4)}" aria-label="${label}"><span class="day-seg-bar"></span></button>`;
+    return `<button type="button" class="day-col${d.spend > 0 ? '' : ' zero'}" data-date="${d.iso}"
+      data-h="${pct.toFixed(2)}" aria-label="${label}"><span class="day-col-track"><span
+      class="day-col-bar" style="height:${start.toFixed(2)}%"></span></span><span
+      class="day-col-lbl" aria-hidden="true">${WEEKDAYS_MON[d.dow][0]}</span></button>`;
   }).join('');
-  return `<div class="week-days" role="group" aria-label="Daily spend, ${weekRangeLabel(w)}">${segs}</div>`;
+  return `<div class="week-days" role="group" aria-label="Daily spend, ${weekRangeLabel(w)}">${cols}</div>`;
 }
 
 function renderLogsLedger() {
@@ -2008,11 +2013,6 @@ function renderLogsLedger() {
     el.innerHTML = '<div class="empty">No records found.</div>';
     return;
   }
-
-  // Seeded with the CLIPPED key, so in the first or last days of a month it
-  // still names the row that actually renders.
-  const curWeekKey = weekSpanFor(isoDateOf(new Date())).startIso;
-  if (!logsSeeded) { expandedWeeks.add(curWeekKey); logsSeeded = true; }
 
   // Bucket rows by their month-clipped week; newest date first within a week.
   _logsWeeks = {};
@@ -2045,34 +2045,29 @@ function renderLogsLedger() {
     mo.weeks.forEach(wk => {
       const w = _logsWeeks[wk];
       const spend = _weekSpend(wk);
-      const open = expandedWeeks.has(wk);
       html += `
-        <div class="week-row${open ? ' open' : ''}" data-wk="${wk}">
-          <button type="button" class="week-head" aria-expanded="${open}" onclick="toggleWeek('${wk}')">
+        <div class="week-row" data-wk="${wk}">
+          <div class="week-head">
             <div class="week-top">
               <span class="week-range">${weekRangeLabel(w)}</span>
               <span class="week-count">${w.rows.length} ${w.rows.length === 1 ? 'entry' : 'entries'}</span>
               <span class="week-total">RM ${formatCurrency(spend)}</span>
-              <svg class="week-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
-          </button>
+          </div>
           ${weekDaysHtml(wk)}
-          <div class="week-body">${open ? weekBodyHtml(wk) : ''}</div>
         </div>`;
     });
   });
   if (months.length > logsMonthsShown) html += `<div id="logs-sentinel"></div>`;
 
   el.innerHTML = html;
-  bindTxnRowClicks(el);
-  bindDaySegClicks(el);
-  paintDaySegments(el);
+  bindDayColClicks(el);
+  paintDayColumns(el);
   // A sheet left open across an optimistic write or a reconcile follows the
   // data rather than going stale.
   if (dayModalIso) renderDayModalBody();
 
   // Lazy windowing: nearing the sentinel appends the next older month block.
-  // Expansion state survives the re-render (expandedWeeks is module state).
   const sentinel = document.getElementById('logs-sentinel');
   if (!_logsObserver) {
     _logsObserver = new IntersectionObserver(entries => {
@@ -2083,8 +2078,9 @@ function renderLogsLedger() {
   if (sentinel) _logsObserver.observe(sentinel);
 }
 
-// One transaction row, shared by the week accordion and the day sheet — so
-// the two surfaces can't drift on badges, the Auto marker or the date.
+// One transaction row. Logs itself no longer lists transactions inline (the
+// accordion is gone) — this is the day sheet's row, kept as its own function
+// so a future week-scoped sheet reuses it rather than re-deriving it.
 function txnRowHtml(r, i) {
   const incomeColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-income').trim() || '#00A36C';
   const isInc = r.Type === 'Income';
@@ -2108,56 +2104,25 @@ function txnRowHtml(r, i) {
       </div>`;
 }
 
-function weekBodyHtml(wk) {
-  return (_logsWeeks[wk] ? _logsWeeks[wk].rows : []).map(txnRowHtml).join('');
-}
-
-function bindTxnRowClicks(scope) {
-  scope.querySelectorAll('.txn-row[data-uid]').forEach(row => {
-    row.addEventListener('click', () => openTxnModal(row.dataset.uid));
+function bindDayColClicks(scope) {
+  scope.querySelectorAll('.day-col[data-date]').forEach(col => {
+    col.addEventListener('click', () => openDayModal(col.dataset.date));
   });
 }
 
-function bindDaySegClicks(scope) {
-  scope.querySelectorAll('.day-seg[data-date]').forEach(seg => {
-    seg.addEventListener('click', () => openDayModal(seg.dataset.date));
-  });
-}
-
-// Mount-then-spring: the segments carry last render's grow value in the markup
-// and take the real one a frame later, so flex-grow has something to animate
-// from. Reduced motion skips straight to the final widths.
-function paintDaySegments(scope) {
-  const segs = [...scope.querySelectorAll('.day-seg[data-g]')];
-  if (!segs.length) return;
-  const paint = () => segs.forEach(s => { s.style.flexGrow = s.dataset.g; });
+// Mount-then-spring: the columns carry last render's height in the markup and
+// take the real one a frame later, so the height transition has something to
+// animate from. Reduced motion skips straight to the final heights.
+function paintDayColumns(scope) {
+  const bars = [...scope.querySelectorAll('.day-col[data-h] .day-col-bar')];
+  if (!bars.length) return;
+  const paint = () => bars.forEach(b => { b.style.height = b.parentElement.parentElement.dataset.h + '%'; });
   if (REDUCED_MOTION) paint();
   else requestAnimationFrame(() => requestAnimationFrame(paint));
 }
 
-// Accordion toggle — swaps only the tapped week's body in place, so other
-// open weeks keep their DOM (and don't replay their row entrances).
-function toggleWeek(wk) {
-  const rowEl = document.querySelector(`#logs-ledger .week-row[data-wk="${wk}"]`);
-  if (!rowEl) return;
-  const body = rowEl.querySelector('.week-body');
-  const head = rowEl.querySelector('.week-head');
-  if (expandedWeeks.has(wk)) {
-    expandedWeeks.delete(wk);
-    rowEl.classList.remove('open');
-    head.setAttribute('aria-expanded', 'false');
-    body.innerHTML = '';
-  } else {
-    expandedWeeks.add(wk);
-    rowEl.classList.add('open');
-    head.setAttribute('aria-expanded', 'true');
-    body.innerHTML = weekBodyHtml(wk);
-    bindTxnRowClicks(body);
-  }
-}
-
 // ── Day drill-in sheet ─────────────────────────────────────────────────────
-// Tapping a day segment opens that day's transactions. Read-only: rows hand
+// Tapping a day column opens that day's transactions. Read-only: rows hand
 // straight back to openTxnModal(), so edit/delete keep living in one place.
 
 function dayRowsFor(iso) {
@@ -2181,7 +2146,7 @@ function closeDayModal() {
   dayModalIso = null;
   document.body.classList.remove('modal-open-state');
   document.getElementById('day-overlay').classList.remove('open');
-  releaseModalFocus();   // returns focus to the segment that opened it
+  releaseModalFocus();   // returns focus to the column that opened it
 }
 
 function renderDayModalBody() {
@@ -2194,7 +2159,7 @@ function renderDayModalBody() {
   document.getElementById('day-sub').textContent = rows.length
     ? `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}`
     : 'No entries';
-  // The figure is the day's spend, matching the segment that was tapped —
+  // The figure is the day's spend, matching the column that was tapped —
   // income rows still list below, they just don't move a spend bar.
   document.getElementById('day-total').textContent = `RM ${formatCurrency(spend)}`;
   const body = document.getElementById('day-body');
@@ -2207,7 +2172,7 @@ function renderDayModalBody() {
 // The sheet CLOSES before the txn modal opens: trapModalFocus holds exactly
 // one trap at a time, so stacking overlays would clobber the return-focus
 // chain (the same constraint that made the recurring sheet two panes rather
-// than two overlays). Closing hands focus back to the segment, which is then
+// than two overlays). Closing hands focus back to the column, which is then
 // what the txn modal remembers as its own return target.
 function bindDayRowClicks(scope) {
   scope.querySelectorAll('.txn-row[data-uid]').forEach(row => {
