@@ -1,23 +1,29 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-08 — **Logs: day segments + day drill-in (§3.6).** Each week row's
-single aggregate spend bar is now **one tappable segment per day**, and tapping one opens a
-**day drill-in sheet** (`#day-overlay`) listing that day's transactions — rows hand straight
-back to `openTxnModal()`, so no new edit/delete logic exists. **Weeks now CLIP TO THE MONTH
-they render under** (locked decision, don't re-litigate): a calendar week straddling two
-months renders **once under each**, carrying only that month's days — `Jul 27 – 31` under
-July, `Aug 1 – 2` under August. **Short weeks at a boundary are correct, not a bug.** The
-bucket key is the clipped `startIso` (`weekSpanFor`), which identifies week *and* month
-where a bare Monday can't; `weekMondayIso()` is deleted. ⚠️ **`.week-days` sits outside the
-`.week-head` button** — a button can't nest in a button. ⚠️ **The day sheet closes before
-the txn modal opens** — `trapModalFocus` holds exactly one trap, so stacking clobbers the
-return-focus chain (the `openManualFromCapture()` precedent). ⚠️ It is `.align-bottom`
-**plus a new `.sheet-rise`**: `.align-bottom`'s `transform-origin` is FAB-anchored, and a
-segment mid-page isn't the FAB. Segments are 44px-tall real `<button>`s with a 14px
-`flex-basis` floor so a zero-spend day stays tappable; **bars are no longer comparable
-across weeks** (per-week scale), so cross-week magnitude lives in the week-total figure.
-Render-loop verified 157/157, **with six negative controls run first** — every new probe
-was seen to fail against the defect it targets before being trusted.
+*Last updated: 2026-08-08 (second pass, same day) — **Logs: day columns, accordion removed
+(§3.6).** Supersedes the day-segments pass shipped earlier today. **Logs is no longer an
+accordion.** A week is a **static row** — label, entry count, week spend total, and a
+**day-column chart** beneath it. There is no expand/collapse anywhere on the tab, no
+chevron, no inline week transaction list; `toggleWeek()`, `expandedWeeks`, `logsSeeded`,
+`weekBodyHtml()` and `bindTxnRowClicks()` are all **deleted**. **Locked decision, recorded
+so it isn't reintroduced by accident: seeing a whole week's transactions at once is
+GONE** — the day sheet is the sole drill-in. (A week-scoped sheet on the week total is a
+possible future, explicitly out of scope.) The horizontal per-day segments became
+**fixed-width vertical columns where HEIGHT encodes spend**: width must not shrink with
+spend, because the cell is the only route to a day's transactions. Columns are a seventh
+of the track wide, **capped at 64px** so a wide viewport can't turn a 48px-tall column
+into a slab, and **never grown** — a 2-day week's columns line up with a 7-day week's.
+Single-letter weekday labels (M T W T F S S) sit under each, `aria-hidden` so the figure
+isn't read twice. The whole cell (track + label, ≥44px tall) is the tap target; a
+zero-spend day keeps a 4px stub. **Weeks still CLIP TO THE MONTH they render under**
+(unchanged, still locked): `Jul 27 – 31` under July, `Aug 1 – 2` under August; short weeks
+are correct, not a bug. The **day drill-in sheet** (`#day-overlay`) is unchanged from the
+earlier pass — ⚠️ it **closes before `openTxnModal()`** (`trapModalFocus` holds exactly one
+trap), and ⚠️ it is `.align-bottom` **plus `.sheet-rise`**, because `.align-bottom`'s
+`transform-origin` is FAB-anchored and a column mid-page isn't the FAB. **Heights are
+per-week scaled, so columns are not comparable across weeks** — cross-week magnitude lives
+in the week-total figure. Render-loop verified 185/185, **with five negative controls run
+first**.
 Prior banner (2026-08-04) — **Trends: segmented donut + category breakdown (§3.7).** The
 "Expenses by Category" pie is now a **segmented donut** (`cutout:'70%'`, `spacing:6`,
 `borderRadius:12`) with the month's expense total in the hole as an **HTML overlay**
@@ -280,7 +286,12 @@ habit" when the grid counted logging activity; that habit metric is retired.) Th
 donut follows the same grammar (2026-08-04): the ring is a **shape**, carrying no text of
 its own, and the category list beneath it does the labelling — with the per-row share bar
 being the same horizontal-bar-for-magnitude idiom, tinted by the **category palette**, never
-semantic red.
+semantic red. **Amended 2026-08-08:** the rule is *length* = money, not *horizontal*
+specifically — the Logs day chart (§3.6) encodes a day's spend in a **vertical column's
+height**, because there the horizontal axis is time (Mon→Sun) and the column doubles as
+the tap target, so width has to stay fixed. Still a bar, still semantic-expense; a
+zero-spend day drops to `--outline-variant` gray rather than a very short red bar, because
+a rail isn't an expense.
 
 **Motion tokens:** `--motion-wobble` (overshoot spring; hero/tile/chip pop-ins, FAB
 bloom, bar transitions), `--motion-snap` (taps), `--motion-wobble-nav` (nav-only, ≈20%
@@ -395,7 +406,7 @@ budget-pace card.**
   of `calculateAndRender()`** — markup injected from the click handler must be swept
   explicitly or the figures sit at their literal `RM 0.00` placeholder forever.
   `todayDetailOpen` is module state, so the panel survives optimistic re-renders the way
-  `expandedWeeks` does for the Logs accordion.
+  `dayModalIso` does for the Logs day sheet.
 - **Glance line** (`computeTodayGlance` — the digest math as client-side JS): today's
   spend vs the 30-day spend-day average; zero-state "Nothing logged today yet."
 - **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome,
@@ -437,9 +448,18 @@ budget-pace card.**
 
 ### 3.6 Logs tab
 
-`renderLogsLedger()` → `#logs-ledger`: a **week accordion** under month headers, over
-**all** the user's rows. Bars for money; no cell grids here.
+`renderLogsLedger()` → `#logs-ledger`: **static week rows** under month headers, over
+**all** the user's rows. Each row is a label, an entry count, a week spend total and a
+**day-column chart**. Bars for money; no cell grids here.
 
+- **NO ACCORDION — locked, and recorded so it isn't reintroduced by accident**
+  (2026-08-08, second pass). Logs has no expand/collapse anywhere: no chevron, no
+  `aria-expanded`, no press state, no `cursor: pointer` on the week header, and **no
+  inline week transaction list**. `toggleWeek()`, `expandedWeeks`, `logsSeeded`,
+  `weekBodyHtml()` and `bindTxnRowClicks()` are **deleted**. **Seeing a whole week's
+  transactions at once is accepted as removed** — a day column is the only drill-in. A
+  future "tap the week total for a week-scoped sheet" is possible but was explicitly out
+  of scope; `txnRowHtml()` is kept as its own function so that build reuses it.
 - **Bucketing — weeks CLIP TO THE MONTH they render under** (2026-08-08; supersedes the
   "a week lives under the month containing its Monday" rule). `weekSpanFor(iso)` returns
   `{y, m, startIso, endIso}` — the row's Mon–Sun week intersected with the row's own
@@ -447,61 +467,57 @@ budget-pace card.**
   Monday no longer is. A calendar week straddling two months therefore renders **once
   under each**, carrying only that month's days: `Jul 27 – 31` under July and `Aug 1 – 2`
   under August, never one row holding both. **Short weeks at a month boundary (fewer than
-  7 day-segments) are correct, not a bug** — this is the locked decision; don't
-  re-litigate it. Every row still lands in exactly one bucket, because a row has exactly
-  one month and exactly one Monday-week. `weekRangeLabel(span)` is month-local by
-  construction, and prints a bare `Aug 31` when a clipped week is a single day. Month
-  headers carry `data-ym="Y-M"` (scroll targets). Newest first. Only weeks holding rows
-  render (unchanged).
-- **Closed row:** range label, entry count, spend total (semantic red), then the
-  **day-segment bar**. `weekMondayIso()` is **gone** — nothing needed a bare Monday once
-  the span carried both ends.
-- **Day segments** (`.week-days` → `.day-seg` → `.day-seg-bar`, `weekDaysHtml()`): the
-  week's single aggregate bar, split into **one segment per day in the clipped span**.
-  Each is `flex-grow`'d to that day's **share of the week's busiest day** over a **14px
-  `flex-basis` floor**, so a zero-spend day keeps a visible, tappable sliver instead of
-  collapsing (`.day-seg.zero` paints it `--outline-variant` gray — a zero day is a rail,
-  not an expense, and semantic red stays on money). **Consequence of the per-week scale:
-  bars are no longer comparable across weeks** — the old single bar shared one
-  `scaleMax` down the page; cross-week magnitude now lives in the week-total figure
-  beside the label. Income never enters a segment. Mount-then-spring via `_dayGrowMemory`
-  (dayIso → last grow) + `paintDaySegments()`, the `paceBarMemory` idiom; reduced motion
-  paints immediately. ⚠️ **`.week-days` sits OUTSIDE the `.week-head` button** — a button
-  can't nest in a button, and the head's `padding-bottom` dropped to `4px` to pay for the
-  segment row's height.
-- **Tap targets:** each `.day-seg` is a real `<button>` **44px tall** with the 8px bar
-  centred inside — pad the target, never shrink it to the bar. Width is *not* padded to
-  44px: it carries the magnitude encoding, so a zero day is a 14px-wide × 44px-tall
-  sliver. `aria-label` carries day + figure (`Tue 4 Aug, RM 42.00`); the bar alone says
-  nothing to a screen reader. `.week-days` is a labelled `role="group"`.
+  7 columns) are correct, not a bug** — this is the locked decision; don't re-litigate
+  it. Every row still lands in exactly one bucket, because a row has exactly one month
+  and exactly one Monday-week. `weekRangeLabel(span)` is month-local by construction, and
+  prints a bare `Aug 31` when a clipped week is a single day. Month headers carry
+  `data-ym="Y-M"` (scroll targets). Newest first. Only weeks holding rows render
+  (unchanged). `weekMondayIso()` is **gone** — nothing needed a bare Monday once the span
+  carried both ends.
+- **Day columns** (`.week-days` → `.day-col` → `.day-col-track` → `.day-col-bar`,
+  `weekDaysHtml()` / `weekDaySlots()`): one column per day in the clipped span.
+  **Width is fixed and encodes nothing; HEIGHT carries the money** — the bar fills a
+  share of the 48px track equal to that day's share of the week's busiest day. Width has
+  to stay fixed because **the cell is the only route to a day's transactions**, so it
+  must not shrink with spend (this is what the horizontal-segment predecessor got wrong:
+  a quiet day became an 14px sliver). Columns are `flex: 0 0 calc((100% - 6*4px) / 7)`
+  and **never grown**, so a 2-day week's columns line up with a 7-day week's; short weeks
+  simply render fewer, left-aligned, with no padding or stretching. `max-width: 64px`
+  keeps a wide viewport from turning a 48px-tall column into a slab — past the cap the
+  row just left-aligns. Zero-spend days keep a **4px stub** (`min-height`) and go
+  `--outline-variant` gray (`.day-col.zero`) — a rail isn't an expense, so semantic red
+  stays on money. Income never enters a column. **Heights are per-week scaled, so columns
+  are NOT comparable across weeks** — cross-week magnitude lives in the week-total figure
+  beside the label. Mount-then-spring via `_dayHeightMemory` (dayIso → last height %) +
+  `paintDayColumns()`, the `paceBarMemory` idiom; reduced motion paints immediately.
+- **Weekday labels:** single letters `M T W T F S S` under each column
+  (`.day-col-lbl`), Mon-first. **`aria-hidden`** — the cell's own `aria-label` already
+  names the day, and reading both would say it twice. Single letters, not two, so they
+  can never wrap at 390px (the brief's fallback, taken up front).
+- **Tap targets:** each `.day-col` is a real `<button>` and **the whole cell is the hit
+  area** — full allotted width, the 48px track *and* the label, ≥44px tall. Never shrink
+  it to the filled portion: a zero day's visual is 4px, and its tap target is the full
+  cell. `aria-label` carries day + figure (`Tue 4 Aug, RM 42.00`). `.week-days` is a
+  labelled `role="group"`.
 - **Day drill-in sheet** (`#day-overlay`, `openDayModal(iso)` / `renderDayModalBody()`):
-  tapping a segment opens that day's transactions. Header = weekday + date, entry count,
-  and the day's **expense** total (matching the segment; income rows still list, badged
-  `Budget`). Body reuses **`txnRowHtml()`** — extracted from `weekBodyHtml()` so the
-  ledger and the sheet can't drift on badges, the Auto marker or the date. Empty day
-  reads `No transactions this day`, never a dead tap. `dayModalIso` is module state and
-  `renderLogsLedger()` re-renders an open sheet, so a background reconcile can't leave it
-  stale.
+  tapping a column opens that day's transactions. Header = weekday + date, entry count,
+  and the day's **expense** total (matching the column; income rows still list, badged
+  `Budget`). Body uses **`txnRowHtml()`**. Empty day reads `No transactions this day`,
+  never a dead tap. `dayModalIso` is module state and `renderLogsLedger()` re-renders an
+  open sheet, so a background reconcile can't leave it stale.
   - ⚠️ **The sheet CLOSES before `openTxnModal(uid)`** (`bindDayRowClicks`) — the
     `openManualFromCapture()` precedent. `trapModalFocus` holds exactly one trap at a
     time; stacking overlays clobbers the return-focus chain. Closing hands focus back to
-    the segment, which the txn modal then remembers as *its* return target. No new
+    the column, which the txn modal then remembers as *its* return target. No new
     edit/delete logic exists anywhere.
   - ⚠️ It is `.align-bottom` **plus `.sheet-rise`**: `.align-bottom` alone has a
     FAB-anchored `transform-origin` (§3.3 derived numbers), and this sheet is triggered
-    by a segment mid-page, so the bloom would spring from a spot nothing was tapped at.
+    by a column mid-page, so the bloom would spring from a spot nothing was tapped at.
     `.sheet-rise` overrides the origin to `50% 100%` and rises `translateY(18px)
     scale(0.96) → 0/1`. The bottom anchoring itself is kept deliberately (thumb zone,
     clearance above the nav cluster).
   - Escape is in the **hardcoded global chain** (after capture, before recurring) and had
     to be extended by hand, same as Phase G's.
-- **Accordion:** `toggleWeek()` swaps only the tapped week's body (no entrance replay);
-  multiple weeks open; current week seeded open once (`logsSeeded`, `curWeekKey` — seeded
-  with the **clipped** key, so the first/last days of a month still name the row that
-  actually renders). Expanded rows = classic txn idiom + `.txn-date`; income rows badge as
-  `Budget` (`.inc-badge` class name unchanged); tap opens the edit modal. `expandedWeeks`
-  (Set of clipped week keys) is module state — expansion survives optimistic re-renders
-  and appends. A segment tap never toggles the accordion.
 - **Lazy windowing:** `logsMonthsShown` starts at 2; an IntersectionObserver on
   `#logs-sentinel` (160px rootMargin) appends one older month per firing (chain-fires to
   fill short screens). `_logsTotalMonths` bounds it (set each render).
@@ -594,7 +610,7 @@ card a large dead area.
   - **List** (`categoryBreakdownHtml()` → `#category-breakdown`): icon chip (reusing
     `.txn-icon-chip` + `hexToRgba(hex, 0.14)`), name, `X% of total`, amount, and a share bar
     in the category's own hue (`.cat-bar`, its own 6px metrics since `.week-bar` was retired
-    by the Logs day segments). Bars scale to **share of total**,
+    by the Logs day chart). Bars scale to **share of total**,
     matching the percentage printed on the same row — not share of max, which would always
     fill the top row. Shares print one decimal below 10% so small categories don't all
     round to the same integer. Bars mount at `width:0` and get their real width one frame
@@ -781,9 +797,10 @@ Apps Script error (including the `unknown action` a stale deployment returns) ha
 reported as the generic offline copy, so the one failure mode that redeploy *was* the fix
 for gave no hint that redeploying was the fix. Errors now surface the server's own reason.
 
-**Logs day segments + day drill-in is DONE** (2026-08-08) — render-loop verified 157/157,
-with six negative controls run first. Front-end only; **no Apps Script change, no
-redeploy needed.** See §3.6.
+**Logs day columns + day drill-in is DONE** (2026-08-08) — render-loop verified 185/185,
+with five negative controls run first. Logs has **no accordion**: static week rows, a
+fixed-width day-column chart, and the day sheet as the sole drill-in. Front-end only;
+**no Apps Script change, no redeploy needed.** See §3.6.
 
 **Pending:** the remaining unscheduled candidate features (§6).
 
@@ -931,15 +948,22 @@ as a discovery.
 **Owner step after merge:** ✅ done — Apps Script redeployed via Manage deployments →
 **Edit** → new version. The `Recurring` tab is created automatically; no manual Sheet setup.
 
-### Logs daily bars + day drill-in ✅ DONE (2026-08-08)
+### Logs day columns + day drill-in ✅ DONE (2026-08-08)
 
-Built from an owner-supplied brief rather than this list, so it never sat in the candidate
-queue. Shipped behaviour is in §3.6; the rationale for each fork is in the §7 entry.
-**No owner checklist — front-end only, no Apps Script change, no redeploy.**
+Built from two owner-supplied briefs on the same day (the second superseding the first),
+so it never sat in the candidate queue. Shipped behaviour is in §3.6; the rationale for
+each fork is in the §7 entries. **No owner checklist — front-end only, no Apps Script
+change, no redeploy.**
 
-The one decision future phases must not re-open: **weeks clip to the month they render
-under**, so a boundary week appears once under each month with only that month's days, and
-a short week (fewer than 7 segments) is correct.
+Three decisions future phases must not re-open:
+
+1. **Weeks clip to the month they render under** — a boundary week appears once under each
+   month with only that month's days, and a short week (fewer than 7 columns) is correct.
+2. **Logs has no accordion.** The week header is informational only.
+3. **The week-level transaction list is gone**, deliberately. Seeing a whole week at once
+   was accepted as removed; the day sheet is the sole drill-in. A week-scoped sheet hung
+   off the week total is a *possible* future — it was explicitly out of scope, not
+   forgotten.
 
 ### Candidate features (refined 2026-07-19 — not yet phased)
 
@@ -973,7 +997,9 @@ no longer wanted; capture-parse validation suite — considered resolved.
 
 - Streak counters, badges, confetti, celebratory motion beyond existing pop-ins
 - Milestone marks on the hero; personal-records insight templates
-- Drill-in navigation for Logs weeks (accordion decided), search, or filters
+- Search or filters on Logs
+- Restoring the Logs accordion or any week-level transaction list (§3.6 — removed
+  deliberately 2026-08-08; the day sheet is the drill-in)
 - Any new backend endpoints, LLM calls, or paid services
 
 ---
@@ -985,7 +1011,37 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
-- **2026-08-08 — Logs: day segments + day drill-in (§3.6):** the week row's one aggregate
+- **2026-08-08 (second pass) — Logs: day columns, accordion removed (§3.6):** the same-day
+  day-segments pass below was superseded by an owner brief that took the idea further.
+  Two changes. **(1) The accordion is gone.** The week header is informational only —
+  no chevron, no press state, no `cursor: pointer`, no `aria-expanded`, no inline
+  transaction list; `toggleWeek`, `expandedWeeks`, `logsSeeded`, `weekBodyHtml` and
+  `bindTxnRowClicks` all deleted. **Losing the week-level list is a deliberate,
+  owner-accepted trade** and is recorded in §3.6 so a later phase doesn't quietly restore
+  it; `txnRowHtml()` survives as its own function so the possible future week-scoped sheet
+  reuses it. **(2) Horizontal segments became fixed-width vertical columns.** This is the
+  correction the first pass needed: encoding spend in segment *width* meant a quiet day
+  shrank to a 14px sliver — and the segment is the **only route to that day's
+  transactions**, so the encoding was actively fighting the tap target. Moving the
+  magnitude to *height* frees width to be constant, which also makes a 2-day boundary week
+  line up with a 7-day week down the page (columns are `flex: 0 0` a seventh of the track
+  and never grown; short weeks render fewer, left-aligned, unstretched). One thing the
+  brief didn't call and the render loop did: at 900px a seventh of the track is ~200px, so
+  a 48px-tall column read as a **slab** — `max-width: 64px` keeps it column-shaped and just
+  left-aligns the row past the cap. Weekday letters are single characters and
+  `aria-hidden`, since the cell's `aria-label` already names the day. Everything about the
+  day sheet is unchanged from the first pass. Render-loop verified (§3.12; same harness,
+  clock pinned to 2026-08-18 on an advancing offset): **185/185**, including hand-computed
+  height shares (12/84 → 14.29%, 42/84 → 50%, 84/84 → 100%) checked against *painted*
+  pixel heights, an edit rescaling the week so the previously-tallest column drops to
+  33.6px, one column width asserted across the entire page, clicks at the top of an empty
+  column and on the weekday label both opening the sheet, and a tap on the week header
+  provably changing nothing. **Five negative controls run first:** letting columns
+  flex-grow fired 5 checks, shrinking the cell to the bar fired 12, making the header
+  merely *look* interactive fired the cursor probe, re-adding `aria-expanded` fired 2, and
+  removing the zero-day stub floor fired 3.
+- **2026-08-08 — Logs: day segments + day drill-in (§3.6) — superseded the same day by the
+  entry above, kept for the clipping rationale:** the week row's one aggregate
   spend bar became **seven** (Mon–Sun, clipped) tappable day segments, and a **day
   drill-in sheet** now lists a tapped day's transactions. Three decisions worth keeping.
   **(1) Clipping splits a boundary week across both months, it doesn't move it.** The
@@ -1326,11 +1382,18 @@ woven into §3.
   value is equal — exactly the shape a dead animation produces. Comparisons meant to prove
   a ranking must be strict (`xs.every((v, i) => i === k || v < xs[k])`), or the probe
   certifies the bug it was written to catch.
-- **Pad a tap target, don't shrink it to the visual.** An 8px bar gets a 44px-tall button
-  with the bar centred inside. Where a dimension carries an encoding — segment *width* is
-  the day's spend — that axis can't be padded to 44px without destroying the chart; a
-  `flex-basis` floor is the honest compromise, and it's what keeps a zero-spend day
-  clickable at all.
+- **Pad a tap target, don't shrink it to the visual.** A 4px bar gets a ≥44px-tall button
+  with the whole cell — track and label — as the hit area.
+- **When a mark is also the tap target, don't encode magnitude on the axis that sizes the
+  target.** The Logs day chart first encoded spend in segment *width*, which made a quiet
+  day a 14px sliver — and that segment was the only route to the day's transactions, so
+  the encoding fought the affordance. Moving magnitude to *height* freed width to be
+  constant, which fixed the tap target **and** made short boundary weeks line up with full
+  ones. A `flex-basis` floor had been the compromise; not needing a compromise was better.
+- **A fraction of the container is not a size.** `flex: 0 0 calc(100% / 7)` reads fine on a
+  phone and turns a 48px-tall column into a 200px-wide slab on a desktop. Anything whose
+  *proportions* carry meaning needs a `max-width` (or `max-height`) cap, and the leftover
+  space is fine — left-aligning past the cap keeps every column identical at every width.
 - **Two overlays never stack — the second one closes the first.** `trapModalFocus` holds
   exactly one trap, so a sheet that hands off to another modal must close first
   (`openManualFromCapture()`, the day sheet → txn modal). Closing restores focus to the
