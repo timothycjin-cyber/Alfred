@@ -50,6 +50,11 @@
        surface, and white text on it clears only ~4.0:1 — this clears 4.5:1.
        The semantic token keeps its own job (figures, bars, deltas). */
     --strip-over: #D93A31;
+    /* Dashed boundary on the Logs ledger tail. Its own token because
+       --outline-variant is pixel-identical to --surface-container in dark
+       mode (the collision --wash-neutral was added for), which would make the
+       dashes vanish exactly where the tail needs to read as an edge. */
+    --tail-dash: rgba(0, 0, 0, 0.16);
     --shape-xs: 6px;
     --shape-sm: 10px;
     --shape-md: 14px;
@@ -99,6 +104,7 @@
       --wash-neutral: rgba(248, 249, 250, 0.06);
       --wash-hero: rgba(248, 249, 250, 0.04);
       --strip-over: #C0392F;
+      --tail-dash: rgba(255, 255, 255, 0.14);
     }
   }
 
@@ -890,9 +896,9 @@
      trigger since it moved out of the header (Phase B). */
   .logs-toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 2px; }
 
-  /* Logs week index — the ledger as an accordion of Mon–Sun weeks under
-     month headers. Bars for money on this tab (no cell grids): each closed
-     row carries a spend bar on a shared scale. */
+  /* Logs week index — Mon–Sun week rows under month headers, current month
+     first and older months appended on demand from the tail below. Bars for
+     money on this tab (no cell grids). */
   .month-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 1.5rem 0.25rem 0.6rem; }
   #logs-ledger .month-header:first-child { margin-top: 0.25rem; }
   .month-name { font-size: 13px; font-weight: 800; letter-spacing: -0.2px; color: var(--on-surface); }
@@ -943,6 +949,34 @@
     color: var(--on-surface-variant);
   }
   .day-col:focus-visible .day-col-track { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--shape-xs); }
+
+  /* Ledger tail — the one control that grows the scope, and the note that ends
+     it. A dashed boundary reads as "the ledger continues past here", where a
+     filled button would compete with the FAB for primary action. */
+  .logs-tail {
+    width: 100%; margin: 14px 0 4px; padding: 13px;
+    border: 1px dashed var(--tail-dash); background: transparent;
+    border-radius: var(--shape-lg); font-family: inherit;
+    font-size: 12.5px; font-weight: 700; color: var(--on-surface-variant);
+    cursor: pointer; transition: background var(--motion-standard);
+  }
+  .logs-tail:active { background: var(--surface-container); }
+  .logs-tail:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .logs-end {
+    text-align: center; padding: 18px 0 4px;
+    font-family: 'Merriweather', Georgia, serif; font-style: italic;
+    font-size: 11px; color: var(--on-surface-variant); opacity: 0.7;
+  }
+  /* Only a month the tail just revealed animates; everything already on screen
+     holds still, so the append reads as growth rather than a redraw. */
+  .month-header.logs-new, .week-row.logs-new {
+    animation: logsAppendIn var(--motion-wobble) backwards;
+    animation-delay: var(--d, 0ms);
+  }
+  @keyframes logsAppendIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
   .txn-date { font-size: 10px; font-weight: 600; color: var(--on-surface-variant); margin-left: 6px; align-self: center; }
   /* Quiet provenance marker on rows a recurring series wrote — enough to
@@ -1294,7 +1328,8 @@
   @media (prefers-reduced-motion: reduce) {
     :root { --motion-wobble: 0ms; --motion-wobble-nav: 0ms; --motion-snap: 0ms; --motion-standard: 0ms; }
     .hero-card, .tile-block, .tile-row .tile-block:nth-child(1), .tile-row .tile-block:nth-child(2),
-    .txn-row, .txn-icon-chip, .hm-cell { animation-delay: 0ms; }
+    .txn-row, .txn-icon-chip, .hm-cell,
+    .month-header.logs-new, .week-row.logs-new { animation-delay: 0ms; }
     /* Loader still signals activity, but as a gentle pulse instead of a bounce. */
     .loader-bars span { animation: loaderPulse 1.4s ease-in-out infinite; }
   }
@@ -1681,15 +1716,27 @@ let paceBarMemory = null;
 
 // Logs week-index state. Weeks are keyed by the ISO date of their first day IN
 // THE MONTH they render under (weeks clip to the month — see weekSpanFor),
-// which is unique per week per month; logsMonthsShown is the lazy window
-// (current + previous month first, older blocks appended as the sentinel
-// scrolls into view). There is no expand/collapse state — Logs has no
-// accordion; the day sheet is the only drill-in.
-let logsMonthsShown = 2;
-let _logsObserver = null;
+// which is unique per week per month. There is no expand/collapse state — Logs
+// has no accordion; the day sheet is the only drill-in.
+//
+// SCOPE (2026-08-09): Logs opens on the CURRENT MONTH ONLY and grows on demand
+// from the "Earlier months" tail — it is not a full-history scroll and NOT a
+// month filter. Older months are APPENDED, never swapped in, so the ledger
+// stays one continuous scroll. logsMonthsShown counts months HOLDING DATA
+// (newest first), which is what makes the tail able to name the month it will
+// actually reveal; a calendar-months-back count would name empty months and
+// give a dead tap. It only ever grows within a session — a dataStamp bump or a
+// tab switch must not collapse the ledger, so it lives out here with the other
+// render state, and only a page reload resets it.
+// (This supersedes roadmap v3 decision 2 / Phase B step 3, and retired the
+// scroll-sentinel auto-append that shipped with them.)
+let logsMonthsShown = 1;
 let _logsWeeks = {};         // weekKey → { y, m, startIso, endIso, rows, days }
-let _logsTotalMonths = 0;    // months holding data, set each render — lets the
-                             // header chip grow the window to reach one
+let _logsMonthKeys = [];     // "y-m" of every month holding data, newest first
+let _logsTotalMonths = 0;    // = _logsMonthKeys.length — bounds both the tail
+                             // and the header chip's reach
+let _logsAppendedYm = null;  // "y-m" of a month appended by the tail this
+                             // render, so ONLY that block plays an entrance
 // Day-column heights from the previous render, so an optimistic write springs
 // the columns from where they were instead of replaying from empty. Same idiom
 // as counterMemory / paceBarMemory.
@@ -2054,17 +2101,27 @@ function renderLogsLedger() {
     monthsMap.get(key).weeks.push(wk);
   });
   const months = [...monthsMap.values()];
+  // One derivation of the month order, published for the tail and the chip —
+  // neither re-walks the week index to work out "which month comes next".
+  _logsMonthKeys = months.map(mo => `${mo.y}-${mo.m}`);
   _logsTotalMonths = months.length;
+  // Clamp here rather than at every ++ site: the row set can shrink under an
+  // optimistic delete, and a scope pointing past the end would drop the tail.
+  logsMonthsShown = Math.max(1, Math.min(logsMonthsShown, months.length));
   const shown = months.slice(0, logsMonthsShown);
 
   let html = '';
   shown.forEach(mo => {
-    html += `<div class="month-header" data-ym="${mo.y}-${mo.m}"><span class="month-name">${MONTHS_FULL[mo.m]} ${mo.y}</span></div>`;
-    mo.weeks.forEach(wk => {
+    // Only a month the tail just revealed animates in — the blocks already on
+    // screen must stay put, or an append reads as the whole page redrawing.
+    const isNew = _logsAppendedYm === `${mo.y}-${mo.m}`;
+    const newCls = isNew ? ' logs-new' : '';
+    html += `<div class="month-header${newCls}" data-ym="${mo.y}-${mo.m}"><span class="month-name">${MONTHS_FULL[mo.m]} ${mo.y}</span></div>`;
+    mo.weeks.forEach((wk, i) => {
       const w = _logsWeeks[wk];
       const spend = _weekSpend(wk);
       html += `
-        <div class="week-row" data-wk="${wk}">
+        <div class="week-row${newCls}" data-wk="${wk}" style="--d:${isNew ? Math.min(i, 8) * 45 : 0}ms">
           <div class="week-head">
             <div class="week-top">
               <span class="week-range">${weekRangeLabel(w)}</span>
@@ -2076,21 +2133,45 @@ function renderLogsLedger() {
         </div>`;
     });
   });
-  if (months.length > logsMonthsShown) html += `<div id="logs-sentinel"></div>`;
+  html += logsTailHtml(months);
+  _logsAppendedYm = null;   // one render's worth of entrance, then it's settled
 
   el.innerHTML = html;
   bindDayColClicks(el);
   paintDayColumns(el);
+}
 
-  // Lazy windowing: nearing the sentinel appends the next older month block.
-  const sentinel = document.getElementById('logs-sentinel');
-  if (!_logsObserver) {
-    _logsObserver = new IntersectionObserver(entries => {
-      if (entries.some(e => e.isIntersecting)) { logsMonthsShown++; renderLogsLedger(); }
-    }, { rootMargin: '160px' });
+// The ledger's footer: either the one control that grows the scope, or a note
+// that there is nothing older. Deliberately quiet — a dashed boundary at the
+// end of the ledger, not a primary action competing with the FAB.
+function logsTailHtml(months) {
+  if (months.length > logsMonthsShown) {
+    const next = months[logsMonthsShown];   // the month the tap will reveal
+    return `<button type="button" class="logs-tail" onclick="loadOlderMonths()">Earlier months — show ${logsMonthLabel(next.y, next.m)}</button>`;
   }
-  _logsObserver.disconnect();
-  if (sentinel) _logsObserver.observe(sentinel);
+  const oldest = months[months.length - 1];
+  if (!oldest) return '';
+  return `<div class="logs-end">Nothing logged before ${logsMonthLabel(oldest.y, oldest.m)}.</div>`;
+}
+
+// Month names in the tail follow the header chip's convention: bare in the
+// current year, year-suffixed outside it — otherwise "show December" is
+// ambiguous the moment the ledger crosses a year boundary.
+function logsMonthLabel(y, m) {
+  return y === new Date().getFullYear() ? MONTHS_FULL[m] : `${MONTHS_FULL[m]} ${y}`;
+}
+
+// The tail's one job: reveal exactly one more month, then take the reader to
+// it. Scope grows, never shrinks — a month stays loaded for the session.
+function loadOlderMonths() {
+  if (logsMonthsShown >= _logsTotalMonths) return;
+  logsMonthsShown++;
+  // Name the block that is about to appear so the renderer can scope the
+  // entrance to it. renderLogsLedger() clears this after one render.
+  const target = _logsMonthKeys[logsMonthsShown - 1] || null;
+  _logsAppendedYm = target;
+  renderLogsLedger();
+  if (target) logsScrollToYm(target);
 }
 
 // One transaction row. Logs itself no longer lists transactions inline (the
@@ -2270,7 +2351,10 @@ function headerNavMonth(delta) {
   viewMonth = key % 12;
   renderHeaderMonthNav();
   if (currentView === 'logs') {
-    // Logs never filters by month — the chip scrolls the week-scroll there.
+    // Logs never FILTERS by month — the chip loads whatever months it needs to
+    // reach the target and scrolls there, leaving everything already loaded in
+    // place. It deliberately bypasses calculateAndRender(), so the renderedKey
+    // early-return can't swallow the jump.
     logsScrollToMonth(viewYear, viewMonth);
   } else {
     calculateAndRender();
@@ -2303,9 +2387,11 @@ function renderHeaderMonthNav() {
     </div>`;
 }
 
-// Scroll the Logs week-scroll to a month's header, growing the lazy window
-// until that month is rendered. A month with no logged weeks has no header —
-// then this is a quiet no-op.
+// Scroll the Logs ledger to a month's header, growing the scope until that
+// month is rendered — the chip is a jump shortcut, so it loads whatever it
+// needs to get there and leaves it loaded. Stepping FORWARD never shrinks the
+// scope; it only scrolls. A month with no logged weeks has no header — then
+// this is a quiet no-op.
 function logsScrollToMonth(y, m) {
   const sel = `#logs-ledger .month-header[data-ym="${y}-${m}"]`;
   let guard = 0;
@@ -2313,7 +2399,13 @@ function logsScrollToMonth(y, m) {
     logsMonthsShown++;
     renderLogsLedger();
   }
-  const target = document.querySelector(sel);
+  logsScrollToYm(`${y}-${m}`);
+}
+
+// Put a month's header just under the sticky header. Shared by the chip and
+// the "Earlier months" tail, so a jump and an append land identically.
+function logsScrollToYm(key) {
+  const target = document.querySelector(`#logs-ledger .month-header[data-ym="${key}"]`);
   if (!target) return;
   const headerH = document.querySelector('.header').offsetHeight;
   const top = target.getBoundingClientRect().top + window.scrollY - headerH - 8;
@@ -3589,9 +3681,9 @@ function calculateAndRender() {
 
   }
 
-  // Logs — the ledger as a week index (roadmap Phase 4). Self-contained:
-  // reads all the user's rows, not the month-filtered set, so the accordion
-  // spans months regardless of the header month selector.
+  // Logs — the ledger as a week index (roadmap Phase 4). Self-contained: it
+  // reads all the user's rows and scopes them itself with logsMonthsShown, so
+  // the header month chip never filters here — it only jumps.
   if (currentView === 'logs') {
     renderHeaderMonthNav();
     renderLogsLedger();

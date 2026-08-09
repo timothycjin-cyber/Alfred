@@ -1,6 +1,24 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-09 — **Trends: tap a category to drill into its transactions (§3.7,
+*Last updated: 2026-08-09 (second pass, same day) — **Logs: current month by default,
+older months on demand (§3.6).** Logs no longer opens on the whole history. It opens on
+**one month** — the current one — and grows only when asked, from an
+`Earlier months — show June` tail at the foot of the ledger; at the end the tail becomes
+`Nothing logged before March.` The IntersectionObserver auto-append and `#logs-sentinel`
+are **deleted**. **This supersedes roadmap v3 decision 2 and Phase B step 3** (see §6), so
+don't reinstate the old behaviour from the roadmap. **Not a filter:** older months are
+**appended, never swapped in**, and once loaded a month stays loaded — a `dataStamp` bump,
+an optimistic write or a tab round-trip must not collapse the ledger; only a page reload
+resets it. ⚠️ **`logsMonthsShown` counts months HOLDING DATA, not calendar months back**
+(the brief said the latter): with a gap month, a calendar count makes the tail name an
+empty month and the tap reveals nothing. ⚠️ The append entrance is scoped to the revealed
+block via `_logsAppendedYm` and **lasts exactly one render**, so a later re-render replays
+nothing; neither `.settled` nor `.no-entrance` suppresses it. The chip still **jumps, never
+filters** — it loads what it needs, scrolls there, and stepping forward unloads nothing.
+**Export scope is unchanged** (the chip's month). Weeks still clip to their month.
+Render-loop verified 131/131, **with six negative controls run first**, on a fixture with a
+deliberate April gap. Front-end only — no Apps Script change, no redeploy.
+Prior banner (2026-08-09) — **Trends: tap a category to drill into its transactions (§3.7,
 §3.14).** The donut's breakdown rows are real `<button>`s: tapping one opens that
 category's transactions for the month the chip is on, **highest amount first**. A direct
 hit on an **arc** opens the same sheet (donut `onClick` → `getElementsAtEventForMode`,
@@ -469,9 +487,11 @@ budget-pace card.**
 
 ### 3.6 Logs tab
 
-`renderLogsLedger()` → `#logs-ledger`: **static week rows** under month headers, over
-**all** the user's rows. Each row is a label, an entry count, a week spend total and a
-**day-column chart**. Bars for money; no cell grids here.
+`renderLogsLedger()` → `#logs-ledger`: **static week rows** under month headers. Each row
+is a label, an entry count, a week spend total and a **day-column chart**. Bars for money;
+no cell grids here. It reads **all** the user's rows and scopes them itself — **the current
+month on open, older months appended on demand** from the tail at the bottom (see "Month
+scope" below). The header month chip never filters here; it jumps.
 
 - **NO ACCORDION — locked, and recorded so it isn't reintroduced by accident**
   (2026-08-08, second pass). Logs has no expand/collapse anywhere: no chevron, no
@@ -524,12 +544,45 @@ budget-pace card.**
   `openDaySheet(iso)`. Header = weekday + date, entry count, and the day's **expense**
   total (matching the column; income rows still list, badged `Budget`). Empty day reads
   `No transactions this day`, never a dead tap.
-- **Lazy windowing:** `logsMonthsShown` starts at 2; an IntersectionObserver on
-  `#logs-sentinel` (160px rootMargin) appends one older month per firing (chain-fires to
-  fill short screens). `_logsTotalMonths` bounds it (set each render).
-- **Scroll-to-month** (`logsScrollToMonth`): grows the lazy window until the target
-  `.month-header[data-ym]` exists, then `window.scrollTo` it under the sticky header
-  (smooth unless `REDUCED_MOTION`). A month with no logged weeks → quiet no-op.
+- **Month scope — current month by default, appended on demand** (2026-08-09; **supersedes
+  roadmap v3 decision 2 and Phase B step 3**, and retired the scroll-sentinel auto-append
+  that shipped with them — don't reinstate either from the roadmap). Logs is **not** a
+  full-history scroll and **not** a month filter:
+  - `logsMonthsShown` (module state, init **1**) is the scope. Older months are
+    **appended, never swapped in**, so the ledger stays one continuous scroll, and it
+    **only grows within a session** — a `dataStamp` bump or a tab round-trip must not
+    collapse it. Only a page reload resets it. It's clamped to `_logsTotalMonths` inside
+    `renderLogsLedger()` (one place — the row set can shrink under an optimistic delete).
+  - ⚠️ It counts **months HOLDING DATA**, newest first — *not* calendar months back from
+    now, which is what the brief's wording implied. With a gap month (data in Aug and
+    June, nothing in July) a calendar count would make the tail name July and tapping it
+    would reveal nothing: a dead tap. Counting data months means the tail always names the
+    month it will actually show.
+  - **Tail** (`logsTailHtml()`): either a `.logs-tail` button reading
+    `Earlier months — show June` (the next month back **that holds data**), or, at the
+    earliest such month, a `.logs-end` note reading `Nothing logged before March.` It is a
+    dashed transparent boundary, not a filled button — this is a footer, not a primary
+    action competing with the FAB. `--tail-dash` is its own token because
+    `--outline-variant` is pixel-identical to `--surface-container` in dark mode, exactly
+    where the dashes have to read as an edge. `logsMonthLabel()` year-suffixes outside the
+    current year, matching the header chip, so "show December" isn't ambiguous across a
+    year boundary.
+  - **`loadOlderMonths()`** raises the scope by one, re-renders, and scrolls the revealed
+    month's header under the sticky header. Only the new block animates: the renderer
+    tags it from `_logsAppendedYm` with `.logs-new` (→ `logsAppendIn`, staggered per week
+    via `--d`) and **clears the flag after that one render**, so a later re-render doesn't
+    replay it. Neither `.settled` nor `.no-entrance` targets `.month-header`/`.week-row`,
+    so neither suppresses the append — verified, not assumed.
+- **Scroll-to-month** (`logsScrollToMonth` → shared `logsScrollToYm`): the chip is a jump
+  shortcut — it grows the scope until the target `.month-header[data-ym]` exists, then
+  scrolls it under the sticky header (smooth unless `REDUCED_MOTION`). Stepping **forward
+  never shrinks the scope**; it only scrolls. It bypasses `calculateAndRender()` entirely,
+  so the `renderedKey` early-return can't swallow the jump. A month with no logged weeks
+  has no header → quiet no-op. (The last month can't reach the sticky header — the
+  document bottoms out first. That's the scroll being clamped, not failing.)
+- **Export scope is unchanged** — it still reads `viewMonth`/`viewYear` from the chip, not
+  "everything visible", and `#export-month-label` names that month in the modal, which is
+  what resolves the ambiguity when two months are on screen. Don't "fix" it.
 - **Toolbar:** slim right-aligned `.logs-toolbar` icon row atop `#logs-view`, now **two
   `.icon-btn`s** (`gap: 8px`): a repeat glyph opening the recurring sheet (§3.13) and the
   export icon. The press-scale rule lives on `.icon-btn:active` (was `.export-btn:active`)
@@ -863,6 +916,12 @@ six negative controls run first. Tapping a category (list row, or the arc itself
 **same** sheet the Logs day column opens, now generalized as `#drill-overlay` (§3.14).
 Front-end only; **no Apps Script change, no redeploy needed.** See §3.7 and §3.14.
 
+**Logs month scope (option C) is DONE** (2026-08-09) — render-loop verified 131/131, with
+six negative controls run first. Logs opens on the **current month only** and grows from an
+"Earlier months" tail; loaded months persist for the session. **Supersedes roadmap v3
+decision 2 and Phase B step 3.** Front-end only; **no Apps Script change, no redeploy
+needed.** See §3.6.
+
 **Pending:** the remaining unscheduled candidate features (§6).
 
 ---
@@ -1052,6 +1111,33 @@ One other brief detail that had moved on: it asked for the total in a `.txn-foot
 total sits in the header beside the title (`.drill-total`), which is the markup the
 category sheet reuses, so the two are identical as intended.
 
+### Logs month scope — option C ✅ DONE (2026-08-09)
+
+Owner brief, `ALFRED_LOGS_MONTH_SCOPE_PATCH.md`. Shipped behaviour is in §3.6. **No owner
+checklist — front-end only, no Apps Script change, no redeploy.**
+
+**It supersedes roadmap v3 decision 2 ("Logs = scroll-to-month, not filter") and Phase B
+step 3**, and retires the scroll-sentinel auto-append those shipped with. Recorded here so
+a future session reading the old roadmap doesn't reinstate either.
+
+Decisions future phases must not re-open:
+
+1. **Not a filter.** Older months are appended, never swapped in; once loaded, a month
+   stays loaded for the session. The ledger is one continuous scroll.
+2. **Default scope is one month**, and **loaded months survive re-renders** — a data
+   refresh or a tab switch must not collapse the ledger. Only a page reload resets it.
+3. **The tail is a plain statement, not a call to action** — a dashed boundary, sentence
+   case, no emoji. At the earliest month with data it becomes the end note.
+4. **Export scope is unchanged** (the chip's month, named in `#export-month-label`).
+5. **Weeks still clip to their month** — untouched by this change, and asserted so.
+
+One deviation from the brief, on correctness: it defines the scope as calendar months back
+from now, but the ledger indexes **months holding data**. With a gap month those differ,
+and the calendar reading makes the tail name an empty month — a tap that reveals nothing.
+Counting data months keeps the tail's promise honest. `monthsAvailable()` therefore wasn't
+added: `_logsTotalMonths` already is that quantity, and the brief's own instruction was not
+to write a second helper.
+
 ### Candidate features (refined 2026-07-19 — not yet phased)
 
 Each needs its own design/roadmap pass before building.
@@ -1098,6 +1184,42 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-09 — Logs: current month by default, older months on demand (§3.6):** Logs
+  opened on the whole history two months at a time, auto-appending as a sentinel scrolled
+  into view. It now opens on **one month** and grows only when the reader asks, from an
+  `Earlier months — show June` tail at the foot of the ledger; at the end that tail becomes
+  `Nothing logged before March.` The IntersectionObserver and `#logs-sentinel` are deleted.
+  **This supersedes roadmap v3 decision 2 and Phase B step 3** — recorded in §6 as well, so
+  the old roadmap can't quietly reinstate the previous behaviour. Three decisions worth
+  keeping. **(1) The scope counts months HOLDING DATA, not calendar months back** — the
+  brief specified the latter, and it is wrong in the presence of a gap: with data in August
+  and June but nothing in July, a calendar count makes the tail read `show July` and
+  tapping it reveals nothing. Counting data months means the tail can only ever name a
+  month it will actually show. **(2) Append, never swap, and never shrink** — the scope is
+  module state clamped once inside the renderer, so a `dataStamp` bump, an optimistic
+  write or a tab round-trip can't collapse the ledger, and stepping the chip *forward*
+  only scrolls. **(3) The entrance is scoped to the revealed block and lasts exactly one
+  render** — `_logsAppendedYm` tags the new month, and the renderer clears it immediately,
+  so an append reads as growth while a later re-render replays nothing. `--tail-dash` is
+  its own token because `--outline-variant` is pixel-identical to `--surface-container` in
+  dark mode, exactly where the dashes must read as an edge. Render-loop verified (§3.12;
+  390/900 × light/dark + reduced-motion, mocked GViz, local Chart.js, clock pinned to
+  2026-08-18 on an advancing offset): **131/131**, on a fixture with a deliberate **April
+  gap** — the tail walks Aug → Jul → Jun → May → **March**, skipping April, and the
+  boundary week still renders as `Jul 27 – 31` under July and `Aug 1 – 2` under August. Also
+  asserted: the entrance plays on the new block and not on the ones already up, `.settled`
+  doesn't suppress a later append, a day column inside an *appended* month still opens the
+  day sheet, the chip loads an unloaded month and scrolls to it while stepping forward
+  unloads nothing, export still names the chip's month, and `scrollWidth == clientWidth`
+  after every month is loaded. **Six negative controls run first** (default of two months,
+  scope reset per render, entrance not scoped, a calendar-months tail, no end note, no
+  scroll on append) — each fired on its own probes and nothing else. **Two harness
+  findings:** the "scrolled under the sticky header" assertion failed against correct code
+  because the *last* month can never reach the top — the document bottoms out first, so the
+  probe now accepts a maxed scroll and only demands exact alignment for a month with
+  content below it; and a scrollY-delta check for "the append scrolled" proved nothing,
+  because **Playwright scrolls an element into view before clicking it** — the delta was
+  the harness's own. It was removed rather than left as decoration.
 - **2026-08-09 — Trends: tap a category to drill into its transactions (§3.7, §3.14):**
   the donut's breakdown rows became real `<button>`s that open a category's month
   transactions, highest first, and the day sheet was generalized into **one drill-in sheet
@@ -1529,6 +1651,18 @@ woven into §3.
   phone and turns a 48px-tall column into a 200px-wide slab on a desktop. Anything whose
   *proportions* carry meaning needs a `max-width` (or `max-height`) cap, and the leftover
   space is fine — left-aligning past the cap keeps every column identical at every width.
+- **"N months back" is not the same question as "N months of data."** A scope counted in
+  calendar months names empty months; a scope counted in months holding data names only
+  months that will actually appear. Anything whose label promises what a tap will reveal
+  has to be counted the second way — otherwise the affordance lies, and the lie only shows
+  up on a dataset with a gap in it. Fixtures for this kind of work need a deliberate gap.
+- **Playwright scrolls an element into view before clicking it.** Any assertion of the form
+  "the page scrolled after I clicked X" is measuring the harness, not the app. Assert where
+  the target *landed* instead.
+- **A scroll target at the end of the document can't reach the top of the viewport.** The
+  page bottoms out first, so "scrolled under the sticky header" is only a fair claim for an
+  element with content below it. A probe that ignores the clamp reports a bug in correct
+  code — check alignment on a middle element and "in view, scroll maxed" on the last one.
 - **The second drill-in is a caller, not a component.** When a new surface needs "tap this
   figure, see its transactions", generalize the existing sheet (`drillState` +
   `drillContent()`) instead of writing a second one. Two sheets means two sets of chrome,
