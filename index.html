@@ -502,15 +502,26 @@
   /* Category breakdown — the ring's legend, carrying every name, share and
      amount the retired on-canvas callouts used to. Rows sit inside a .card that
      already has a border, so they get hairline separators, not a nested box. */
+  /* A row is the drill-in's tap target — the successor to the retired on-canvas
+     callouts, and a far more forgiving one: full card width and ≥44px tall, so
+     the smallest category is as easy to hit as the largest. The button resets
+     below make it look exactly like the <div> it replaced. */
   .cat-row {
-    padding: 12px 0;
-    border-bottom: 1px solid var(--outline-variant);
+    display: block; width: 100%; min-height: 44px; padding: 12px 0;
+    border: none; border-bottom: 1px solid var(--outline-variant);
+    background: transparent; color: inherit; font-family: inherit; text-align: left;
+    cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;
     animation: rowIn var(--motion-snap) backwards;
     animation-delay: var(--d, 0ms);
   }
   .cat-row:first-child { padding-top: 0; }
   .cat-row:last-child { border-bottom: none; padding-bottom: 0; }
-  .cat-top { display: flex; align-items: center; gap: 12px; }
+  .cat-row:active .cat-top { opacity: 0.6; }
+  .cat-row:focus-visible { border-radius: var(--shape-xs); outline: 2px solid var(--primary); outline-offset: 2px; }
+  .cat-top { display: flex; align-items: center; gap: 12px; transition: opacity var(--motion-snap); }
+  /* Quiet affordance — enough to say the row opens something, not enough to
+     compete with the money beside it. */
+  .cat-chev { color: var(--on-surface-variant); flex-shrink: 0; margin-left: -4px; }
   .cat-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .cat-name {
     font-size: 13.5px; font-weight: 700; color: var(--on-surface); line-height: 1.25;
@@ -1224,12 +1235,12 @@
     border-radius: var(--shape-xl);
   }
 
-  /* Day drill-in sheet — bottom-anchored like the capture sheet (same thumb
-     zone, same clearance above the nav cluster), but it RISES from its own
-     bottom edge rather than blooming out of the FAB. .align-bottom's
-     transform-origin is FAB-anchored by construction (see the geometry note
-     above); this sheet is triggered by a day column mid-page, so a bloom
-     would spring from a spot nothing was tapped at. */
+  /* Drill-in sheet (a Logs day, or a Trends category) — bottom-anchored like
+     the capture sheet (same thumb zone, same clearance above the nav cluster),
+     but it RISES from its own bottom edge rather than blooming out of the FAB.
+     .align-bottom's transform-origin is FAB-anchored by construction (see the
+     geometry note above); this sheet is triggered by a column or a category row
+     mid-page, so a bloom would spring from a spot nothing was tapped at. */
   .modal-overlay.align-bottom.sheet-rise .modal-sheet {
     transform-origin: 50% 100%;
     transform: translateY(18px) scale(0.96);
@@ -1240,15 +1251,15 @@
     transform: translateY(0) scale(1);
   }
 
-  .day-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 0.75rem; }
-  .day-head .modal-title { margin-bottom: 2px; }
-  .day-sub { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
-  .day-total { font-size: 18px; font-weight: 800; color: var(--semantic-expense); flex-shrink: 0; }
-  .day-body { max-height: 44vh; overflow-y: auto; }
+  .drill-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 0.75rem; }
+  .drill-head .modal-title { margin-bottom: 2px; }
+  .drill-sub { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
+  .drill-total { font-size: 18px; font-weight: 800; color: var(--semantic-expense); flex-shrink: 0; }
+  .drill-body { max-height: 44vh; overflow-y: auto; }
   /* Rows run to the sheet's own padding edge — .txn-row carries the ledger's
      1.25rem inset, which would double up inside the sheet. */
-  .day-body .txn-row { padding-left: 0; padding-right: 0; }
-  .day-empty { font-size: 13px; color: var(--on-surface-variant); padding: 8px 0 2px; }
+  .drill-body .txn-row { padding-left: 0; padding-right: 0; }
+  .drill-empty { font-size: 13px; color: var(--on-surface-variant); padding: 8px 0 2px; }
 
   /* ── Review list (multi-entry confirm) ──────────────────────────────────── */
   #review-list { max-height: 45vh; overflow-y: auto; margin-bottom: 0.5rem; }
@@ -1580,21 +1591,24 @@
   </div>
 </div>
 
-<!-- Day drill-in — opened by tapping a day column on a Logs week row. Rows
-     reuse the ledger's own txn markup and hand off to openTxnModal(), so
-     edit/delete stay in exactly one place. -->
-<div class="modal-overlay align-bottom sheet-rise" id="day-overlay" onclick="if(event.target===this) closeDayModal()">
-  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="day-title" tabindex="-1">
-    <div class="day-head">
+<!-- Drill-in sheet — ONE component, two callers: a day column on a Logs week
+     row (openDaySheet) and a category on the Trends donut/breakdown
+     (openCategorySheet). Only the header copy differs; the chrome, the row
+     markup and the hand-off to openTxnModal() are identical, so tapping a
+     figure always opens the same thing. Rows reuse the ledger's own txn markup
+     and hand off to openTxnModal(), so edit/delete stay in exactly one place. -->
+<div class="modal-overlay align-bottom sheet-rise" id="drill-overlay" onclick="if(event.target===this) closeDrillSheet()">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="drill-title" tabindex="-1">
+    <div class="drill-head">
       <div>
-        <div class="modal-title" id="day-title">Day</div>
-        <div class="day-sub" id="day-sub"></div>
+        <div class="modal-title" id="drill-title">Day</div>
+        <div class="drill-sub" id="drill-sub"></div>
       </div>
-      <div class="day-total" id="day-total"></div>
+      <div class="drill-total" id="drill-total"></div>
     </div>
-    <div class="day-body" id="day-body"></div>
+    <div class="drill-body" id="drill-body"></div>
     <div class="modal-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeDayModal()">Close</button>
+      <button type="button" class="btn btn-ghost" onclick="closeDrillSheet()">Close</button>
     </div>
   </div>
 </div>
@@ -1680,7 +1694,11 @@ let _logsTotalMonths = 0;    // months holding data, set each render — lets th
 // the columns from where they were instead of replaying from empty. Same idiom
 // as counterMemory / paceBarMemory.
 let _dayHeightMemory = {};   // dayIso → height % used last render
-let dayModalIso = null;      // the day the drill-in sheet is showing, or null
+// What the drill-in sheet is showing, or null when it's closed:
+//   { kind: 'day', iso }  ·  { kind: 'category', cat, year, month }
+// Module state, not DOM state, so a background reconcile re-renders the open
+// sheet instead of leaving it stale (same reason todayDetailOpen is).
+let drillState = null;
 
 let donutChart = null;
 let lineChart = null;
@@ -1786,8 +1804,8 @@ function todayGlanceHtml() {
 }
 
 // Average Daily / Forecast, disclosed under the Expenses tile. Module state so
-// the panel survives an optimistic re-render (the same reason dayModalIso is
-// module state for the Logs day sheet).
+// the panel survives an optimistic re-render (the same reason drillState is
+// module state for the drill-in sheet).
 let todayDetailOpen = false;
 
 // Self-contained like computeTodayGlance/todayGlanceHtml, so the click handler
@@ -2063,9 +2081,6 @@ function renderLogsLedger() {
   el.innerHTML = html;
   bindDayColClicks(el);
   paintDayColumns(el);
-  // A sheet left open across an optimistic write or a reconcile follows the
-  // data rather than going stale.
-  if (dayModalIso) renderDayModalBody();
 
   // Lazy windowing: nearing the sentinel appends the next older month block.
   const sentinel = document.getElementById('logs-sentinel');
@@ -2106,7 +2121,7 @@ function txnRowHtml(r, i) {
 
 function bindDayColClicks(scope) {
   scope.querySelectorAll('.day-col[data-date]').forEach(col => {
-    col.addEventListener('click', () => openDayModal(col.dataset.date));
+    col.addEventListener('click', () => openDaySheet(col.dataset.date));
   });
 }
 
@@ -2121,9 +2136,12 @@ function paintDayColumns(scope) {
   else requestAnimationFrame(() => requestAnimationFrame(paint));
 }
 
-// ── Day drill-in sheet ─────────────────────────────────────────────────────
-// Tapping a day column opens that day's transactions. Read-only: rows hand
-// straight back to openTxnModal(), so edit/delete keep living in one place.
+// ── Drill-in sheet ─────────────────────────────────────────────────────────
+// ONE sheet, two callers: a Logs day column (openDaySheet) and a Trends
+// category (openCategorySheet). Whatever was tapped, the same sheet opens with
+// the same chrome and the same rows — a figure on any surface drills into its
+// transactions the one way. Read-only: rows hand straight back to
+// openTxnModal(), so edit/delete keep living in one place.
 
 function dayRowsFor(iso) {
   return allRows
@@ -2131,42 +2149,80 @@ function dayRowsFor(iso) {
     .sort((a, b) => ((b.Type !== 'Income') - (a.Type !== 'Income')) || (b.Amount - a.Amount));
 }
 
-function openDayModal(iso) {
-  dayModalIso = iso;
-  renderDayModalBody();
+// A category's expense rows for one month, highest first. Reuses the insight
+// builders' month filter so "in this month" means exactly what the donut means
+// by it — the pie and its drill-in can't disagree about membership.
+function txnsForCategory(category, year, month) {
+  return _expenseRowsFor(year, month)
+    .filter(r => r.Category === category)
+    .sort((a, b) => b.Amount - a.Amount);
+}
+
+function openDaySheet(iso) {
+  openDrillSheet({ kind: 'day', iso });
+}
+
+// Scoped to the month the Trends chip is on, not the live month — opening a
+// category from an archived month drills into that month.
+function openCategorySheet(cat) {
+  openDrillSheet({ kind: 'category', cat, year: viewYear, month: viewMonth });
+}
+
+function openDrillSheet(state) {
+  drillState = state;
+  renderDrillSheetBody();
   document.body.classList.add('modal-open-state');
-  const overlay = document.getElementById('day-overlay');
+  const overlay = document.getElementById('drill-overlay');
   overlay.classList.add('open');
   // Focus the sheet, not a control — same no-keyboard-auto-pop rule as the
   // txn modal and the capture sheet.
   trapModalFocus(overlay, overlay.querySelector('.modal-sheet'));
 }
 
-function closeDayModal() {
-  dayModalIso = null;
+function closeDrillSheet() {
+  drillState = null;
   document.body.classList.remove('modal-open-state');
-  document.getElementById('day-overlay').classList.remove('open');
-  releaseModalFocus();   // returns focus to the column that opened it
+  document.getElementById('drill-overlay').classList.remove('open');
+  releaseModalFocus();   // returns focus to the column/row that opened it
 }
 
-function renderDayModalBody() {
-  if (!dayModalIso) return;
-  const d = new Date(dayModalIso + 'T00:00:00');
-  const rows = dayRowsFor(dayModalIso);
-  const spend = rows.reduce((s, r) => s + (r.Type !== 'Income' ? r.Amount : 0), 0);
-  document.getElementById('day-title').textContent =
-    `${WEEKDAYS_MON[(d.getDay() + 6) % 7]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
-  document.getElementById('day-sub').textContent = rows.length
-    ? `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}`
-    : 'No entries';
-  // The figure is the day's spend, matching the column that was tapped —
-  // income rows still list below, they just don't move a spend bar.
-  document.getElementById('day-total').textContent = `RM ${formatCurrency(spend)}`;
-  const body = document.getElementById('day-body');
-  body.innerHTML = rows.length
-    ? rows.map(txnRowHtml).join('')
-    : '<div class="day-empty">No transactions this day</div>';
-  bindDayRowClicks(body);
+// Each kind resolves to the same four things — title, sub, total, rows — and
+// the sheet renders them identically from there.
+function drillContent(state) {
+  if (state.kind === 'category') {
+    const rows = txnsForCategory(state.cat, state.year, state.month);
+    return {
+      title: state.cat,
+      sub: `${MONTHS_FULL[state.month]} ${state.year} · ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}`,
+      total: rows.reduce((s, r) => s + r.Amount, 0),
+      rows,
+      empty: 'No transactions in this category'
+    };
+  }
+  const d = new Date(state.iso + 'T00:00:00');
+  const rows = dayRowsFor(state.iso);
+  return {
+    title: `${WEEKDAYS_MON[(d.getDay() + 6) % 7]} ${d.getDate()} ${MONTHS[d.getMonth()]}`,
+    sub: rows.length ? `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}` : 'No entries',
+    // The figure is the day's spend, matching the column that was tapped —
+    // income rows still list below, they just don't move a spend bar.
+    total: rows.reduce((s, r) => s + (r.Type !== 'Income' ? r.Amount : 0), 0),
+    rows,
+    empty: 'No transactions this day'
+  };
+}
+
+function renderDrillSheetBody() {
+  if (!drillState) return;
+  const c = drillContent(drillState);
+  document.getElementById('drill-title').textContent = c.title;
+  document.getElementById('drill-sub').textContent = c.sub;
+  document.getElementById('drill-total').textContent = `RM ${formatCurrency(c.total)}`;
+  const body = document.getElementById('drill-body');
+  body.innerHTML = c.rows.length
+    ? c.rows.map(txnRowHtml).join('')
+    : `<div class="drill-empty">${c.empty}</div>`;
+  bindDrillRowClicks(body);
 }
 
 // The sheet CLOSES before the txn modal opens: trapModalFocus holds exactly
@@ -2174,11 +2230,11 @@ function renderDayModalBody() {
 // chain (the same constraint that made the recurring sheet two panes rather
 // than two overlays). Closing hands focus back to the column, which is then
 // what the txn modal remembers as its own return target.
-function bindDayRowClicks(scope) {
+function bindDrillRowClicks(scope) {
   scope.querySelectorAll('.txn-row[data-uid]').forEach(row => {
     row.addEventListener('click', () => {
       const uid = row.dataset.uid;
-      closeDayModal();
+      closeDrillSheet();
       openTxnModal(uid);
     });
   });
@@ -2327,6 +2383,18 @@ function archiveCardHtml({ net, expense, topCat, topAmt, daysLogged, daysInMonth
     </div>`;
 }
 
+// Each breakdown row drills into that category's transactions for the month the
+// Trends chip is on. The list is where the tap lives because it is where the
+// labels live (the ring carries no text of its own) — and a full-width row is a
+// reliable target for the small categories, which on the ring are a few degrees
+// of arc. Tapping the arc itself works too (the donut's onClick), it just can't
+// be the only way in.
+function bindCategoryRowClicks(scope) {
+  scope.querySelectorAll('.cat-row[data-cat]').forEach(row => {
+    row.addEventListener('click', () => openCategorySheet(row.dataset.cat));
+  });
+}
+
 // The donut's legend, in DOM. Replaced the on-canvas name/amount callouts and
 // on-slice percentages (retired 2026-08-04) — those were the only way to read a
 // slice, and they had to lay themselves out by hand around the ring. A ranked
@@ -2346,7 +2414,9 @@ function categoryBreakdownHtml(catData, total) {
     // rounded integer; whole numbers above it, where the extra digit is noise.
     const pctStr = pct < 10 ? pct.toFixed(1) : pct.toFixed(0);
     return `
-      <div class="cat-row" style="--d:${Math.min(i, 10) * 35}ms">
+      <button type="button" class="cat-row" data-cat="${escapeHtml(cat)}"
+              aria-label="${escapeHtml(cat)}, RM ${formatCurrency(amt)}, ${pctStr}% of total. View transactions."
+              style="--d:${Math.min(i, 10) * 35}ms">
         <div class="cat-top">
           <div class="txn-icon-chip" style="background:${hexToRgba(hex, 0.14)}">${icon}</div>
           <div class="cat-meta">
@@ -2354,11 +2424,12 @@ function categoryBreakdownHtml(catData, total) {
             <div class="cat-share">${pctStr}% of total</div>
           </div>
           <span class="cat-amt">RM ${formatCurrency(amt)}</span>
+          <svg class="cat-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
         </div>
         <div class="cat-bar">
           <div class="cat-bar-fill" data-w="${pct.toFixed(2)}" style="background:${hex}"></div>
         </div>
-      </div>`;
+      </button>`;
   }).join('');
 }
 
@@ -3657,7 +3728,24 @@ function calculateAndRender() {
           radius: '92%',
           cutout: '70%',
           layout: { padding: 4 },
-          plugins: { legend: { display: false }, tooltip: { enabled: false } }
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          // Secondary way into the same sheet: a direct hit on an arc. Gated on
+          // the canvas id like every other chart hook here, so nothing else on
+          // the page picks it up. Nothing about the ring's paint changes —
+          // 'nearest' + intersect:true means a miss stays a miss rather than
+          // snapping to whichever arc happens to be closest.
+          onClick: (evt, _els, chart) => {
+            if (!chart.canvas || chart.canvas.id !== 'donut') return;
+            const hit = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+            if (!hit.length) return;
+            const cat = chart.data.labels[hit[0].index];
+            if (cat) openCategorySheet(cat);
+          },
+          onHover: (evt, _els, chart) => {
+            if (!chart.canvas || chart.canvas.id !== 'donut') return;
+            const hit = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+            chart.canvas.style.cursor = hit.length ? 'pointer' : 'default';
+          }
         }
       });
     } else {
@@ -3667,6 +3755,7 @@ function calculateAndRender() {
     const breakdownEl = document.getElementById('category-breakdown');
     if (breakdownEl) {
       breakdownEl.innerHTML = categoryBreakdownHtml(vCatData, vExpense);
+      bindCategoryRowClicks(breakdownEl);
       // Mount-then-spring: the fills are born at width 0 and get their real
       // width one frame later, so the wobble transition actually fires.
       const fills = breakdownEl.querySelectorAll('.cat-bar-fill');
@@ -3733,6 +3822,10 @@ function calculateAndRender() {
     renderSpendingPatterns();
   }
   animateCounters();
+  // A drill-in sheet left open across an optimistic write or a reconcile
+  // follows the data rather than going stale. It lives here, not in a per-view
+  // renderer, because either view can be the one behind the sheet.
+  if (drillState) renderDrillSheetBody();
 }
 
 function populateCategoryOptions(type, selected, selectId = 'modal-category') {
@@ -4052,8 +4145,8 @@ document.addEventListener('keydown', (e) => {
     closeReviewModal();
   } else if (document.getElementById('capture-overlay').classList.contains('open')) {
     closeCaptureModal();
-  } else if (document.getElementById('day-overlay').classList.contains('open')) {
-    closeDayModal();
+  } else if (document.getElementById('drill-overlay').classList.contains('open')) {
+    closeDrillSheet();
   } else if (document.getElementById('recurring-overlay').classList.contains('open')) {
     // Same one-step-back shape as the txn modal: confirm → form → list → closed.
     if (document.getElementById('recur-confirm').classList.contains('show')) cancelRecurDeleteConfirm();

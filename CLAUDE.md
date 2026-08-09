@@ -1,6 +1,26 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-08 (second pass, same day) — **Logs: day columns, accordion removed
+*Last updated: 2026-08-09 — **Trends: tap a category to drill into its transactions (§3.7,
+§3.14).** The donut's breakdown rows are real `<button>`s: tapping one opens that
+category's transactions for the month the chip is on, **highest amount first**. A direct
+hit on an **arc** opens the same sheet (donut `onClick` → `getElementsAtEventForMode`,
+`intersect:true`, gated on `canvas.id === 'donut'`), but the **list row is the primary tap
+target** — full card width, ≥44px, a quiet `.cat-chev` — because the ring carries no text
+and a 0.1% category is a few degrees of arc. **Nothing about the ring's paint changed**
+(asserted pixel-identical against the pre-change file). **The sheet is the SAME one the
+Logs day column opens**, now generalized: `#day-overlay` → **`#drill-overlay`**, `.day-*`
+→ `.drill-*`, `dayModalIso` → **`drillState`** (`{kind:'day'|'category', …}`), with
+`drillContent()` resolving either kind to title/sub/total/rows and `openDaySheet(iso)` /
+`openCategorySheet(cat)` as the two wrappers. ⚠️ **Any future drill-in generalizes
+`drillContent()` — it does not build a third sheet.** ⚠️ The open-sheet re-render moved
+from `renderLogsLedger()` to the end of **`calculateAndRender()`**, because either view can
+now be the one behind the sheet. `txnsForCategory()` reuses `_expenseRowsFor()`, so the
+ring and its drill-in can't disagree about what's in a month. **The brief was written
+against the retired `pieLabelsPlugin` callouts** — the intent (a forgiving target for small
+slices) transferred to the DOM list, which is a better one. Render-loop verified 228/228,
+**with six negative controls run first**; three harness bugs surfaced by those controls are
+recorded in §7/§8. Front-end only — no Apps Script change, no redeploy.
+Prior banner (2026-08-08, second pass) — **Logs: day columns, accordion removed
 (§3.6).** Supersedes the day-segments pass shipped earlier today. **Logs is no longer an
 accordion.** A week is a **static row** — label, entry count, week spend total, and a
 **day-column chart** beneath it. There is no expand/collapse anywhere on the tab, no
@@ -17,7 +37,8 @@ Single-letter weekday labels (M T W T F S S) sit under each, `aria-hidden` so th
 isn't read twice. The whole cell (track + label, ≥44px tall) is the tap target; a
 zero-spend day keeps a 4px stub. **Weeks still CLIP TO THE MONTH they render under**
 (unchanged, still locked): `Jul 27 – 31` under July, `Aug 1 – 2` under August; short weeks
-are correct, not a bug. The **day drill-in sheet** (`#day-overlay`) is unchanged from the
+are correct, not a bug. The **day drill-in sheet** (then `#day-overlay`, now the shared
+`#drill-overlay` — see the banner above) was unchanged from the
 earlier pass — ⚠️ it **closes before `openTxnModal()`** (`trapModalFocus` holds exactly one
 trap), and ⚠️ it is `.align-bottom` **plus `.sheet-rise`**, because `.align-bottom`'s
 `transform-origin` is FAB-anchored and a column mid-page isn't the FAB. **Heights are
@@ -406,7 +427,7 @@ budget-pace card.**
   of `calculateAndRender()`** — markup injected from the click handler must be swept
   explicitly or the figures sit at their literal `RM 0.00` placeholder forever.
   `todayDetailOpen` is module state, so the panel survives optimistic re-renders the way
-  `dayModalIso` does for the Logs day sheet.
+  `drillState` does for the drill-in sheet (§3.14).
 - **Glance line** (`computeTodayGlance` — the digest math as client-side JS): today's
   spend vs the 30-day spend-day average; zero-state "Nothing logged today yet."
 - **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome,
@@ -499,25 +520,10 @@ budget-pace card.**
   it to the filled portion: a zero day's visual is 4px, and its tap target is the full
   cell. `aria-label` carries day + figure (`Tue 4 Aug, RM 42.00`). `.week-days` is a
   labelled `role="group"`.
-- **Day drill-in sheet** (`#day-overlay`, `openDayModal(iso)` / `renderDayModalBody()`):
-  tapping a column opens that day's transactions. Header = weekday + date, entry count,
-  and the day's **expense** total (matching the column; income rows still list, badged
-  `Budget`). Body uses **`txnRowHtml()`**. Empty day reads `No transactions this day`,
-  never a dead tap. `dayModalIso` is module state and `renderLogsLedger()` re-renders an
-  open sheet, so a background reconcile can't leave it stale.
-  - ⚠️ **The sheet CLOSES before `openTxnModal(uid)`** (`bindDayRowClicks`) — the
-    `openManualFromCapture()` precedent. `trapModalFocus` holds exactly one trap at a
-    time; stacking overlays clobbers the return-focus chain. Closing hands focus back to
-    the column, which the txn modal then remembers as *its* return target. No new
-    edit/delete logic exists anywhere.
-  - ⚠️ It is `.align-bottom` **plus `.sheet-rise`**: `.align-bottom` alone has a
-    FAB-anchored `transform-origin` (§3.3 derived numbers), and this sheet is triggered
-    by a column mid-page, so the bloom would spring from a spot nothing was tapped at.
-    `.sheet-rise` overrides the origin to `50% 100%` and rises `translateY(18px)
-    scale(0.96) → 0/1`. The bottom anchoring itself is kept deliberately (thumb zone,
-    clearance above the nav cluster).
-  - Escape is in the **hardcoded global chain** (after capture, before recurring) and had
-    to be extended by hand, same as Phase G's.
+- **Day drill-in** — tapping a column opens the **shared drill-in sheet** (§3.14) with
+  `openDaySheet(iso)`. Header = weekday + date, entry count, and the day's **expense**
+  total (matching the column; income rows still list, badged `Budget`). Empty day reads
+  `No transactions this day`, never a dead tap.
 - **Lazy windowing:** `logsMonthsShown` starts at 2; an IntersectionObserver on
   `#logs-sentinel` (160px rootMargin) appends one older month per firing (chain-fires to
   fill short screens). `_logsTotalMonths` bounds it (set each render).
@@ -616,8 +622,25 @@ card a large dead area.
     round to the same integer. Bars mount at `width:0` and get their real width one frame
     later (the pace-bar mount-then-spring idiom). Rows are hairline-separated, not a nested
     `.txn-list` box, since they sit inside a `.card` that already has a border.
+  - **Tap a category → the shared drill-in sheet** (§3.14, `openCategorySheet(cat)` →
+    `txnsForCategory(cat, year, month)`, highest amount first), added 2026-08-09. It is the
+    **same sheet the Logs day column opens** — not a new modal, not an inline expand — and
+    its rows hand off to `openTxnModal(uid)` exactly the same way, so edit/delete stay in
+    one place. Scope is `viewMonth`/`viewYear`, matching the ring: opening a category from
+    an archived month drills into **that** month. `txnsForCategory` reuses
+    `_expenseRowsFor()`, so the sheet and the donut can't disagree about what's in a month.
+  - **The tap lives on the list row, not (only) the arc.** Each `.cat-row` is a real
+    `<button>` — full card width, ≥44px tall, a quiet `.cat-chev` affordance — because the
+    list is where the labels are (the ring carries no text of its own) and because a 0.1%
+    category is a few degrees of arc but a full-width row. A direct hit on an arc opens the
+    same sheet as a secondary path: the donut's `onClick` runs
+    `getElementsAtEventForMode(evt, 'nearest', {intersect:true}, true)`, gated on
+    `canvas.id === 'donut'` like every other chart hook here, so a miss (the ring's hole)
+    stays a miss instead of snapping to the closest arc. **Nothing about the ring's paint
+    changed** — verified pixel-identical against the pre-change file.
   - **Empty month** (no expense rows): `#donut-container` is `display:none`, no centre
-    overlay, and the list reads `No expenses logged this month.`
+    overlay, and the list reads `No expenses logged this month.` — no rows, no arc, so
+    nothing to tap.
   - Layout: `.cat-card-body` is one column on a phone, `minmax(0,300px) minmax(0,1fr)`
     (donut left, list right) from 769px up.
 - **Category palette** (validated with the dataviz six-checks, light+dark): Food &
@@ -773,6 +796,39 @@ A series is a **definition** in the `Recurring` tab (§1); its **occurrences** a
   shared by both tabs; `mapGvizRows` now also reads col E into `Source` (safe — `rowSig`
   uses explicit fields, `exportCSV` builds columns explicitly).
 
+### 3.14 Drill-in sheet — ONE component, two callers
+
+`#drill-overlay` is the single sheet that any figure drills into: a **Logs day column**
+(§3.6) and a **Trends category** (§3.7). One interaction language — tapping a figure
+always opens the same thing, never a second modal shape or an inline expand. It was the
+day sheet first (2026-08-08, then `#day-overlay`); the category drill-down generalized it
+rather than building a second one, and renamed the DOM to match (`.drill-head` /
+`.drill-sub` / `.drill-total` / `.drill-body` / `.drill-empty`).
+
+- **State, not DOM:** `drillState` is `{kind:'day', iso}` or
+  `{kind:'category', cat, year, month}`. Module state, so an open sheet survives an
+  optimistic write; `calculateAndRender()` ends with `if (drillState)
+  renderDrillSheetBody()` — one call site, because **either view can be the one behind
+  the sheet** (it used to live in `renderLogsLedger()`, which only covers Logs).
+- **`drillContent(state)`** resolves each kind to the same four things — title, sub,
+  total, rows — and `renderDrillSheetBody()` renders them identically from there. Day:
+  weekday + date, entry count, the day's expense total. Category: the category name,
+  `August 2026 · N entries`, the category's month total. Body always uses
+  **`txnRowHtml()`**; an empty result reads as copy, never a dead sheet.
+- ⚠️ **The sheet CLOSES before `openTxnModal(uid)`** (`bindDrillRowClicks`) — the
+  `openManualFromCapture()` precedent. `trapModalFocus` holds exactly one trap at a time;
+  stacking overlays clobbers the return-focus chain. Closing hands focus back to the
+  column/row, which the txn modal then remembers as *its* return target. **No new
+  edit/delete logic exists anywhere** — every mutation still goes through the txn modal.
+- ⚠️ It is `.align-bottom` **plus `.sheet-rise`**: `.align-bottom` alone has a
+  FAB-anchored `transform-origin` (§3.3 derived numbers), and this sheet is triggered by a
+  column or a list row mid-page, so the bloom would spring from a spot nothing was tapped
+  at. `.sheet-rise` overrides the origin to `50% 100%` and rises `translateY(18px)
+  scale(0.96) → 0/1`. The bottom anchoring itself is kept deliberately (thumb zone,
+  clearance above the nav cluster).
+- Escape is in the **hardcoded global chain** (after capture, before recurring) and had to
+  be extended by hand, same as Phase G's.
+
 ---
 
 ## 4. Status
@@ -801,6 +857,11 @@ for gave no hint that redeploying was the fix. Errors now surface the server's o
 with five negative controls run first. Logs has **no accordion**: static week rows, a
 fixed-width day-column chart, and the day sheet as the sole drill-in. Front-end only;
 **no Apps Script change, no redeploy needed.** See §3.6.
+
+**Trends category drill-down is DONE** (2026-08-09) — render-loop verified 228/228, with
+six negative controls run first. Tapping a category (list row, or the arc itself) opens the
+**same** sheet the Logs day column opens, now generalized as `#drill-overlay` (§3.14).
+Front-end only; **no Apps Script change, no redeploy needed.** See §3.7 and §3.14.
 
 **Pending:** the remaining unscheduled candidate features (§6).
 
@@ -965,6 +1026,32 @@ Three decisions future phases must not re-open:
    off the week total is a *possible* future — it was explicitly out of scope, not
    forgotten.
 
+### Trends category drill-down ✅ DONE (2026-08-09)
+
+Owner-supplied brief, written against the pre-donut pie (it names `pieLabelsPlugin` and
+`variableRadiusPlugin`, both deleted 2026-08-04). Its *intent* survived the redesign
+intact and is what shipped; only the mechanism moved. Shipped behaviour is in §3.7 and
+§3.14. **No owner checklist — front-end only, no Apps Script change, no redeploy.**
+
+Decisions future phases must not re-open:
+
+1. **One sheet, not a second pattern.** A category drills into the *same* `#drill-overlay`
+   the Logs day column opens. Any future drill-in (a week total, a Today tile) generalizes
+   `drillContent()`; it does not build a third sheet.
+2. **The list row is the primary tap target, the arc is secondary.** The brief asked for
+   the pie *callout* precisely because a small slice needs a forgiving target. The callouts
+   are gone, but the DOM breakdown list is their successor and is a strictly better target
+   — full width, ≥44px. Arc taps also work and must keep working.
+3. **Scope is the month chip**, matching the ring. No all-time toggle (explicitly out of
+   scope for this phase).
+4. **The ring's paint is untouched.** Verified pixel-identical against the pre-change
+   file, at 390px light and 900px dark.
+
+One other brief detail that had moved on: it asked for the total in a `.txn-footer` /
+`.txn-footer-amt` line "matching the day sheet's footer". The day sheet has no footer — its
+total sits in the header beside the title (`.drill-total`), which is the markup the
+category sheet reuses, so the two are identical as intended.
+
 ### Candidate features (refined 2026-07-19 — not yet phased)
 
 Each needs its own design/roadmap pass before building.
@@ -1010,6 +1097,54 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 (Today · Logs · Trends, numbered Phases 0–7), **v3 / lettered phases** = the refinement
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
+
+- **2026-08-09 — Trends: tap a category to drill into its transactions (§3.7, §3.14):**
+  the donut's breakdown rows became real `<button>`s that open a category's month
+  transactions, highest first, and the day sheet was generalized into **one drill-in sheet
+  with two callers** (`#day-overlay` → `#drill-overlay`, `drillState` + `drillContent()`;
+  `openDaySheet(iso)` and `openCategorySheet(cat)` are the wrappers). Arc taps open the
+  same sheet via the donut's `onClick`. **The brief was written against the pre-donut pie**
+  — it specified hit-boxes hung off `pieLabelsPlugin`'s per-callout bookkeeping, and that
+  plugin was deleted five days earlier when the pie became a segmented donut with a DOM
+  legend. The intent transferred exactly: the callouts were the tap target *because* a
+  small slice needs a forgiving one, and the breakdown list is their successor and a
+  better target still (full card width, ≥44px, versus a few degrees of arc for a 0.1%
+  category). So the list carries the primary tap and the arc keeps the secondary one, which
+  is what the brief asked for with the two paths swapped in priority. Three decisions worth
+  keeping: **generalize rather than add a second sheet** — the brief's step 1 called this
+  out before the code was read, and it's the difference between one interaction language
+  and two; **the open-sheet re-render moved to the end of `calculateAndRender()`** from
+  inside `renderLogsLedger()`, because either view can now be the one behind the sheet; and
+  **`txnsForCategory()` reuses `_expenseRowsFor()`** rather than re-deriving a month
+  filter, so the ring and its drill-in can't disagree about membership. Render-loop
+  verified (§3.12; 390/900 × light/dark + reduced-motion, mocked GViz, local Chart.js,
+  stubbed Apps Script, clock pinned to 2026-08-18 on an advancing offset): **228/228**,
+  including a dataset whose shares print exactly (40/25/20/11/3.0/0.9/0.1% of RM 1,000.00),
+  every row measured ≥44px and full-width, arc taps driven from **Chart.js's own arc
+  geometry** at each segment's mid-angle, a tap in the ring's hole opening nothing, the
+  month chip scoping the sheet to July while August sat behind it, an edit and a delete
+  round-tripping through the txn modal, a **real `reconcileFromServer()`** updating an open
+  sheet, the Logs day sheet still working after the generalization, and
+  `scrollWidth == clientWidth` with the sheet open and across repeated tab flips. The ring
+  itself is asserted **pixel-identical to the pre-change file** (screenshot compare against
+  `git show HEAD:index.html`, served side by side). **Six negative controls run first:**
+  changing `spacing` 6 → 14 fired the pixel-identity probe (and nothing else, correctly);
+  turning the rows back into `<div>`s fired the keyboard checks while the mouse path kept
+  working — which is exactly the case a real `<button>` buys; shrinking the row to its
+  content fired the width probe; scoping to the live month fired the July checks; dropping
+  the sort fired the ordering checks; removing the re-render call fired the stale-sheet
+  checks. **Three harness bugs the controls exposed, all of which had shipped a false
+  pass:** the arc-tap probe asserted only the sheet's *title*, which a closed sheet still
+  shows from its last render — it now asserts the overlay is open first; the arc click was
+  computed from hand-derived angles and, at 390px, clicked a point below the fold that
+  landed on a different element (`mouse.click` takes viewport coordinates and does not
+  scroll); and the "sorted highest first" check passed against a dataset that was already
+  in amount order in the sheet, so the sort assertion proved nothing until the fixture was
+  deliberately shuffled. A fourth non-bug worth recording: the first attempt at "an open
+  sheet follows a background write" pushed a row straight into `allRows`, which the
+  reconcile then dropped — **correctly**, since an untracked row isn't a pending write. The
+  check now drives a real `reconcileFromServer()` against a mock that gained a row, which
+  is the actual scenario.
 
 - **2026-08-08 (second pass) — Logs: day columns, accordion removed (§3.6):** the same-day
   day-segments pass below was superseded by an owner brief that took the idea further.
@@ -1394,6 +1529,34 @@ woven into §3.
   phone and turns a 48px-tall column into a 200px-wide slab on a desktop. Anything whose
   *proportions* carry meaning needs a `max-width` (or `max-height`) cap, and the leftover
   space is fine — left-aligning past the cap keeps every column identical at every width.
+- **The second drill-in is a caller, not a component.** When a new surface needs "tap this
+  figure, see its transactions", generalize the existing sheet (`drillState` +
+  `drillContent()`) instead of writing a second one. Two sheets means two sets of chrome,
+  two focus chains and two places for the row → `openTxnModal()` hand-off to drift; one
+  means a figure always opens the same thing wherever it's tapped.
+- **When a brief names a mechanism that no longer exists, port the intent, not the
+  mechanism.** The category drill-down was specified as hit-boxes on the pie's on-canvas
+  callouts — deleted a week earlier. The *reason* the callouts were the target (a small
+  slice needs a forgiving one) pointed straight at the DOM list that replaced them, which
+  is a better target than either. Re-deriving the requirement was cheaper than re-reading
+  the spec literally, and it kept the brief's own priority order (list first, arc second).
+- **A stale overlay still reads correctly.** Asserting a sheet's title after a tap proves
+  nothing if the sheet is closed — the text from the last open sits there. Assert the
+  overlay is *open* first, then what it says. Same family as `Math.max` not being a
+  "biggest" assertion.
+- **`mouse.click` takes viewport coordinates and does not scroll.** Geometry read from a
+  chart is in page space; on a phone viewport the ring is below the fold and the click
+  lands on whatever is at those coordinates instead. `scrollIntoViewIfNeeded()` first, and
+  assert the computed point is on screen — otherwise the probe silently tests something
+  else. (`page.click(selector)` auto-scrolls, which is why only the hand-computed hits
+  broke.)
+- **A fixture in sorted order can't test a sort.** The "highest first" check passed against
+  data that was already ordered in the sheet. Fixtures for an ordering claim have to be
+  shuffled deliberately, or the assertion is about the input.
+- **An optimistic row the app didn't write is supposed to disappear.** Simulating "another
+  device wrote a row" with `allRows.push()` gets it dropped by the next reconcile —
+  correctly, since it's in no pending-write set. Drive the real path: add the row to the
+  GViz mock and let `reconcileFromServer()` fold it in.
 - **Two overlays never stack — the second one closes the first.** `trapModalFocus` holds
   exactly one trap, so a sheet that hands off to another modal must close first
   (`openManualFromCapture()`, the day sheet → txn modal). Closing restores focus to the
