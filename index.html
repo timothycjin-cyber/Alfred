@@ -478,6 +478,11 @@
      Longhand margins only — the mobile rule below sets margin-left/right at the
      same specificity, and a `margin` shorthand here would clobber the centering. */
   #category-card { margin-bottom: 12px; }
+  /* Latent until the 2026-08-10 swap: this block never carried a bottom margin,
+     which only looked right because the category card used to sit directly under
+     it supplying its own. With the two swapped it needs the same 12px every other
+     Trends block uses, or the patterns card butts into the cumulative one. */
+  #spending-patterns { margin-bottom: 12px; }
   #cumulative-card { margin-bottom: 1.5rem; }
 
   /* Donut over list on a phone; donut beside list once there's width to spend.
@@ -1400,7 +1405,6 @@
     <div class="card" id="income-bar-card">
       <div id="income-bar-block"></div>
     </div>
-    <div id="spending-patterns"></div>
     <div class="card" id="category-card">
       <div class="card-title">Expenses by Category</div>
       <div class="cat-card-body">
@@ -1410,6 +1414,7 @@
         <div id="category-breakdown"></div>
       </div>
     </div>
+    <div id="spending-patterns"></div>
     <div class="card" id="cumulative-card">
       <div class="card-title">Cumulative Spend</div>
       <div id="cumulative-line-container" style="position:relative; width:100%; height:200px">
