@@ -18,8 +18,11 @@
      M3 EXPRESSIVE DESIGN TOKENS — CLEAN MONOCHROME
      ──────────────────────────────────────────────────────────── */
   :root {
-    --semantic-income: #00A36C;
-    --semantic-expense: #E53E3E;
+    /* Tuned for text on WHITE. The dark-mode overrides below are a separate
+       pair tuned for near-black — these two were originally shared across both
+       and cleared only 2.9:1 / 4.1:1 here. */
+    --semantic-income: #007A52;
+    --semantic-expense: #C62828;
     --sienna: #C2542D;
     --primary: #1A1A1A;
     --on-primary: #FFFFFF;
@@ -41,8 +44,8 @@
     --outline-variant: #E9ECEF;
     --on-surface: #212529;
     --on-surface-variant: #495057;
-    --wash-income: rgba(0, 163, 108, 0.04);
-    --wash-expense: rgba(229, 62, 62, 0.04);
+    --wash-income: rgba(0, 122, 82, 0.05);
+    --wash-expense: rgba(198, 40, 40, 0.05);
     --wash-neutral: rgba(33, 37, 41, 0.04);
     --wash-hero: rgba(33, 37, 41, 0.03);
     /* Solid fill for the pace card's overspend status strip. Deliberately
@@ -112,13 +115,17 @@
 
   body { 
     font-family: var(--font-body);
-    font-variation-settings: 'wght' 400, 'wdth' 100;
+    /* Do NOT pin 'wght' here. Roboto Flex is a variable font, and the weight
+       axis beats font-weight: pinning it to 400 silently flattened ~35 classes
+       across all three tabs to regular, whatever their CSS declared. Only the
+       width axis belongs on body. */
+    font-variation-settings: 'wdth' 100;
     background: var(--surface); 
     color: var(--on-surface); 
     min-height: 100vh;
-    /* Clear the full nav cluster: 24 bar offset + 48 pill + 12 gap + 56 FAB
+    /* Clear the full nav cluster: 24 bar offset + 56 pill + 12 gap + 56 FAB
        + breathing room, so the last list rows scroll out from under it. */
-    padding-bottom: calc(164px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(172px + env(safe-area-inset-bottom, 0px));
   }
 
   .header { 
@@ -149,8 +156,8 @@
   .header-actions { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 
   .icon-btn {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border-radius: var(--shape-full);
     border: 1px solid var(--outline-variant);
     background: transparent;
@@ -203,7 +210,10 @@
     padding: 4px;
     box-shadow: 0 12px 32px rgba(0,0,0,0.06), inset 0 1px 1px rgba(255,255,255,0.8);
     width: 280px;
-    height: 48px;
+    /* 56, not 48 — at 48 the tabs rendered 38–42px tall, under the 44px
+       minimum. This is part of the nav cluster's derived geometry: see the
+       .modal-overlay.align-bottom note, body padding-bottom and #toast. */
+    height: 56px;
   }
   
   @media (prefers-color-scheme: dark) {
@@ -592,11 +602,11 @@
   .empty-state-card { max-width: 440px; margin: 0 auto; }
 
   /* Toast — the honest fallback when an optimistic write can't reach the
-     backend. Sits above the whole nav cluster (24 bar + 48 pill + 12 gap +
-     56 FAB + 12 clearance = 152). Neutral ink, no semantic red: it's a
+     backend. Sits above the whole nav cluster (24 bar + 56 pill + 12 gap +
+     56 FAB + 12 clearance = 160). Neutral ink, no semantic red: it's a
      "retry", not a money figure. */
   #toast {
-    position: fixed; left: 50%; bottom: calc(152px + env(safe-area-inset-bottom, 0px)); z-index: 120;
+    position: fixed; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom, 0px)); z-index: 120;
     transform: translate(-50%, 12px);
     max-width: min(420px, calc(100vw - 32px));
     padding: 0.7rem 1rem; border-radius: var(--shape-lg) var(--shape-xs) var(--shape-lg) var(--shape-xs);
@@ -705,15 +715,16 @@
     animation: chipPop var(--motion-wobble) backwards; animation-delay: var(--d, 0ms);
   }
   .hm-blank { animation: none; }
-  .hm-day { font-size: 10px; font-weight: 700; color: var(--on-surface-variant); }
-  /* Sienna ramp (transparent → burnt-sienna). Day numbers flip to light ink on
-     the two darkest steps so they stay legible. */
+  /* Full-strength ink on EVERY step. White on the two deepest sienna tints
+     measured 2.01:1; --on-surface clears AA on the deepest tint in light mode
+     and, because the token flips with the theme, on the lightest in dark. */
+  .hm-day { font-size: 10px; font-weight: 700; color: var(--on-surface); }
+  /* Sienna ramp (transparent → burnt-sienna). */
   .hm-l0 { background: transparent; border: 1px solid var(--outline-variant); }
   .hm-l1 { background: rgba(194,84,45,0.18); }
   .hm-l2 { background: rgba(194,84,45,0.36); }
   .hm-l3 { background: rgba(194,84,45,0.55); }
   .hm-l4 { background: rgba(194,84,45,0.78); }
-  .hm-l3 .hm-day, .hm-l4 .hm-day { color: #F5F5F2; }
   .hm-future { background: transparent; border: 1px dashed var(--outline-variant); }
   .hm-future .hm-day { opacity: 0.45; }
 
@@ -1099,7 +1110,7 @@
   }
   .type-toggle button {
     position: relative; z-index: 2;
-    flex: 1; border: none; background: transparent; padding: 10px;
+    flex: 1; border: none; background: transparent; padding: 12px 10px; min-height: 44px;
     border-radius: var(--shape-sm); font-size: 13px; font-weight: 700; color: var(--on-surface-variant); cursor: pointer;
     transition: color var(--motion-standard);
     outline: none;
@@ -1121,7 +1132,8 @@
 
   .modal-actions { display: flex; gap: 8px; margin-top: 1.5rem; }
   .btn {
-    padding: 12px; border-radius: var(--shape-md); border: none; font-size: 14px; font-weight: 700; cursor: pointer;
+    padding: 14px 12px; min-height: 48px;
+    border-radius: var(--shape-md); border: none; font-size: 14px; font-weight: 700; cursor: pointer;
     transition: transform var(--motion-snap);
     display: inline-flex; align-items: center; justify-content: center;
     outline: none;
@@ -1216,7 +1228,7 @@
   }
   .capture-input::placeholder { color: var(--on-surface-variant); opacity: 0.7; }
   .capture-send {
-    width: 36px; height: 36px; border-radius: var(--shape-full); border: none;
+    width: 44px; height: 44px; border-radius: var(--shape-full); border: none;
     background: var(--primary); color: var(--on-primary);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; flex-shrink: 0; outline: none; padding: 0;
@@ -1256,12 +1268,12 @@
      right where the thumb already is after tapping it. Container-transform
      entrance: the sheet starts as a small circle at the FAB's spot and
      springs open — the FAB visually becomes the sheet.
-     Geometry: FAB center sits 112px (+ safe-area) above the viewport bottom
-     (24 bar offset + 48 pill + 12 gap + 28 half-FAB); the sheet's bottom
-     edge sits at the 150px padding, so the origin is 38px below the sheet
-     (150 − 112). Both include the same safe-area inset, so the offset holds.
+     Geometry: FAB center sits 120px (+ safe-area) above the viewport bottom
+     (24 bar offset + 56 pill + 12 gap + 28 half-FAB); the sheet's bottom
+     edge sits at the 158px padding, so the origin is 38px below the sheet
+     (158 − 120). Both include the same safe-area inset, so the offset holds.
      Re-derive all three numbers if the nav cluster's geometry moves. */
-  .modal-overlay.align-bottom { align-items: flex-end; padding: 1rem 1rem calc(150px + env(safe-area-inset-bottom, 0px)); }
+  .modal-overlay.align-bottom { align-items: flex-end; padding: 1rem 1rem calc(158px + env(safe-area-inset-bottom, 0px)); }
   .modal-overlay.align-bottom .modal-sheet {
     max-width: 440px;
     transform-origin: 50% calc(100% + 38px);
