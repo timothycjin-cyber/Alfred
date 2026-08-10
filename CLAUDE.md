@@ -1,6 +1,16 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-09 (second pass, same day) — **Logs: current month by default,
+*Last updated: 2026-08-10 — **Trends: donut and spending patterns swapped (§3.7).** The
+Trends order is now insight → tiles → archive card slot → **donut (Expenses by Category)**
+→ **spending patterns** → cumulative line → archive shelf. Markup move only: the
+`#category-card` and `#spending-patterns` blocks changed places in `#trends-view`; no
+render function, no chart config and no math were touched. One CSS line came with it —
+`#spending-patterns` had **no bottom margin**, which was invisible only because
+`#category-card`'s own 12px sat directly beneath it; after the swap the patterns card
+would have butted straight into the cumulative card, so it takes the same
+`margin-bottom: 12px` every other Trends block uses. Render-loop verified 135/135, **with
+two negative controls run first**. Front-end only — no Apps Script change, no redeploy.
+Prior banner (2026-08-09, second pass) — **Logs: current month by default,
 older months on demand (§3.6).** Logs no longer opens on the whole history. It opens on
 **one month** — the current one — and grows only when asked, from an
 `Earlier months — show June` tail at the foot of the ledger; at the end the tail becomes
@@ -596,12 +606,17 @@ scope" below). The header month chip never filters here; it jumps.
 ### 3.7 Trends tab
 
 Everything computes from `viewMonth` (`vRows`/`vIncome`/`vExpense`/`vCatData`).
-Composition (resequenced 2026-07-23): insight strip → tiles (closed months only) →
-archive card slot → spending patterns → donut → cumulative line → archive shelf (bottom).
+Composition (resequenced 2026-07-23, donut/patterns swapped 2026-08-10): insight strip →
+tiles (closed months only) → archive card slot → **donut → spending patterns** →
+cumulative line → archive shelf (bottom).
 The donut card (`#category-card`) and the cumulative card (`#cumulative-card`) are now
 **separate full-width blocks**, not a two-up grid — `.charts-row` was deleted 2026-08-04,
 because the donut card carries a breakdown list under it and pairing them left the shorter
-card a large dead area.
+card a large dead area. Every Trends block is spaced **12px** from the next one
+(`#trends-metrics`, `#income-bar-card`, `#category-card`, `#spending-patterns`), with
+`#cumulative-card` closing on the 1.5rem section break — `#spending-patterns` had no
+bottom margin until the 2026-08-10 swap, which only went unnoticed because the block
+below it carried its own.
 
 - **Insight strip** (`#trends-insight`, `.insight-card`, "What I noticed"):
   - **Deterministic engine** (`buildAnalyticsInsight()` → rendered by
@@ -922,6 +937,11 @@ six negative controls run first. Logs opens on the **current month only** and gr
 decision 2 and Phase B step 3.** Front-end only; **no Apps Script change, no redeploy
 needed.** See §3.6.
 
+**Trends donut/patterns swap is DONE** (2026-08-10) — render-loop verified 135/135, with
+two negative controls run first. The category donut now sits above the spending-patterns
+grid, and `#spending-patterns` gained the 12px bottom margin the swap revealed it never
+had. Front-end only; **no Apps Script change, no redeploy needed.** See §3.7.
+
 **Pending:** the remaining unscheduled candidate features (§6).
 
 ---
@@ -1184,6 +1204,32 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-10 — Trends: donut and spending patterns swapped (§3.7):** owner request, one
+  markup move — `#category-card` and `#spending-patterns` changed places inside
+  `#trends-view`, so the month's category breakdown now sits directly under the archive
+  card slot and the calendar grid follows it. No render function, chart config, scale or
+  figure was touched; both blocks are rendered by their own functions into their own
+  containers, so neither cares about its position. **The swap surfaced a latent spacing
+  bug:** `#spending-patterns` carried no `margin-bottom`, which had been invisible only
+  because `#category-card`'s own 12px sat immediately beneath it — after the swap the
+  patterns card would have butted flush into the cumulative card, so it takes the same
+  12px every other Trends block uses (asserted at both widths, live month and closed
+  month). Render-loop verified (§3.12; 390/900 × light/dark + reduced-motion, mocked GViz,
+  local Chart.js, stubbed Apps Script, clock pinned to 2026-08-18 on an advancing offset):
+  **135/135** — DOM order, *painted* order by page offset (a DOM check alone wouldn't
+  catch a CSS reorder), donut pixels read back to prove the ring still paints in its new
+  slot, centre total and the six breakdown rows intact, the patterns chip still reading
+  `Aug 2026 • 18 days • RM 805.00 • Avg RM 44.72` (the elapsed-days divisor that must match
+  Today's Average Daily), 13 future days still dashed, the category drill-in still opening
+  from the moved card, order and gaps holding on a closed month, and
+  `scrollWidth == clientWidth` after repeated tab flips. **Two negative controls run
+  first:** serving the old order fired the two order probes, both paint-position probes
+  and both gap probes — and nothing else, which is the correct blast radius for a pure
+  reorder; deleting the new margin rule fired the patterns → cumulative gap probe alone.
+  Two harness fixes along the way, both wrong expectations rather than code bugs: the chip
+  prints `Aug 2026`, not `August 2026`, and the drill overlay's open class is `open`, not
+  `active` — the latter had been "passing" against a *closed* sheet whose title still read
+  correctly from its last open, the same stale-overlay trap §8 already records.
 - **2026-08-09 — Logs: current month by default, older months on demand (§3.6):** Logs
   opened on the whole history two months at a time, auto-appending as a sentinel scrolled
   into view. It now opens on **one month** and grows only when the reader asks, from an
