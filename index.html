@@ -18,8 +18,11 @@
      M3 EXPRESSIVE DESIGN TOKENS — CLEAN MONOCHROME
      ──────────────────────────────────────────────────────────── */
   :root {
-    --semantic-income: #00A36C;
-    --semantic-expense: #E53E3E;
+    /* Tuned for text on WHITE. The dark-mode overrides below are a separate
+       pair tuned for near-black — these two were originally shared across both
+       and cleared only 2.9:1 / 4.1:1 here. */
+    --semantic-income: #007A52;
+    --semantic-expense: #C62828;
     --sienna: #C2542D;
     --primary: #1A1A1A;
     --on-primary: #FFFFFF;
@@ -41,8 +44,8 @@
     --outline-variant: #E9ECEF;
     --on-surface: #212529;
     --on-surface-variant: #495057;
-    --wash-income: rgba(0, 163, 108, 0.04);
-    --wash-expense: rgba(229, 62, 62, 0.04);
+    --wash-income: rgba(0, 122, 82, 0.05);
+    --wash-expense: rgba(198, 40, 40, 0.05);
     --wash-neutral: rgba(33, 37, 41, 0.04);
     --wash-hero: rgba(33, 37, 41, 0.03);
     /* Solid fill for the pace card's overspend status strip. Deliberately
@@ -112,13 +115,17 @@
 
   body { 
     font-family: var(--font-body);
-    font-variation-settings: 'wght' 400, 'wdth' 100;
+    /* Do NOT pin 'wght' here. Roboto Flex is a variable font, and the weight
+       axis beats font-weight: pinning it to 400 silently flattened ~35 classes
+       across all three tabs to regular, whatever their CSS declared. Only the
+       width axis belongs on body. */
+    font-variation-settings: 'wdth' 100;
     background: var(--surface); 
     color: var(--on-surface); 
     min-height: 100vh;
-    /* Clear the full nav cluster: 24 bar offset + 48 pill + 12 gap + 56 FAB
+    /* Clear the full nav cluster: 24 bar offset + 56 pill + 12 gap + 56 FAB
        + breathing room, so the last list rows scroll out from under it. */
-    padding-bottom: calc(164px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(172px + env(safe-area-inset-bottom, 0px));
   }
 
   .header { 
@@ -149,8 +156,8 @@
   .header-actions { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 
   .icon-btn {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border-radius: var(--shape-full);
     border: 1px solid var(--outline-variant);
     background: transparent;
@@ -203,7 +210,10 @@
     padding: 4px;
     box-shadow: 0 12px 32px rgba(0,0,0,0.06), inset 0 1px 1px rgba(255,255,255,0.8);
     width: 280px;
-    height: 48px;
+    /* 56, not 48 — at 48 the tabs rendered 38–42px tall, under the 44px
+       minimum. This is part of the nav cluster's derived geometry: see the
+       .modal-overlay.align-bottom note, body padding-bottom and #toast. */
+    height: 56px;
   }
   
   @media (prefers-color-scheme: dark) {
@@ -227,7 +237,7 @@
     outline: none; 
     transition: transform var(--motion-wobble-nav), color var(--motion-standard);
   }
-  .nav-btn.active { color: var(--on-primary); font-weight: 700; transform: scale(1.1); }
+  .nav-btn.active { color: var(--on-primary); font-weight: 600; transform: scale(1.1); }
   
   /* Slider width = one tab slot: pill inner width (100% is the padding box,
      so subtract the 2×4px padding) minus the two 4px gaps, over three tabs.
@@ -358,14 +368,18 @@
     }
   }
   .hero-top { display: flex; align-items: flex-start; justify-content: space-between; }
-  .hero-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
+  .hero-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
   .hero-amount {
     font-size: 36px; font-weight: 900;
     font-variation-settings: 'wght' 850, 'wdth' 80;
     letter-spacing: -1px; line-height: 1.1; margin: 6px 0 2px;
   }
-  .hero-sub { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); margin-bottom: 14px; }
+  .hero-sub { font-size: 11px; font-weight: 500; color: var(--on-surface-variant); margin-bottom: 14px; }
   .hero-chart-wrap { position: relative; width: 100%; height: 58px; margin: 0 -4px; }
+  /* The running month's bar is a partial figure drawn on the same axis as five
+     completed months. It's washed out rather than solid, and this note says
+     how far in it is — otherwise nine days are read against thirty-one. */
+  .hero-chart-note { font-size: 10.5px; color: var(--on-surface-variant); margin-top: 8px; letter-spacing: 0.2px; }
 
   .tile-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 1.5rem; width: 100%; }
   /* Trends tile row sits directly above the spend-pace card, same
@@ -420,8 +434,8 @@
      2026-07-24). Today used this for its quadrant's bottom row until those two
      figures moved into #today-detail (2026-08-02), so it's Trends-only now. */
   .tile-block.neutral-block { background: var(--wash-neutral); }
-  .tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
-  .tile-val { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
+  .tile-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
+  .tile-val { font-size: 19px; font-weight: 700; letter-spacing: -0.3px; white-space: nowrap; }
   .tile-block.income-block .tile-val { color: var(--semantic-income); }
   .tile-block.expense-block .tile-val { color: var(--semantic-expense); }
   .tile-block.neutral-block .tile-val { color: var(--on-surface); }
@@ -438,9 +452,11 @@
     border-radius: var(--shape-full); border: 1px solid; background: transparent;
     width: fit-content;
   }
-  /* Chip color follows valence (good/bad news), not which tile it sits on —
-     expenses dropping is good news and should read green. */
-  .tile-chip.good { color: var(--semantic-income); border-color: var(--semantic-income); }
+  /* Chip color follows valence, but only BAD news raises its voice. Good news
+     is the default state on Today — five components were all saying it in
+     green at once, which left nothing for the one component that had something
+     wrong to say. State it, don't colour it. */
+  .tile-chip.good { color: var(--on-surface-variant); border-color: var(--outline-variant); }
   .tile-chip.bad { color: var(--semantic-expense); border-color: var(--semantic-expense); }
 
   /* Average Daily / Forecast live here, one tap under the Expenses tile
@@ -503,11 +519,11 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   }
   .donut-center-lbl {
-    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
     color: var(--on-surface-variant);
   }
   .donut-center-val {
-    font-size: 20px; font-weight: 900; letter-spacing: -0.02em; color: var(--on-surface);
+    font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: var(--on-surface);
   }
 
   /* Category breakdown — the ring's legend, carrying every name, share and
@@ -535,11 +551,11 @@
   .cat-chev { color: var(--on-surface-variant); flex-shrink: 0; margin-left: -4px; }
   .cat-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .cat-name {
-    font-size: 13.5px; font-weight: 700; color: var(--on-surface); line-height: 1.25;
+    font-size: 13.5px; font-weight: 650; color: var(--on-surface); line-height: 1.25;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .cat-share { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
-  .cat-amt { font-size: 13.5px; font-weight: 800; color: var(--on-surface); flex-shrink: 0; }
+  .cat-amt { font-size: 13.5px; font-weight: 700; color: var(--on-surface); flex-shrink: 0; }
   /* A horizontal money bar, but the fill takes the category's
      own hue — semantic red stays reserved for expense figures, never
      decoration. */
@@ -580,7 +596,7 @@
   }
   .insight-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
   .insight-head svg { flex-shrink: 0; }
-  .insight-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
+  .insight-label { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
   .insight-body { font-size: 13.5px; line-height: 1.55; color: var(--on-surface); font-weight: 500; }
   .insight-body b { font-weight: 800; }
   .insight-body .up { color: var(--semantic-expense); font-weight: 800; }
@@ -592,11 +608,11 @@
   .empty-state-card { max-width: 440px; margin: 0 auto; }
 
   /* Toast — the honest fallback when an optimistic write can't reach the
-     backend. Sits above the whole nav cluster (24 bar + 48 pill + 12 gap +
-     56 FAB + 12 clearance = 152). Neutral ink, no semantic red: it's a
+     backend. Sits above the whole nav cluster (24 bar + 56 pill + 12 gap +
+     56 FAB + 12 clearance = 160). Neutral ink, no semantic red: it's a
      "retry", not a money figure. */
   #toast {
-    position: fixed; left: 50%; bottom: calc(152px + env(safe-area-inset-bottom, 0px)); z-index: 120;
+    position: fixed; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom, 0px)); z-index: 120;
     transform: translate(-50%, 12px);
     max-width: min(420px, calc(100vw - 32px));
     padding: 0.7rem 1rem; border-radius: var(--shape-lg) var(--shape-xs) var(--shape-lg) var(--shape-xs);
@@ -617,14 +633,16 @@
   }
   .today-line { display: flex; align-items: baseline; gap: 9px; }
   .today-label {
-    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
     color: var(--on-surface-variant); flex-shrink: 0; line-height: 1.6;
   }
-  .today-body { font-size: 13px; font-weight: 600; line-height: 1.55; color: var(--on-surface); }
-  .today-body b { font-weight: 800; }
-  .today-good { color: var(--semantic-income); font-weight: 700; }
-  .today-bad { color: var(--semantic-expense); font-weight: 700; }
-  .today-flat { color: var(--on-surface-variant); font-weight: 700; }
+  .today-body { font-size: 13px; font-weight: 500; line-height: 1.55; color: var(--on-surface); }
+  .today-body b { font-weight: 700; }
+  /* Neutral, not green — see the .tile-chip.good note. Spending under the
+     daily average is the ordinary case; .today-bad keeps the semantic red. */
+  .today-good { color: var(--on-surface-variant); font-weight: 600; }
+  .today-bad { color: var(--semantic-expense); font-weight: 600; }
+  .today-flat { color: var(--on-surface-variant); font-weight: 600; }
   .today-empty { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
 
   /* Contextual header month chip (Phase B) — the ONE month selector, shown
@@ -646,7 +664,7 @@
   .monthnav-btn:disabled { opacity: 0.3; cursor: default; }
   .monthnav-label {
     min-width: 52px; text-align: center; white-space: nowrap;
-    font-size: 12.5px; font-weight: 800; letter-spacing: -0.2px;
+    font-size: 12.5px; font-weight: 700; letter-spacing: -0.2px;
   }
 
   /* Month shelf — the ledger's "pages". A horizontal strip of months that hold
@@ -682,7 +700,7 @@
   .archive-net { font-size: 30px; font-weight: 900; font-variation-settings: 'wght' 850, 'wdth' 80; letter-spacing: -1px; line-height: 1.05; }
   .archive-net.arc-pos { color: var(--semantic-income); }
   .archive-net.arc-neg { color: var(--semantic-expense); }
-  .archive-net-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); margin: 2px 0 14px; }
+  .archive-net-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); margin: 2px 0 14px; }
   .archive-facts { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--outline-variant); padding-top: 12px; }
   .archive-fact { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
   .af-label { font-size: 11.5px; font-weight: 600; color: var(--on-surface-variant); }
@@ -698,40 +716,44 @@
      ramp reads as heat, not as money valence. */
   .hm-weekdays, .hm-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
   .hm-weekdays { margin-bottom: 6px; }
-  .hm-wd { text-align: center; font-size: 9px; font-weight: 700; letter-spacing: 0.3px; color: var(--on-surface-variant); text-transform: uppercase; }
+  .hm-wd { text-align: center; font-size: 9px; font-weight: 600; letter-spacing: 0.3px; color: var(--on-surface-variant); text-transform: uppercase; }
   .hm-cell {
     aspect-ratio: 1; border-radius: var(--shape-xs);
     display: flex; align-items: center; justify-content: center;
     animation: chipPop var(--motion-wobble) backwards; animation-delay: var(--d, 0ms);
   }
   .hm-blank { animation: none; }
-  .hm-day { font-size: 10px; font-weight: 700; color: var(--on-surface-variant); }
-  /* Sienna ramp (transparent → burnt-sienna). Day numbers flip to light ink on
-     the two darkest steps so they stay legible. */
+  /* Full-strength ink on EVERY step. White on the two deepest sienna tints
+     measured 2.01:1; --on-surface clears AA on the deepest tint in light mode
+     and, because the token flips with the theme, on the lightest in dark. */
+  .hm-day { font-size: 10px; font-weight: 600; color: var(--on-surface); }
+  /* Sienna ramp (transparent → burnt-sienna). */
   .hm-l0 { background: transparent; border: 1px solid var(--outline-variant); }
   .hm-l1 { background: rgba(194,84,45,0.18); }
   .hm-l2 { background: rgba(194,84,45,0.36); }
   .hm-l3 { background: rgba(194,84,45,0.55); }
   .hm-l4 { background: rgba(194,84,45,0.78); }
-  .hm-l3 .hm-day, .hm-l4 .hm-day { color: #F5F5F2; }
   .hm-future { background: transparent; border: 1px dashed var(--outline-variant); }
   .hm-future .hm-day { opacity: 0.45; }
 
   /* Spending-patterns card chrome: header (title), summary chip, and the
      Less→More legend framing the grid. */
   .sp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-  .sp-title { font-size: 11px; font-weight: 700; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
+  .sp-title { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
-  /* Summary chip: month • N days • trend total • daily average. The trend
-     arrow follows Alfred's valence (spend up = expense red, down = income
-     green) — a sanctioned semantic-red use (it's a spend delta). */
+  /* Summary chip: month • N days • trend total. The trend arrow follows
+     Alfred's valence (spend up = expense red, down = income green) — a
+     sanctioned semantic-red use (it's a spend delta). The daily average used
+     to be a fourth clause here and wrapped onto its own line at 390px, leaving
+     the bullet separators stranded above it; it's now its own line by design. */
   .sp-chip {
     display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
-    gap: 7px; margin-bottom: 14px; padding: 8px 14px;
+    gap: 7px; margin-bottom: 0; padding: 8px 14px;
     border: 1px solid var(--outline-variant); border-radius: var(--shape-full);
     font-size: 12px; font-weight: 600; color: var(--on-surface-variant);
   }
-  .sp-chip b { font-weight: 800; color: var(--on-surface); }
+  .sp-avg { font-size: 11px; color: var(--on-surface-variant); text-align: center; margin: 6px 0 14px; }
+  .sp-chip b { font-weight: 700; color: var(--on-surface); }
   .sp-chip .sp-sep { opacity: 0.4; }
   .sp-chip .sp-arrow.up { color: var(--semantic-expense); }
   .sp-chip .sp-arrow.down { color: var(--semantic-income); }
@@ -757,10 +779,10 @@
   .insight-thinking span:nth-child(3) { animation-delay: 0.3s; }
   @keyframes thinkPulse { 0%, 100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
   
-  .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
+  .card-title { font-size: 11px; font-weight: 600; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .income-bar-caption { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--on-surface); }
-  .income-bar-caption b { font-weight: 900; }
+  .income-bar-caption { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--on-surface); }
+  .income-bar-caption b { font-weight: 800; }
 
   /* Two-bar pace chart (Spent vs Month), replacing the single continuous-pill
      design. Reserves room above for the shared "Today" legend bubble — the
@@ -768,15 +790,15 @@
   .income-bar-wrap { position: relative; padding-top: 36px; }
   .income-bar-row { display: grid; grid-template-columns: 60px 1fr 52px; align-items: center; gap: 12px; margin-bottom: 16px; }
   .income-bar-row:last-of-type { margin-bottom: 0; }
-  .income-bar-lbl { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--on-surface-variant); }
+  .income-bar-lbl { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.4px; color: var(--on-surface-variant); }
   .income-bar-track { height: 14px; border-radius: var(--shape-full); background: var(--surface-container); overflow: hidden; }
   .income-bar-fill { height: 100%; border-radius: var(--shape-full); transition: width var(--motion-wobble), background var(--motion-wobble); }
   .income-bar-fill.spent { background: var(--sienna); }
   .income-bar-fill.spent.over { background: var(--semantic-expense); }
   .income-bar-fill.month { background: var(--outline); }
-  .income-bar-val { font-size: 13px; font-weight: 900; text-align: right; color: var(--on-surface); transition: color var(--motion-wobble); }
+  .income-bar-val { font-size: 13px; font-weight: 750; text-align: right; color: var(--on-surface); transition: color var(--motion-wobble); }
   .income-bar-val.over { color: var(--semantic-expense); }
-  .income-bar-val.mut { color: var(--on-surface-variant); font-weight: 700; }
+  .income-bar-val.mut { color: var(--on-surface-variant); font-weight: 600; }
 
   /* "Today" marker: a dotted reference line shared across both bars, at the
      month-elapsed position, springing alongside the bars' width spring
@@ -792,7 +814,7 @@
   .income-bar-bubble {
     position: absolute; top: 0; transform: translateX(-50%);
     background: var(--on-surface); color: var(--surface);
-    font-size: 10px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
     padding: 4px 9px; border-radius: var(--shape-full); white-space: nowrap;
     pointer-events: none; transition: left var(--motion-wobble); z-index: 3;
   }
@@ -811,16 +833,17 @@
     display: flex; align-items: center; gap: 9px;
     margin: 20px -1.25rem -1.25rem;
     padding: 0.72rem 1.25rem;
-    font-size: 12.5px; font-weight: 700; line-height: 1.35;
+    font-size: 12.5px; font-weight: 600; line-height: 1.35;
     border-radius: 0 0 var(--shape-lg) var(--shape-xs);
   }
   .income-bar-status svg { flex-shrink: 0; opacity: 0.95; }
   /* Overspending is the only state that gets a solid fill — an alert reads as
-     an alert precisely because it isn't always on. On track stays quiet: the
-     same green wash the Budget tile uses, with the figure-colour text. */
+     an alert precisely because it isn't always on. On track is quieter still:
+     the verdict only raises its voice when it has something to say, so it
+     drops the green wash and the green text for plain neutral ink. */
   .income-bar-status.over { background: var(--strip-over); color: #FFFFFF; }
   .income-bar-status.under {
-    background: var(--wash-income); color: var(--semantic-income);
+    background: transparent; color: var(--on-surface-variant);
     border-top: 1px solid var(--outline-variant);
   }
 
@@ -906,7 +929,7 @@
      money on this tab (no cell grids). */
   .month-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 1.5rem 0.25rem 0.6rem; }
   #logs-ledger .month-header:first-child { margin-top: 0.25rem; }
-  .month-name { font-size: 13px; font-weight: 800; letter-spacing: -0.2px; color: var(--on-surface); }
+  .month-name { font-size: 13px; font-weight: 700; letter-spacing: -0.2px; color: var(--on-surface); }
 
   .week-row {
     border: 1px solid var(--outline-variant); border-radius: var(--shape-lg);
@@ -916,9 +939,13 @@
      here may read as interactive: no cursor, no press state, no chevron. */
   .week-head { display: block; padding: 12px 1.25rem 8px; text-align: left; color: var(--on-surface); }
   .week-top { display: flex; align-items: baseline; gap: 8px; }
-  .week-range { font-size: 13.5px; font-weight: 800; letter-spacing: -0.2px; }
-  .week-count { flex: 1; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
-  .week-total { font-size: 13.5px; font-weight: 800; color: var(--semantic-expense); }
+  .week-range { font-size: 13.5px; font-weight: 700; letter-spacing: -0.2px; }
+  .week-count { flex: 1; font-size: 11px; font-weight: 500; color: var(--on-surface-variant); }
+  .week-total { font-size: 13.5px; font-weight: 700; color: var(--semantic-expense); }
+  /* A week that spent nothing is not an expense of RM 0.00 — it says so in
+     words, in neutral ink, and drops the chart it has nothing to plot. */
+  .week-total.zero { color: var(--on-surface-variant); font-weight: 600; }
+  .week-row.empty-week .week-head { padding-bottom: 12px; }
 
   /* Day columns — one per in-month day of the week (clipped: a month-edge week
      is short by design, not broken). Columns are FIXED WIDTH at a seventh of
@@ -938,7 +965,15 @@
   }
   /* The whole cell is the tap target — full allotted width, the chart row and
      the label. Pad the target; never shrink it to the filled portion. */
-  .day-col-track { height: 48px; display: flex; align-items: flex-end; }
+  /* The track is a visible SLOT, not empty air. Seven bars floating on a card
+     read as a chart; seven bars sitting in seven slots read as buttons — and
+     these are the only route into a day's transactions. It also gives a
+     zero-spend day a shape instead of a 4px stub adrift on the card. */
+  .day-col-track {
+    height: 48px; display: flex; align-items: flex-end;
+    background: var(--wash-neutral); border-radius: var(--shape-xs);
+  }
+  .day-col:hover .day-col-track { background: var(--wash-hero); }
   .day-col-bar {
     width: 100%; height: 0; min-height: 4px;
     border-radius: var(--shape-xs) var(--shape-xs) 2px 2px;
@@ -950,7 +985,7 @@
   .day-col:active .day-col-bar { opacity: 0.85; }
   .day-col-lbl {
     display: block; margin-top: 6px; text-align: center;
-    font-size: 9.5px; font-weight: 700; letter-spacing: 0.2px;
+    font-size: 9.5px; font-weight: 600; letter-spacing: 0.2px;
     color: var(--on-surface-variant);
   }
   .day-col:focus-visible .day-col-track { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--shape-xs); }
@@ -959,10 +994,10 @@
      it. A dashed boundary reads as "the ledger continues past here", where a
      filled button would compete with the FAB for primary action. */
   .logs-tail {
-    width: 100%; margin: 14px 0 4px; padding: 13px;
+    width: 100%; margin: 14px 0 4px; padding: 14px;
     border: 1px dashed var(--tail-dash); background: transparent;
     border-radius: var(--shape-lg); font-family: inherit;
-    font-size: 12.5px; font-weight: 700; color: var(--on-surface-variant);
+    font-size: 12.5px; font-weight: 600; color: var(--on-surface-variant);
     cursor: pointer; transition: background var(--motion-standard);
   }
   .logs-tail:active { background: var(--surface-container); }
@@ -991,7 +1026,7 @@
     color: var(--on-surface-variant); opacity: 0.75; margin-left: 6px; align-self: center;
   }
   
-  .badge { font-size: 9px; padding: 1px 6px; border-radius: var(--shape-xs); font-weight: 700; white-space: nowrap; background: transparent; border-width: 1px; border-style: solid; text-transform: uppercase; letter-spacing: 0.3px; }
+  .badge { font-size: 9px; padding: 1px 6px; border-radius: var(--shape-xs); font-weight: 600; white-space: nowrap; background: transparent; border-width: 1px; border-style: solid; text-transform: uppercase; letter-spacing: 0.3px; }
   .badge.inc-badge { color: var(--semantic-income); border-color: var(--semantic-income); }
   .badge.exp-badge { color: var(--semantic-expense); border-color: var(--semantic-expense); }
 
@@ -1071,7 +1106,7 @@
   .modal-sheet:focus { outline: none; }
   .modal-title { 
     font-size: 18px; 
-    font-weight: 700; 
+    font-weight: 650; 
     margin-bottom: 1.2rem; 
     color: var(--on-surface); 
   }
@@ -1099,16 +1134,19 @@
   }
   .type-toggle button {
     position: relative; z-index: 2;
-    flex: 1; border: none; background: transparent; padding: 10px;
+    flex: 1; border: none; background: transparent; padding: 12px 10px; min-height: 44px;
     border-radius: var(--shape-sm); font-size: 13px; font-weight: 700; color: var(--on-surface-variant); cursor: pointer;
     transition: color var(--motion-standard);
     outline: none;
   }
-  .type-toggle button.active-expense { color: var(--semantic-expense); }
-  .type-toggle button.active-income { color: var(--semantic-income); }
+  /* The slider already marks the selection. Colouring the active segment red
+     put "money going out" on a control state, in an app where red means
+     exactly that everywhere else. */
+  .type-toggle button.active-expense,
+  .type-toggle button.active-income { color: var(--on-surface); }
 
   .form-group { margin-bottom: 1rem; }
-  .form-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--on-surface-variant); margin-bottom: 6px; display: block; }
+  .form-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--on-surface-variant); margin-bottom: 6px; display: block; }
   
   .form-input, .form-select {
     width: 100%; padding: 11px 12px; border-radius: var(--shape-sm); border: 1px solid var(--outline-variant);
@@ -1121,13 +1159,16 @@
 
   .modal-actions { display: flex; gap: 8px; margin-top: 1.5rem; }
   .btn {
-    padding: 12px; border-radius: var(--shape-md); border: none; font-size: 14px; font-weight: 700; cursor: pointer;
+    padding: 14px 12px; min-height: 48px;
+    border-radius: var(--shape-md); border: none; font-size: 14px; font-weight: 700; cursor: pointer;
     transition: transform var(--motion-snap);
     display: inline-flex; align-items: center; justify-content: center;
     outline: none;
   }
   .btn:active { transform: scale(0.96); }
-  .btn-primary { flex: 1; background: var(--primary); color: var(--surface-container-low); }
+  /* Sienna, not ink: the FAB is the app's primary action colour, and a black
+     Save button beside it made two things both claim primary. */
+  .btn-primary { flex: 1; background: var(--sienna); color: #FFFFFF; }
   .btn-primary:disabled { opacity: 0.4; }
   
   .btn-ghost {
@@ -1216,13 +1257,22 @@
   }
   .capture-input::placeholder { color: var(--on-surface-variant); opacity: 0.7; }
   .capture-send {
-    width: 36px; height: 36px; border-radius: var(--shape-full); border: none;
-    background: var(--primary); color: var(--on-primary);
+    width: 44px; height: 44px; border-radius: var(--shape-full); border: none;
+    background: var(--sienna); color: #FFFFFF;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; flex-shrink: 0; outline: none; padding: 0;
     transition: transform var(--motion-snap), opacity var(--motion-standard);
   }
   .capture-send:active { transform: scale(0.9); }
+  /* The fallback, styled as a fallback. As a .btn it was the largest, most
+     button-like element in the capture sheet — outranking the capture field
+     that is the whole point of the sheet. Still a 44px target. */
+  .capture-manual {
+    display: block; width: 100%; margin-top: 14px; padding: 10px; min-height: 44px;
+    background: none; border: none; color: var(--on-surface-variant);
+    font-size: 13px; font-weight: 500; text-decoration: underline;
+    text-underline-offset: 3px; cursor: pointer; font-family: inherit;
+  }
   .capture-card.busy .capture-send, .capture-card.busy .icon-btn { pointer-events: none; opacity: 0.55; }
   .capture-card.busy .capture-input { pointer-events: none; }
   /* Busy = spinner replaces the send arrow: status feedback, kept under reduced motion. */
@@ -1256,12 +1306,12 @@
      right where the thumb already is after tapping it. Container-transform
      entrance: the sheet starts as a small circle at the FAB's spot and
      springs open — the FAB visually becomes the sheet.
-     Geometry: FAB center sits 112px (+ safe-area) above the viewport bottom
-     (24 bar offset + 48 pill + 12 gap + 28 half-FAB); the sheet's bottom
-     edge sits at the 150px padding, so the origin is 38px below the sheet
-     (150 − 112). Both include the same safe-area inset, so the offset holds.
+     Geometry: FAB center sits 120px (+ safe-area) above the viewport bottom
+     (24 bar offset + 56 pill + 12 gap + 28 half-FAB); the sheet's bottom
+     edge sits at the 158px padding, so the origin is 38px below the sheet
+     (158 − 120). Both include the same safe-area inset, so the offset holds.
      Re-derive all three numbers if the nav cluster's geometry moves. */
-  .modal-overlay.align-bottom { align-items: flex-end; padding: 1rem 1rem calc(150px + env(safe-area-inset-bottom, 0px)); }
+  .modal-overlay.align-bottom { align-items: flex-end; padding: 1rem 1rem calc(158px + env(safe-area-inset-bottom, 0px)); }
   .modal-overlay.align-bottom .modal-sheet {
     max-width: 440px;
     transform-origin: 50% calc(100% + 38px);
@@ -1299,6 +1349,10 @@
      1.25rem inset, which would double up inside the sheet. */
   .drill-body .txn-row { padding-left: 0; padding-right: 0; }
   .drill-empty { font-size: 13px; color: var(--on-surface-variant); padding: 8px 0 2px; }
+  /* In a CATEGORY drill-in the sheet is already titled with the category, so
+     every row's badge repeats it. The day sheet keeps its badges — there the
+     category is genuinely new information. */
+  .hide-cat-badge .badge { display: none; }
 
   /* ── Review list (multi-entry confirm) ──────────────────────────────────── */
   #review-list { max-height: 45vh; overflow-y: auto; margin-bottom: 0.5rem; }
@@ -1435,14 +1489,14 @@
 
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this) closeTxnModal()">
   <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
-    <div class="modal-title" id="modal-title">Add Transaction</div>
+    <div class="modal-title" id="modal-title">Log a transaction</div>
     <div class="modal-error" id="modal-error"></div>
     <input type="hidden" id="modal-uid">
 
     <div class="type-toggle">
       <div class="type-toggle-slider" id="type-slider"></div>
       <button type="button" id="type-expense-btn" onclick="setModalType('Expense')">Expense</button>
-      <button type="button" id="type-income-btn" onclick="setModalType('Income')">Budget</button>
+      <button type="button" id="type-income-btn" onclick="setModalType('Income')">Income</button>
     </div>
     <input type="hidden" id="modal-type" value="Expense">
 
@@ -1540,7 +1594,7 @@
       <div class="type-toggle">
         <div class="type-toggle-slider" id="recur-type-slider"></div>
         <button type="button" id="recur-type-expense-btn" onclick="setRecurType('Expense')">Expense</button>
-        <button type="button" id="recur-type-income-btn" onclick="setRecurType('Income')">Budget</button>
+        <button type="button" id="recur-type-income-btn" onclick="setRecurType('Income')">Income</button>
       </div>
       <input type="hidden" id="recur-type" value="Expense">
 
@@ -1625,9 +1679,9 @@
       <input type="file" id="capture-gallery-file" accept="image/*" hidden>
     </div>
     <div class="capture-note" id="capture-note" aria-live="polite"></div>
-    <div class="modal-actions" style="margin-top: 0.25rem">
-      <button type="button" class="btn btn-ghost" onclick="openManualFromCapture()">Enter manually</button>
-    </div>
+    <!-- No .modal-actions wrapper: .capture-manual carries its own spacing, and
+         the wrapper's flex row + 1.5rem top margin would stack on top of it. -->
+    <button type="button" class="capture-manual" onclick="openManualFromCapture()">Enter manually instead</button>
   </div>
 </div>
 
@@ -1770,14 +1824,23 @@ const CAT_COLORS = {
   "Other":                { hex: "#495057" }
 };
 
+// Line icons, not emoji. An emoji glyph is coloured by the OS font, so the
+// chip's CAT_COLORS tint, the emoji's own palette and the app's ink were three
+// colour systems inside one 40px square (a cyan Transport chip with a red car).
+// These inherit currentColor, so a chip is exactly one hue — its category's.
+// Both call sites must therefore pass `color`, not just the background tint.
+const _svg = d => `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const CAT_ICONS = {
-  "Food & Dining": "🍜",
-  "Transport": "🚗",
-  "Bills & Utilities": "💡",
-  "Shopping & Groceries": "🛍️",
-  "Subscriptions": "🔁",
-  "Entertainment": "🎬",
-  "Other": "📎"
+  "Food & Dining":       _svg('<path d="M4 3v7a3 3 0 0 0 6 0V3"/><path d="M7 10v11"/><path d="M17 3c-1.7 1.6-2.5 3.6-2.5 6s.8 3.5 2.5 3.5H19V3h-2z"/><path d="M17 12.5V21"/>'),
+  "Transport":           _svg('<path d="M5 13l1.4-4.2A2 2 0 0 1 8.3 7.4h7.4a2 2 0 0 1 1.9 1.4L19 13"/><path d="M4 13h16v4H4z"/><circle cx="7.5" cy="17.5" r="1.4"/><circle cx="16.5" cy="17.5" r="1.4"/>'),
+  "Bills & Utilities":   _svg('<path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6h5.4c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z"/>'),
+  "Shopping & Groceries":_svg('<path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>'),
+  "Subscriptions":       _svg('<path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>'),
+  "Entertainment":       _svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18"/><path d="M8 5v4"/><path d="M16 5v4"/><path d="M10.5 12.5l4 2-4 2v-4z"/>'),
+  "Other":               _svg('<path d="M20.6 13.4L12 22l-8.6-8.6a4 4 0 0 1 0-5.7l2.7-2.7a4 4 0 0 1 5.7 0l8.8 8.8"/><circle cx="8.5" cy="8.5" r="1.2"/>'),
+  // Not an expense category — the ledger's income rows use it in place of the
+  // old 💰, so it is looked up by name rather than falling through to "Other".
+  "Income":              _svg('<path d="M12 5v10"/><path d="M8 11l4 4 4-4"/><path d="M4 18h16"/>')
 };
 
 function formatCurrency(num) {
@@ -2125,16 +2188,20 @@ function renderLogsLedger() {
     mo.weeks.forEach((wk, i) => {
       const w = _logsWeeks[wk];
       const spend = _weekSpend(wk);
+      // A week can hold rows and still have spent nothing — income only, or a
+      // future-dated entry. A blank chart under "RM 0.00" in expense red states
+      // that badly: it's one line of neutral copy, and no chart to plot.
+      const zero = spend <= 0.005;
       html += `
-        <div class="week-row${newCls}" data-wk="${wk}" style="--d:${isNew ? Math.min(i, 8) * 45 : 0}ms">
+        <div class="week-row${newCls}${zero ? ' empty-week' : ''}" data-wk="${wk}" style="--d:${isNew ? Math.min(i, 8) * 45 : 0}ms">
           <div class="week-head">
             <div class="week-top">
               <span class="week-range">${weekRangeLabel(w)}</span>
               <span class="week-count">${w.rows.length} ${w.rows.length === 1 ? 'entry' : 'entries'}</span>
-              <span class="week-total">RM ${formatCurrency(spend)}</span>
+              <span class="week-total${zero ? ' zero' : ''}">${zero ? 'Nothing spent' : 'RM ' + formatCurrency(spend)}</span>
             </div>
           </div>
-          ${weekDaysHtml(wk)}
+          ${zero ? '' : weekDaysHtml(wk)}
         </div>`;
     });
   });
@@ -2186,16 +2253,16 @@ function txnRowHtml(r, i) {
   const incomeColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-income').trim() || '#00A36C';
   const isInc = r.Type === 'Income';
   const chipColor = isInc ? incomeColor : (CAT_COLORS[r.Category] || CAT_COLORS['Other']).hex;
-  const icon = isInc ? '💰' : (CAT_ICONS[r.Category] || CAT_ICONS['Other']);
+  const icon = isInc ? CAT_ICONS['Income'] : (CAT_ICONS[r.Category] || CAT_ICONS['Other']);
   const d = new Date(r.Date + 'T00:00:00');
   return `
       <div class="txn-row" data-uid="${r.UID}" style="--d:${Math.min(i, 10) * 35}ms">
         <div class="txn-left">
-          <div class="txn-icon-chip" style="background:${hexToRgba(chipColor, 0.14)}">${icon}</div>
+          <div class="txn-icon-chip" style="background:${hexToRgba(chipColor, 0.12)}; color:${chipColor}">${icon}</div>
           <div class="txn-details">
             <div class="txn-desc">${r.Description}</div>
             <div class="txn-badge-container">
-              <span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Budget' : r.Category.split(' ')[0]}</span>
+              <span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Income' : r.Category.split(' ')[0]}</span>
               <span class="txn-date">${MONTHS[d.getMonth()]} ${d.getDate()}</span>
               ${r.Source === 'recurring' ? '<span class="txn-auto">Auto</span>' : ''}
             </div>
@@ -2305,6 +2372,9 @@ function renderDrillSheetBody() {
   document.getElementById('drill-sub').textContent = c.sub;
   document.getElementById('drill-total').textContent = `RM ${formatCurrency(c.total)}`;
   const body = document.getElementById('drill-body');
+  // A category sheet is already titled with the category, so every row's badge
+  // would just repeat it. The day sheet keeps its badges.
+  body.classList.toggle('hide-cat-badge', drillState.kind === 'category');
   body.innerHTML = c.rows.length
     ? c.rows.map(txnRowHtml).join('')
     : `<div class="drill-empty">${c.empty}</div>`;
@@ -2515,7 +2585,7 @@ function categoryBreakdownHtml(catData, total) {
               aria-label="${escapeHtml(cat)}, RM ${formatCurrency(amt)}, ${pctStr}% of total. View transactions."
               style="--d:${Math.min(i, 10) * 35}ms">
         <div class="cat-top">
-          <div class="txn-icon-chip" style="background:${hexToRgba(hex, 0.14)}">${icon}</div>
+          <div class="txn-icon-chip" style="background:${hexToRgba(hex, 0.12)}; color:${hex}">${icon}</div>
           <div class="cat-meta">
             <div class="cat-name">${escapeHtml(cat)}</div>
             <div class="cat-share">${pctStr}% of total</div>
@@ -2587,11 +2657,19 @@ function renderSpendingPatterns() {
       : `<span class="sp-arrow down">↘</span>`;
   }
 
-  // Cells.
+  // Cells. The live month stops at today: on the 10th, 22 of 31 cells were
+  // dashed placeholders and the card ran over half a phone viewport tall.
+  // NOTE this clips the RENDER only — every figure above stays computed over
+  // the whole month. `total` sums all days, so clipping `days` itself would
+  // silently drop a future-dated expense from the chip's RM figure while the
+  // Today Expenses tile still counted it, and break the chip average's
+  // to-the-cent parity with Today's "Average Daily" (§3.7). Closed months are
+  // untouched — they have no future days.
+  const cellDays = isCur ? days.filter(d => !d.future) : days;
   let cells = '';
   for (let i = 0; i < leadBlanks; i++) cells += `<div class="hm-cell hm-blank"></div>`;
   let idx = 0;
-  days.forEach(d => {
+  cellDays.forEach(d => {
     const cls = d.future ? 'hm-future' : `hm-l${levelOf(d.spend)}`;
     const delay = 60 + Math.min(idx++, 24) * 12;
     const dd = new Date(d.iso + 'T00:00:00');
@@ -2609,7 +2687,8 @@ function renderSpendingPatterns() {
       <div class="sp-head">
         <div class="sp-title">Spending patterns</div>
       </div>
-      <div class="sp-chip"><b>${chipLabel}</b>${sep}${elapsedDays} days${sep}${arrow}<b>RM ${formatCurrency(total)}</b>${sep}Avg RM ${formatCurrency(avg)}</div>
+      <div class="sp-chip"><b>${chipLabel}</b>${sep}${elapsedDays} days${sep}${arrow}<b>RM ${formatCurrency(total)}</b></div>
+      <div class="sp-avg">Avg RM ${formatCurrency(avg)} a day</div>
       <div class="hm-weekdays">${WD.map(w => `<div class="hm-wd">${w}</div>`).join('')}</div>
       <div class="hm-grid">${cells}</div>
       <div class="sp-legend"><span>Less</span><div class="sp-swatches">${swatches}</div><span>More</span></div>
@@ -3609,6 +3688,11 @@ function calculateAndRender() {
       trendMonths.push({ label: MONTHS[d.getMonth()], year: d.getFullYear(), month: d.getMonth() });
     }
     const trendData = trendMonths.map(m => monthTotals(m.year, m.month).net);
+    // The last bar is a month still in progress, drawn on the same axis as five
+    // finished ones. Draw it as provisional — washed out, with a note saying how
+    // far in it is — rather than letting nine days read against thirty-one.
+    const _now = new Date();
+    const heroLiveMonth = activeMonth === _now.getMonth() && activeYear === _now.getFullYear();
 
     document.getElementById('today-hero').innerHTML = `
       <div class="hero-card">
@@ -3618,6 +3702,7 @@ function calculateAndRender() {
         <div class="hero-amount counter-val" id="hero-amount" style="color: ${netBalance >= 0 ? 'var(--semantic-income)' : 'var(--semantic-expense)'};" data-val="${netBalance}" data-key="home-net" data-prefix="RM ">RM 0.00</div>
         <div class="hero-sub">${netBalance >= 0 ? 'In the green' : 'Watching the leak'}</div>
         <div class="hero-chart-wrap"><canvas id="hero-trend"></canvas></div>
+        ${heroLiveMonth ? `<div class="hero-chart-note">${MONTHS_FULL[activeMonth]} is ${_now.getDate()} days in</div>` : ''}
       </div>
     `;
 
@@ -3627,7 +3712,7 @@ function calculateAndRender() {
     // disclosure trigger, so it renders as a <button>.
     document.getElementById('today-tiles').innerHTML = `
       <div class="tile-block income-block">
-        <div class="tile-label">Budget</div>
+        <div class="tile-label">Income</div>
         <div class="tile-val counter-val" data-val="${totalIncome}" data-key="home-inc" data-prefix="RM ">RM 0.00</div>
         <div class="tile-chip ${incChangePct >= 0 ? 'good' : 'bad'}">${incChangePct >= 0 ? '▲' : '▼'} ${Math.abs(incChangePct).toFixed(0)}% vs last mo.</div>
       </div>
@@ -3666,7 +3751,9 @@ function calculateAndRender() {
         labels: trendMonths.map(m => m.label),
         datasets: [{
           data: trendData,
-          backgroundColor: trendData.map((v, i) => i === trendData.length - 1 ? '#C2542D' : hexToRgba(v >= 0 ? activeIncomeColor : activeExpenseColor, 0.35)),
+          backgroundColor: trendData.map((v, i) => i === trendData.length - 1
+            ? (heroLiveMonth ? hexToRgba('#C2542D', 0.38) : '#C2542D')
+            : hexToRgba(v >= 0 ? activeIncomeColor : activeExpenseColor, 0.35)),
           borderRadius: 4,
           maxBarThickness: 16,
           minBarLength: 4
@@ -4278,7 +4365,7 @@ function openTxnModal(uid) {
   document.body.classList.add('modal-open-state');
   document.getElementById('modal-error').style.display = 'none';
   document.getElementById('modal-uid').value = isEdit ? uid : '';
-  document.getElementById('modal-title').textContent = isEdit ? 'Edit Transaction' : 'Add Transaction';
+  document.getElementById('modal-title').textContent = isEdit ? 'Edit a transaction' : 'Log a transaction';
   document.getElementById('modal-delete-btn').style.display = isEdit ? 'inline-flex' : 'none';
 
   const type = isEdit ? record.Type : 'Expense';
