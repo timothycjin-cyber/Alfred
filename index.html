@@ -237,7 +237,7 @@
     outline: none; 
     transition: transform var(--motion-wobble-nav), color var(--motion-standard);
   }
-  .nav-btn.active { color: var(--on-primary); font-weight: 700; transform: scale(1.1); }
+  .nav-btn.active { color: var(--on-primary); font-weight: 600; transform: scale(1.1); }
   
   /* Slider width = one tab slot: pill inner width (100% is the padding box,
      so subtract the 2×4px padding) minus the two 4px gaps, over three tabs.
@@ -368,13 +368,13 @@
     }
   }
   .hero-top { display: flex; align-items: flex-start; justify-content: space-between; }
-  .hero-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
+  .hero-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
   .hero-amount {
     font-size: 36px; font-weight: 900;
     font-variation-settings: 'wght' 850, 'wdth' 80;
     letter-spacing: -1px; line-height: 1.1; margin: 6px 0 2px;
   }
-  .hero-sub { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); margin-bottom: 14px; }
+  .hero-sub { font-size: 11px; font-weight: 500; color: var(--on-surface-variant); margin-bottom: 14px; }
   .hero-chart-wrap { position: relative; width: 100%; height: 58px; margin: 0 -4px; }
 
   .tile-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 1.5rem; width: 100%; }
@@ -430,8 +430,8 @@
      2026-07-24). Today used this for its quadrant's bottom row until those two
      figures moved into #today-detail (2026-08-02), so it's Trends-only now. */
   .tile-block.neutral-block { background: var(--wash-neutral); }
-  .tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
-  .tile-val { font-size: 19px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
+  .tile-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
+  .tile-val { font-size: 19px; font-weight: 700; letter-spacing: -0.3px; white-space: nowrap; }
   .tile-block.income-block .tile-val { color: var(--semantic-income); }
   .tile-block.expense-block .tile-val { color: var(--semantic-expense); }
   .tile-block.neutral-block .tile-val { color: var(--on-surface); }
@@ -513,11 +513,11 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   }
   .donut-center-lbl {
-    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
     color: var(--on-surface-variant);
   }
   .donut-center-val {
-    font-size: 20px; font-weight: 900; letter-spacing: -0.02em; color: var(--on-surface);
+    font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: var(--on-surface);
   }
 
   /* Category breakdown — the ring's legend, carrying every name, share and
@@ -545,11 +545,11 @@
   .cat-chev { color: var(--on-surface-variant); flex-shrink: 0; margin-left: -4px; }
   .cat-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .cat-name {
-    font-size: 13.5px; font-weight: 700; color: var(--on-surface); line-height: 1.25;
+    font-size: 13.5px; font-weight: 650; color: var(--on-surface); line-height: 1.25;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .cat-share { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
-  .cat-amt { font-size: 13.5px; font-weight: 800; color: var(--on-surface); flex-shrink: 0; }
+  .cat-amt { font-size: 13.5px; font-weight: 700; color: var(--on-surface); flex-shrink: 0; }
   /* A horizontal money bar, but the fill takes the category's
      own hue — semantic red stays reserved for expense figures, never
      decoration. */
@@ -590,7 +590,7 @@
   }
   .insight-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
   .insight-head svg { flex-shrink: 0; }
-  .insight-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
+  .insight-label { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); }
   .insight-body { font-size: 13.5px; line-height: 1.55; color: var(--on-surface); font-weight: 500; }
   .insight-body b { font-weight: 800; }
   .insight-body .up { color: var(--semantic-expense); font-weight: 800; }
@@ -627,14 +627,14 @@
   }
   .today-line { display: flex; align-items: baseline; gap: 9px; }
   .today-label {
-    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
     color: var(--on-surface-variant); flex-shrink: 0; line-height: 1.6;
   }
-  .today-body { font-size: 13px; font-weight: 600; line-height: 1.55; color: var(--on-surface); }
-  .today-body b { font-weight: 800; }
-  .today-good { color: var(--semantic-income); font-weight: 700; }
-  .today-bad { color: var(--semantic-expense); font-weight: 700; }
-  .today-flat { color: var(--on-surface-variant); font-weight: 700; }
+  .today-body { font-size: 13px; font-weight: 500; line-height: 1.55; color: var(--on-surface); }
+  .today-body b { font-weight: 700; }
+  .today-good { color: var(--semantic-income); font-weight: 600; }
+  .today-bad { color: var(--semantic-expense); font-weight: 600; }
+  .today-flat { color: var(--on-surface-variant); font-weight: 600; }
   .today-empty { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
 
   /* Contextual header month chip (Phase B) — the ONE month selector, shown
@@ -656,7 +656,7 @@
   .monthnav-btn:disabled { opacity: 0.3; cursor: default; }
   .monthnav-label {
     min-width: 52px; text-align: center; white-space: nowrap;
-    font-size: 12.5px; font-weight: 800; letter-spacing: -0.2px;
+    font-size: 12.5px; font-weight: 700; letter-spacing: -0.2px;
   }
 
   /* Month shelf — the ledger's "pages". A horizontal strip of months that hold
@@ -692,7 +692,7 @@
   .archive-net { font-size: 30px; font-weight: 900; font-variation-settings: 'wght' 850, 'wdth' 80; letter-spacing: -1px; line-height: 1.05; }
   .archive-net.arc-pos { color: var(--semantic-income); }
   .archive-net.arc-neg { color: var(--semantic-expense); }
-  .archive-net-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); margin: 2px 0 14px; }
+  .archive-net-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--on-surface-variant); margin: 2px 0 14px; }
   .archive-facts { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--outline-variant); padding-top: 12px; }
   .archive-fact { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
   .af-label { font-size: 11.5px; font-weight: 600; color: var(--on-surface-variant); }
@@ -708,7 +708,7 @@
      ramp reads as heat, not as money valence. */
   .hm-weekdays, .hm-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
   .hm-weekdays { margin-bottom: 6px; }
-  .hm-wd { text-align: center; font-size: 9px; font-weight: 700; letter-spacing: 0.3px; color: var(--on-surface-variant); text-transform: uppercase; }
+  .hm-wd { text-align: center; font-size: 9px; font-weight: 600; letter-spacing: 0.3px; color: var(--on-surface-variant); text-transform: uppercase; }
   .hm-cell {
     aspect-ratio: 1; border-radius: var(--shape-xs);
     display: flex; align-items: center; justify-content: center;
@@ -718,7 +718,7 @@
   /* Full-strength ink on EVERY step. White on the two deepest sienna tints
      measured 2.01:1; --on-surface clears AA on the deepest tint in light mode
      and, because the token flips with the theme, on the lightest in dark. */
-  .hm-day { font-size: 10px; font-weight: 700; color: var(--on-surface); }
+  .hm-day { font-size: 10px; font-weight: 600; color: var(--on-surface); }
   /* Sienna ramp (transparent → burnt-sienna). */
   .hm-l0 { background: transparent; border: 1px solid var(--outline-variant); }
   .hm-l1 { background: rgba(194,84,45,0.18); }
@@ -731,7 +731,7 @@
   /* Spending-patterns card chrome: header (title), summary chip, and the
      Less→More legend framing the grid. */
   .sp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-  .sp-title { font-size: 11px; font-weight: 700; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
+  .sp-title { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
   /* Summary chip: month • N days • trend total • daily average. The trend
      arrow follows Alfred's valence (spend up = expense red, down = income
@@ -742,7 +742,7 @@
     border: 1px solid var(--outline-variant); border-radius: var(--shape-full);
     font-size: 12px; font-weight: 600; color: var(--on-surface-variant);
   }
-  .sp-chip b { font-weight: 800; color: var(--on-surface); }
+  .sp-chip b { font-weight: 700; color: var(--on-surface); }
   .sp-chip .sp-sep { opacity: 0.4; }
   .sp-chip .sp-arrow.up { color: var(--semantic-expense); }
   .sp-chip .sp-arrow.down { color: var(--semantic-income); }
@@ -768,10 +768,10 @@
   .insight-thinking span:nth-child(3) { animation-delay: 0.3s; }
   @keyframes thinkPulse { 0%, 100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
   
-  .card-title { font-size: 11px; font-weight: 700; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
+  .card-title { font-size: 11px; font-weight: 600; margin-bottom: 14px; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .income-bar-caption { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--on-surface); }
-  .income-bar-caption b { font-weight: 900; }
+  .income-bar-caption { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--on-surface); }
+  .income-bar-caption b { font-weight: 800; }
 
   /* Two-bar pace chart (Spent vs Month), replacing the single continuous-pill
      design. Reserves room above for the shared "Today" legend bubble — the
@@ -779,15 +779,15 @@
   .income-bar-wrap { position: relative; padding-top: 36px; }
   .income-bar-row { display: grid; grid-template-columns: 60px 1fr 52px; align-items: center; gap: 12px; margin-bottom: 16px; }
   .income-bar-row:last-of-type { margin-bottom: 0; }
-  .income-bar-lbl { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--on-surface-variant); }
+  .income-bar-lbl { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.4px; color: var(--on-surface-variant); }
   .income-bar-track { height: 14px; border-radius: var(--shape-full); background: var(--surface-container); overflow: hidden; }
   .income-bar-fill { height: 100%; border-radius: var(--shape-full); transition: width var(--motion-wobble), background var(--motion-wobble); }
   .income-bar-fill.spent { background: var(--sienna); }
   .income-bar-fill.spent.over { background: var(--semantic-expense); }
   .income-bar-fill.month { background: var(--outline); }
-  .income-bar-val { font-size: 13px; font-weight: 900; text-align: right; color: var(--on-surface); transition: color var(--motion-wobble); }
+  .income-bar-val { font-size: 13px; font-weight: 750; text-align: right; color: var(--on-surface); transition: color var(--motion-wobble); }
   .income-bar-val.over { color: var(--semantic-expense); }
-  .income-bar-val.mut { color: var(--on-surface-variant); font-weight: 700; }
+  .income-bar-val.mut { color: var(--on-surface-variant); font-weight: 600; }
 
   /* "Today" marker: a dotted reference line shared across both bars, at the
      month-elapsed position, springing alongside the bars' width spring
@@ -803,7 +803,7 @@
   .income-bar-bubble {
     position: absolute; top: 0; transform: translateX(-50%);
     background: var(--on-surface); color: var(--surface);
-    font-size: 10px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
     padding: 4px 9px; border-radius: var(--shape-full); white-space: nowrap;
     pointer-events: none; transition: left var(--motion-wobble); z-index: 3;
   }
@@ -822,7 +822,7 @@
     display: flex; align-items: center; gap: 9px;
     margin: 20px -1.25rem -1.25rem;
     padding: 0.72rem 1.25rem;
-    font-size: 12.5px; font-weight: 700; line-height: 1.35;
+    font-size: 12.5px; font-weight: 600; line-height: 1.35;
     border-radius: 0 0 var(--shape-lg) var(--shape-xs);
   }
   .income-bar-status svg { flex-shrink: 0; opacity: 0.95; }
@@ -917,7 +917,7 @@
      money on this tab (no cell grids). */
   .month-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 1.5rem 0.25rem 0.6rem; }
   #logs-ledger .month-header:first-child { margin-top: 0.25rem; }
-  .month-name { font-size: 13px; font-weight: 800; letter-spacing: -0.2px; color: var(--on-surface); }
+  .month-name { font-size: 13px; font-weight: 700; letter-spacing: -0.2px; color: var(--on-surface); }
 
   .week-row {
     border: 1px solid var(--outline-variant); border-radius: var(--shape-lg);
@@ -927,9 +927,9 @@
      here may read as interactive: no cursor, no press state, no chevron. */
   .week-head { display: block; padding: 12px 1.25rem 8px; text-align: left; color: var(--on-surface); }
   .week-top { display: flex; align-items: baseline; gap: 8px; }
-  .week-range { font-size: 13.5px; font-weight: 800; letter-spacing: -0.2px; }
-  .week-count { flex: 1; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
-  .week-total { font-size: 13.5px; font-weight: 800; color: var(--semantic-expense); }
+  .week-range { font-size: 13.5px; font-weight: 700; letter-spacing: -0.2px; }
+  .week-count { flex: 1; font-size: 11px; font-weight: 500; color: var(--on-surface-variant); }
+  .week-total { font-size: 13.5px; font-weight: 700; color: var(--semantic-expense); }
 
   /* Day columns — one per in-month day of the week (clipped: a month-edge week
      is short by design, not broken). Columns are FIXED WIDTH at a seventh of
@@ -961,7 +961,7 @@
   .day-col:active .day-col-bar { opacity: 0.85; }
   .day-col-lbl {
     display: block; margin-top: 6px; text-align: center;
-    font-size: 9.5px; font-weight: 700; letter-spacing: 0.2px;
+    font-size: 9.5px; font-weight: 600; letter-spacing: 0.2px;
     color: var(--on-surface-variant);
   }
   .day-col:focus-visible .day-col-track { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--shape-xs); }
@@ -973,7 +973,7 @@
     width: 100%; margin: 14px 0 4px; padding: 13px;
     border: 1px dashed var(--tail-dash); background: transparent;
     border-radius: var(--shape-lg); font-family: inherit;
-    font-size: 12.5px; font-weight: 700; color: var(--on-surface-variant);
+    font-size: 12.5px; font-weight: 600; color: var(--on-surface-variant);
     cursor: pointer; transition: background var(--motion-standard);
   }
   .logs-tail:active { background: var(--surface-container); }
@@ -1002,7 +1002,7 @@
     color: var(--on-surface-variant); opacity: 0.75; margin-left: 6px; align-self: center;
   }
   
-  .badge { font-size: 9px; padding: 1px 6px; border-radius: var(--shape-xs); font-weight: 700; white-space: nowrap; background: transparent; border-width: 1px; border-style: solid; text-transform: uppercase; letter-spacing: 0.3px; }
+  .badge { font-size: 9px; padding: 1px 6px; border-radius: var(--shape-xs); font-weight: 600; white-space: nowrap; background: transparent; border-width: 1px; border-style: solid; text-transform: uppercase; letter-spacing: 0.3px; }
   .badge.inc-badge { color: var(--semantic-income); border-color: var(--semantic-income); }
   .badge.exp-badge { color: var(--semantic-expense); border-color: var(--semantic-expense); }
 
@@ -1082,7 +1082,7 @@
   .modal-sheet:focus { outline: none; }
   .modal-title { 
     font-size: 18px; 
-    font-weight: 700; 
+    font-weight: 650; 
     margin-bottom: 1.2rem; 
     color: var(--on-surface); 
   }
@@ -1119,7 +1119,7 @@
   .type-toggle button.active-income { color: var(--semantic-income); }
 
   .form-group { margin-bottom: 1rem; }
-  .form-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--on-surface-variant); margin-bottom: 6px; display: block; }
+  .form-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--on-surface-variant); margin-bottom: 6px; display: block; }
   
   .form-input, .form-select {
     width: 100%; padding: 11px 12px; border-radius: var(--shape-sm); border: 1px solid var(--outline-variant);
