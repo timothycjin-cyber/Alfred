@@ -1,6 +1,35 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-10 — **Trends: donut and spending patterns swapped (§3.7).** The
+*Last updated: 2026-08-10 (second pass) — **Design fix spec: type, contrast, targets, and a
+quieter Today (§3.2–§3.14).** Shipped as four commits from an owner-supplied review of
+`main` @ 86054de. **The headline is a real bug: `body` pinned
+`font-variation-settings: 'wght' 400`, and in a variable font that axis BEATS `font-weight`** —
+so ~35 classes across all three tabs had been rendering at regular whatever their CSS said.
+Only `.header-title`, `.hero-amount` and `.archive-net` (which set the axis themselves) and
+text inside a `<button>` (which escapes via the UA font reset) were ever correct. Unpinning it
+made the app render much heavier, so a second commit walks **39 classes** down a step (30 from
+the spec, 9 companions). ⚠️ **`getComputedStyle().fontWeight` CANNOT detect this** — it reports
+the declared value either way; only *measured rendered ink* can, and only with the real
+variable font loaded. Also: light-mode `--semantic-income`/`--semantic-expense` were tuned on
+dark surfaces and reused on white (2.9:1 / 4.1:1) → **#007A52 / #C62828**; heatmap day numbers
+went white on the two deepest sienna steps (**2.01:1**) → full-strength `--on-surface` on every
+cell; and five touch targets were under 44px. ⚠️ **The nav pill's 48→56px is part of the FAB
+cluster's derived geometry**, so all four dependent numbers were re-derived (§3.3): FAB centre
+112→**120**, body padding 164→**172**, toast 152→**160**, bottom-sheet padding 150→**158**; the
+bloom origin stays 38px because both terms moved 8px. Judgement changes: Today **says good news
+once** (hero keeps the verdict; `.tile-chip.good`, `.today-good` and the on-track pace strip go
+neutral — the alert states keep their red); the **`Budget` name collision is gone** (the tile,
+both type toggles and the ledger badge now read **`Income`**; the hero keeps `Budget left`);
+the hero's **running month is drawn provisional**; the heatmap **clips the future**; category
+icons are **monochrome line SVGs inheriting `currentColor`** (the app's last emoji); day columns
+sit in **visible slots**; an **empty week is one line**; **sienna is the only primary**. Two
+deliberate deviations from the spec are recorded in §7 — the heatmap clip is applied to the
+**render, not the `days` array** (the literal patch corrupts the chip total *and* renders zero
+cells on a closed month), and `.capture-manual` **replaces** its `.modal-actions` wrapper.
+Render-loop verified **178/178**, **with twelve negative controls run first** — five of which
+initially fired nothing and exposed a harness bug that had made every control a no-op.
+Front-end only — no Apps Script change, no redeploy.
+Prior banner (2026-08-10) — **Trends: donut and spending patterns swapped (§3.7).** The
 Trends order is now insight → tiles → archive card slot → **donut (Expenses by Category)**
 → **spending patterns** → cumulative line → archive shelf. Markup move only: the
 `#category-card` and `#spending-patterns` blocks changed places in `#trends-view`; no
@@ -342,6 +371,44 @@ the tap target, so width has to stay fixed. Still a bar, still semantic-expense;
 zero-spend day drops to `--outline-variant` gray rather than a very short red bar, because
 a rail isn't an expense.
 
+**Type (amended 2026-08-10, second pass).** Roboto Flex is a **variable font**, so
+`font-variation-settings` on `body` **overrides `font-weight` on every descendant**. `body`
+therefore sets **`'wdth' 100` only** — never `'wght'`. ⚠️ **Never reintroduce a `wght` pin
+there**: it silently flattens the whole type ramp to regular while every stylesheet still
+*says* 700/800/900, and `getComputedStyle().fontWeight` keeps reporting the declared value, so
+nothing in the DOM reveals it. The only classes that legitimately set the axis are
+`.header-title`, `.hero-amount` and `.archive-net`, which do it deliberately and locally. The
+ramp after the rebalancing sits at **500–800**, with 650/750 used where a half-step reads
+better; the rule of thumb for anything new is one step below what a flattened rendering would
+have tempted you into (900 → 750/800, 800 → 700, 700 → 600).
+
+**Colour, amended 2026-08-10 (second pass).** Three rules the pass added:
+
+- **Light and dark semantic tokens are tuned separately.** `--semantic-income` /
+  `--semantic-expense` were one pair tuned against dark surfaces and reused on white, where
+  they cleared 2.9:1 and 4.1:1. Light is now **#007A52 / #C62828** (5.4:1 / 5.7:1); dark keeps
+  **#2ECC71 / #FF4D4D**. A token that has to read on both grounds needs two values, not one.
+- **Good news is stated, not coloured.** Semantic green is no longer spent on the ordinary
+  case: `.tile-chip.good`, `.today-good` and the on-track pace strip are **neutral ink**. Only
+  the *bad* states (`.tile-chip.bad`, `.income-bar-status.over`) keep semantic colour and the
+  solid fill. Five components were delivering the same green reassurance at once, which is
+  exactly what leaves nothing in reserve for the one component with something wrong to say.
+  Same reasoning as the "only overspending gets a solid fill" rule already in §3.5.
+- **Sienna is the only primary.** `--sienna` fills the FAB, `.btn-primary` and
+  `.capture-send`; `--primary` (near-black / near-white ink) is no longer a button fill, so
+  two things never both claim primary. Red is also **not a selection state** — the
+  `.type-toggle` active segment is `--on-surface`, because the slider already marks it and
+  red means money going out everywhere else in the app.
+
+**Icons.** Category icons are **inline SVG line icons inheriting `currentColor`**, not emoji
+(2026-08-10). An emoji glyph is coloured by the OS font, so a `CAT_COLORS`-tinted chip carried
+a differently-coloured glyph — a cyan Transport chip with a red car. Both call sites
+(`categoryBreakdownHtml`, `txnRowHtml`) pass **`color:` as well as the background tint**, so a
+chip is exactly one hue. ⚠️ **The `CAT_ICONS` map now also holds an `"Income"` key** — it is
+not an expense category, and income rows look it up by name rather than falling through to
+`"Other"`. This retires the app's last emoji apart from the ⚠️ in the failed-load state (§6,
+not in scope).
+
 **Motion tokens:** `--motion-wobble` (overshoot spring; hero/tile/chip pop-ins, FAB
 bloom, bar transitions), `--motion-snap` (taps), `--motion-wobble-nav` (nav-only, ≈20%
 shorter — drives `.nav-slider` transform and the active-tab `scale(1.1)` text pop).
@@ -374,22 +441,36 @@ damped-spring `linear()` curves (wobble = stiffness 320/ζ 0.62, ~632ms; snap = 
 
 ### 3.3 Navigation — Today · Logs · Trends + detached FAB
 
-Three text tabs in a 280×48px glass pill (4px padding, 4px gaps), Today is the default
+Three text tabs in a 280×**56**px glass pill (4px padding, 4px gaps), Today is the default
 landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
-`#logs-view` / `#trends-view`.
+`#logs-view` / `#trends-view`. The pill was 48px until 2026-08-10, which rendered tabs
+38–42px tall — under the 44px minimum; at 56px they measure 46–51px.
 
 - **Slider math:** width `calc((100% - 16px) / 3)` (padding box minus 2×4 padding +
   2×4 gaps, over 3); slot n = `translateX(calc(n·100% + n·4px))`, set in `switchView()`.
+  It is `top: 4px; bottom: 4px`, i.e. **vertically elastic**, so the pill's height change
+  needed nothing here — but assert that rather than assume it.
 - **FAB:** 56px sienna circle floating 12px above the pill, centered; `.bottom-bar` is a
   column stack anchored `bottom: calc(24px + env(safe-area-inset-bottom))`. Neutral
   elevation shadow (`0 6px 16px rgba(0,0,0,0.18)`); white icon; `body.modal-open-state`
   rotate.
-- **⚠️ Derived numbers (re-derive ALL if the cluster moves):** FAB center = **112px** +
-  safe-area above the viewport bottom (24 bar + 48 pill + 12 gap + 28 half-FAB).
-  Capture-sheet overlay `padding-bottom: calc(150px + env(safe-area-inset-bottom))`;
-  bloom `transform-origin: 50% calc(100% + 38px)` (150 − 112). `body`
-  `padding-bottom: calc(164px + inset)` clears the cluster; toast sits at
-  `bottom: calc(152px + inset)`.
+- **⚠️ Derived numbers (re-derive ALL if the cluster moves — and the PILL'S HEIGHT is part
+  of the cluster, which is what the 2026-08-10 target pass had to re-derive):** FAB center
+  = **120px** + safe-area above the viewport bottom (24 bar + **56** pill + 12 gap + 28
+  half-FAB). Capture-sheet overlay
+  `padding-bottom: calc(158px + env(safe-area-inset-bottom))`; bloom
+  `transform-origin: 50% calc(100% + 38px)` (158 − 120 — **unchanged**, because both terms
+  moved by the same 8px). `body` `padding-bottom: calc(172px + inset)` clears the cluster;
+  toast sits at `bottom: calc(160px + inset)`.
+- **Touch targets (2026-08-10):** `.icon-btn` and `.capture-send` are **44px** square (were
+  36px — and they share the `.capture-card` row, so they resize together or that row's
+  alignment breaks); `.btn` carries `min-height: 48px`, `.type-toggle button` `min-height:
+  44px`, `.logs-tail` 14px padding (13px rendered 43px — one pixel short, only findable by
+  measuring). ⚠️ **Day columns are the documented exception**: they are a seventh of the
+  track and never grown (§3.6, a locked decision), so at 390px they are ~42px *wide*. The
+  rule they meet is the one §3.6 states — **≥44px tall, with the whole cell (track +
+  label) as the hit area**. ⚠️ **Measure targets with the sheet OPEN**: a closed overlay is
+  `scale(0.08)` and reports a 44px control as 3.5px.
 - **Header:** just "Project Alfred" on Today; on Trends/Logs a contextual month chip
   appears (§3.4). `.header-actions` carries a `min-height: 36px` (2026-07-21) matching
   the monthnav chip's rendered height, so the header row is the same total height on
@@ -428,9 +509,22 @@ budget-pace card.**
   embedded 6-month net-trend mini bar chart (`heroChart`, current month sienna, others
   green/red by sign; `minBarLength: 4` + `heroBaselinePlugin` faint zero line, gated on
   `canvas.id === 'hero-trend'`). Sub-copy "In the green" / "Watching the leak".
-- **Tiles** (`#today-tiles`, a 2-col grid → **two headline tiles**): **`Budget`** (month
+  **The running month is drawn as provisional** (2026-08-10): a `heroLiveMonth` flag
+  (`activeMonth`/`activeYear` vs now) washes the last bar to `hexToRgba('#C2542D', 0.38)`
+  and appends a `.hero-chart-note` reading `August is 10 days in` under the chart. On the
+  10th, nine days were otherwise being read against thirty-one-day bars on the same axis.
+  (`activeMonth` is pinned to now at load per §3.4, so the flag is true in practice —
+  it is still written as a derived flag, and the note must be built from it, not
+  unconditionally.)
+- **Tiles** (`#today-tiles`, a 2-col grid → **two headline tiles**): **`Income`** (month
   income) / **`Expenses`** — tinted surfaces (`--wash-income`/`--wash-expense`), `▲/▼ X%
-  vs last month` chips with `.good`/`.bad` valence (expenses dropping reads green).
+  vs last month` chips with `.good`/`.bad` valence. ⚠️ **The income tile says `Income`, not
+  `Budget`** (2026-08-10): the hero 200px above says `Budget left`, and the same word for
+  two different quantities was the collision. The **hero keeps `Budget left`**; the data
+  model, the stored `'Income'` value, the element ids and `INCOME_CATEGORIES` are all
+  unchanged — this is label text only, and it narrows the Phase D budget rename for
+  transaction *type* labels specifically. **`.good` chips are neutral, `.bad` chips keep
+  semantic red** (§3.2 — good news is stated, not coloured).
   Entrance cascade is nth-child(1)/(2) only. **The 2×2 quadrant was collapsed 2026-08-02**
   — `Average Daily`/`Forecast` are follow-up detail, not headline figures, and holding two
   of four tile slots overstated them.
@@ -458,6 +552,7 @@ budget-pace card.**
   `drillState` does for the drill-in sheet (§3.14).
 - **Glance line** (`computeTodayGlance` — the digest math as client-side JS): today's
   spend vs the 30-day spend-day average; zero-state "Nothing logged today yet."
+  `.today-good` is **neutral ink** since 2026-08-10 (§3.2); `.today-bad` keeps the red.
 - **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome,
   totalExpense)` — single caller), **two-bar, state-colour design** (redesigned
   2026-07-21, superseding the single-continuous-pill "pace bar hybrid" of 2026-07-19):
@@ -482,8 +577,11 @@ budget-pace card.**
   (`forecast > income`, algebraically `usedPct > monthPct`, avg daily = MTD spend ÷
   elapsed days), so the strip and the Spent bar's colour flip can never disagree.
   **Only overspending gets a solid fill** (`--strip-over`, white text): an alert reads as
-  an alert because it isn't always on, so on-track stays quiet — `--wash-income`
-  background, `--semantic-income` text, hairline top border. `--strip-over` is
+  an alert because it isn't always on, so on-track stays quiet. **Quieter still since
+  2026-08-10** — the on-track strip dropped its `--wash-income` background and
+  `--semantic-income` text for a **transparent ground and `--on-surface-variant` ink**,
+  keeping only the hairline top border, so the verdict raises its voice solely when it has
+  something to say (§3.2). `--strip-over` is
   deliberately **deeper than `--semantic-expense`** (#D93A31 / #C0392F dark): the semantic
   token is tuned for text *on* the surface and clears only ~4.0:1 under white, where the
   strip token clears 4.5:1. Full-bleed comes from negative margins
@@ -525,6 +623,13 @@ scope" below). The header month chip never filters here; it jumps.
   `data-ym="Y-M"` (scroll targets). Newest first. Only weeks holding rows render
   (unchanged). `weekMondayIso()` is **gone** — nothing needed a bare Monday once the span
   carried both ends.
+- **An empty week is one line** (2026-08-10). A week can hold rows and still have spent
+  nothing — income only, or a future-dated entry — and it used to render a full card with
+  a blank chart under `RM 0.00` in expense red, which states it badly twice over. `zero =
+  spend <= 0.005` now adds `.empty-week` to the row, swaps the figure for the words
+  **`Nothing spent`** in neutral ink (`.week-total.zero`), and **skips `weekDaysHtml(wk)`
+  entirely** — no chart to plot, and no dead tap targets. `_weekSpend()` already excludes
+  income, so an income-only week is exactly this case.
 - **Day columns** (`.week-days` → `.day-col` → `.day-col-track` → `.day-col-bar`,
   `weekDaysHtml()` / `weekDaySlots()`): one column per day in the clipped span.
   **Width is fixed and encodes nothing; HEIGHT carries the money** — the bar fills a
@@ -537,7 +642,12 @@ scope" below). The header month chip never filters here; it jumps.
   keeps a wide viewport from turning a 48px-tall column into a slab — past the cap the
   row just left-aligns. Zero-spend days keep a **4px stub** (`min-height`) and go
   `--outline-variant` gray (`.day-col.zero`) — a rail isn't an expense, so semantic red
-  stays on money. Income never enters a column. **Heights are per-week scaled, so columns
+  stays on money. Income never enters a column. **The track is a visible slot**
+  (2026-08-10): `.day-col-track` carries a `--wash-neutral` background and `--shape-xs`
+  radius, with a `--wash-hero` hover. Seven bars floating on a card read as a chart; seven
+  bars sitting in seven slots read as buttons — which matters because the column is the
+  only route into a day's transactions, and it also gives a zero-spend day a shape rather
+  than a 4px stub adrift on the card. **Heights are per-week scaled, so columns
   are NOT comparable across weeks** — cross-week magnitude lives in the week-total figure
   beside the label. Mount-then-spring via `_dayHeightMemory` (dayIso → last height %) +
   `paintDayColumns()`, the `paceBarMemory` idiom; reduced motion paints immediately.
@@ -682,7 +792,8 @@ below it carried its own.
     **wipes `#donut-container.innerHTML`** each pass, so the overlay is re-injected in that
     same statement or it vanishes on re-render.
   - **List** (`categoryBreakdownHtml()` → `#category-breakdown`): icon chip (reusing
-    `.txn-icon-chip` + `hexToRgba(hex, 0.14)`), name, `X% of total`, amount, and a share bar
+    `.txn-icon-chip` + `hexToRgba(hex, 0.12)` **and `color: hex`** — the icon is an SVG
+    inheriting `currentColor` since 2026-08-10, §3.2), name, `X% of total`, amount, and a share bar
     in the category's own hue (`.cat-bar`, its own 6px metrics since `.week-bar` was retired
     by the Logs day chart). Bars scale to **share of total**,
     matching the percentage printed on the same row — not share of max, which would always
@@ -724,7 +835,10 @@ below it carried its own.
   the card follows the month chip like the rest of Trends. The ramp is **self-scaling**:
   `level = ceil(spend / maxSpend × 4)` over the month's busiest non-future day (`hm-l0` =
   zero-spend, `hm-future` = dashed). A summary **chip** (`.sp-chip`) reads `Month Year •
-  N days • ↗/↘ RM total • Avg RM/day` where **N = `elapsedDays` (non-future days)** and
+  N days • ↗/↘ RM total`, with the daily average on **its own line beneath**
+  (`.sp-avg`, `Avg RM 32.50 a day`) since 2026-08-10 — as a fourth clause it wrapped at
+  390px and stranded the bullet separators above it, so it is split deliberately rather
+  than left to wrap. **N = `elapsedDays` (non-future days)** and
   **avg = total ÷ elapsedDays** — so for the live month it divides by days-so-far and for
   a closed month by the full month, **matching the Today `Average Daily` tile exactly**
   (fixed 2026-07-23; previously divided by full `daysInMonth`, which read lower than the
@@ -732,6 +846,21 @@ below it carried its own.
   valence follows spend delta: up = expense-red, down = income-green. A `Less → More`
   **legend** (`.sp-legend`) surfaces the ramp swatches. Spend is summed from expense rows
   only (`isExpense`), active-user-filtered.
+  - **Day numbers use `--on-surface` on every step** (2026-08-10). They used to flip to
+    `#F5F5F2` on `hm-l3`/`hm-l4`, which measured **2.01:1**; the deleted rule is not to
+    come back. Because the token flips with the theme, one value clears AA on the deepest
+    tint in light and the lightest in dark.
+  - **The live month CLIPS THE FUTURE** (2026-08-10): on the 10th, 22 of 31 cells were
+    dashed placeholders and the card ran over half a phone viewport tall. Closed months
+    render in full — they have no future days. ⚠️ **The clip is applied to the RENDER, not
+    to `days`**: `const cellDays = isCur ? days.filter(d => !d.future) : days;`, and the
+    cell loop iterates `cellDays`. Every figure above it stays computed over the whole
+    month. Mutating `days` in place (as the brief literally specified) breaks two things —
+    `total` sums *all* days, so a future-dated expense would vanish from the chip's RM
+    figure while Today's Expenses tile still counted it and the average's to-the-cent
+    parity with `Average Daily` would break; **and on a closed month `clipped` IS `days`,
+    so `days.length = 0` empties both and the grid renders ZERO cells.** `.hm-future` is
+    now dead for the live month but harmless, and still used by closed-month code paths.
 - **Archive shelf** (`renderArchiveShelf`, `#month-shelf`, "Archive"): chip row of past
   months holding data; tap sets `viewMonth`. Scrolls inside itself (overflow-x auto
   within the clipped container).
@@ -753,6 +882,12 @@ below it carried its own.
   attach-mode placeholder "Add a note, or send as is").
 - POSTs `action:'parse'`; busy spinner replaces the send arrow; 25s timeout;
   notes/errors in `#capture-note` (persist to next open, cleared on new parse).
+- **`Enter manually instead` is styled as a fallback** (`.capture-manual`, 2026-08-10): an
+  underlined text button, not a `.btn`. As a `.btn` it was the largest, most button-like
+  element in the sheet, outranking the capture field the sheet exists for. It is still a
+  44px target. ⚠️ It **replaced** its `.modal-actions` wrapper rather than sitting inside
+  it — the rule carries its own `margin-top`, which the wrapper's flex row and 1.5rem top
+  margin would have stacked on top of. `.capture-send` is **sienna** (§3.2).
 - **Confirm flow:** 1 txn → the normal txn modal pre-filled ("Confirm entry", saves via
   untouched `saveTxn()`); N txns → `#review-overlay` (editable amounts, removable rows,
   "Save all" sequential; saved rows leave the list so retry can't duplicate). Income
@@ -772,8 +907,14 @@ All overlays are `role="dialog" aria-modal="true" aria-labelledby=…`.
   `document.activeElement === sheet`. Export modal focuses a button (fine).
 - **Escape:** one global keydown — backs out of the delete confirm first, else closes
   whichever overlay is open.
-- **Txn modal:** type toggle reads **`Expense / Budget`** (`#type-income-btn` id and
-  stored `'Income'` value unchanged). **In-modal delete confirm:** outline-red Delete
+- **Txn modal:** title reads **`Log a transaction`** / **`Edit a transaction`** (sentence
+  case, one voice for one job — 2026-08-10; `openTxnModalPrefilled`'s `Confirm entry` is
+  unchanged). Type toggle reads **`Expense / Income`** — **not `Budget`** since 2026-08-10
+  (§3.5; the `#type-income-btn` id and the stored `'Income'` value are unchanged, as is
+  the recurring form's matching `#recur-type-income-btn`). ⚠️ **The active segment is
+  `--on-surface`, not semantic red** — the slider marks the selection, and red means money
+  going out everywhere else (§3.2). `.btn-primary` is **sienna with white text**.
+  **In-modal delete confirm:** outline-red Delete
   (`askDeleteConfirm()`) escalates to a solid-red confirm row ("Delete this entry? This
   can't be undone."); `cancelDeleteConfirm()`/`resetDeleteConfirm()` restore (also reset
   on open/close); `deleteTxn()` assumes intent confirmed.
@@ -883,6 +1024,12 @@ rather than building a second one, and renamed the DOM to match (`.drill-head` /
   weekday + date, entry count, the day's expense total. Category: the category name,
   `August 2026 · N entries`, the category's month total. Body always uses
   **`txnRowHtml()`**; an empty result reads as copy, never a dead sheet.
+- **A category sheet hides the row badges** (2026-08-10): `renderDrillSheetBody()` toggles
+  **`.hide-cat-badge`** on `#drill-body` when `drillState.kind === 'category'`, because the
+  sheet is already titled with the category and every badge just repeated it (four
+  red-outlined `BILLS` chips inside a sheet headed *Bills & Utilities*). **The day sheet
+  keeps its badges** — there the category is genuinely new information. Note the badge text
+  for income rows is **`Income`**, not `Budget` (§3.5).
 - ⚠️ **The sheet CLOSES before `openTxnModal(uid)`** (`bindDrillRowClicks`) — the
   `openManualFromCapture()` precedent. `trapModalFocus` holds exactly one trap at a time;
   stacking overlays clobbers the return-focus chain. Closing hands focus back to the
@@ -942,7 +1089,15 @@ two negative controls run first. The category donut now sits above the spending-
 grid, and `#spending-patterns` gained the 12px bottom margin the swap revealed it never
 had. Front-end only; **no Apps Script change, no redeploy needed.** See §3.7.
 
-**Pending:** the remaining unscheduled candidate features (§6).
+**Design fix spec (type, contrast, targets, judgement pass) is DONE** (2026-08-10, second
+pass) — render-loop verified **178/178**, with **twelve negative controls run first**. Four
+commits: mechanical (weight axis unpinned, light-mode semantic colours, heatmap ink, touch
+targets + the re-derived FAB-cluster geometry), the 39-class weight rebalancing, the
+judgement changes, and a one-pixel `.logs-tail` fix the measurements surfaced. Front-end
+only; **no Apps Script change, no redeploy needed.** See §3.2, §3.3, §3.5–§3.9, §3.14.
+
+**Pending:** the remaining unscheduled candidate features (§6), plus the spec's own
+open questions, recorded under §6 "Recorded but undecided".
 
 ---
 
@@ -1158,6 +1313,76 @@ Counting data months keeps the tail's promise honest. `monthsAvailable()` theref
 added: `_logsTotalMonths` already is that quantity, and the brief's own instruction was not
 to write a second helper.
 
+### Design fix spec ✅ DONE (2026-08-10, second pass)
+
+Owner-supplied review of `main` @ 86054de (`ALFRED_FIX_SPEC.md`), shipped as three code
+commits in the order the spec set — mechanical, weight rebalancing, judgement — plus a
+documentation commit and a one-pixel `.logs-tail` follow-up. Shipped behaviour is in §3.2,
+§3.3, §3.5–§3.9 and §3.14. **No owner checklist — front-end only, no Apps Script change,
+no redeploy.**
+
+Decisions future phases must not re-open:
+
+1. **`body` never pins the `wght` axis.** It is a variable font; the axis beats
+   `font-weight` and nothing in the DOM reveals the override. §3.2.
+2. **Light and dark semantic tokens are separate values**, tuned against their own ground.
+3. **Good news is stated, not coloured**, and **sienna is the only primary**. Semantic
+   colour and solid fills are reserved for the states that need attention.
+4. **The donut is untouched** — cap radius, spacing and small-slice folding are exactly as
+   they shipped 2026-08-04, asserted pixel-identical against `e08da4f`.
+
+Three deltas from the spec as written, all deliberate:
+
+- **The heatmap clip is applied to the render, not to `days`** (§3.7). The literal patch
+  drops future-dated expenses from the chip total *and* renders zero cells on a closed
+  month, because there `clipped` and `days` are the same array reference.
+- **`.capture-manual` replaces its `.modal-actions` wrapper** rather than sitting inside
+  it (§3.8), which would have doubled the spacing.
+- **A fourth `Budget` → `Income` site** (`#recur-type-income-btn`) was included, so no
+  surface still names a transaction type `Budget`.
+
+Two things the spec's verification section claims that do **not** hold as stated, recorded
+so nobody re-derives them: `.day-col` is ~42px *wide* at 390px and `.shelf-chip` is 28px
+tall. Day columns are a locked seventh-of-the-track design (§3.6) and meet the ≥44px-tall
+rule they were written to; the archive shelf chips were **not** part of this pass and are
+listed below as an open item.
+
+### Recorded but undecided (from the design review — do NOT implement)
+
+Open questions, kept so they are not lost. Each needs a decision before it is a task.
+
+1. **The hero mini-chart.** Honest now, but still six unlabelled bars with no axis and
+   little dynamic range. Options: a within-month burn-down against an even-pace line, or
+   delete it (the Archive strip already carries the six-month view).
+2. **Logs: shape or list.** The no-transactions-until-you-tap decision stands; only the
+   affordance was fixed. If the drill-in goes unfound, auto-expanding the current week is
+   the next smallest step.
+3. **Future-dated entries.** Income dated ahead counts toward a week's entry total but
+   appears in no chart and no spend figure. Decide the model: exclude from the month,
+   surface a "scheduled" strip, or reject future dates at capture. (This pass made the
+   symptom quieter — §3.6's empty week — without deciding the model.)
+4. **Category taxonomy.** `Shopping & Groceries` merges two different behaviours and
+   `Subscriptions` overlaps `Bills & Utilities`. Every chart inherits it; splitting is
+   cheap now and expensive after a year of history.
+5. **Today's name versus its content** — the tab still leads with a month figure while the
+   day line is the smallest thing on it.
+6. **Multi-user.** Reviewed as a single user throughout.
+7. **The category palette.** Seven saturated hues, identical hex in both themes, no
+   dark-mode chroma adjustment, and sienna doing double duty as the accent and Food &
+   Dining.
+8. **Drill sheet sort order** — rows sort by amount while displaying dates, and nothing
+   says so. Either label the order or sort by date.
+9. **Desktop.** At 1280 the app is a centred phone column with very wide, short cards and a
+   left-aligned header that doesn't line up with the centred content.
+10. **Archive shelf chips are 28px tall** — under the 44px minimum, out of scope for this
+    pass because raising them visibly changes the Trends footer.
+11. **First run for a real user** — a valid `?user=` link with zero rows shows *"Open your
+    personal link (?user=…)"*, which is the wrong message for someone who just did that.
+12. **Failed load** — bare centred red text with a ⚠️ (the app's last emoji), no card, no
+    retry, and the FAB stays live over an empty in-memory ledger.
+13. **Date input locale** — the manual modal's `type="date"` rendered `MM/DD/YYYY` in
+    Chromium; that follows browser locale, so verify on a real phone first.
+
 ### Candidate features (refined 2026-07-19 — not yet phased)
 
 Each needs its own design/roadmap pass before building.
@@ -1193,6 +1418,12 @@ no longer wanted; capture-parse validation suite — considered resolved.
 - Search or filters on Logs
 - Restoring the Logs accordion or any week-level transaction list (§3.6 — removed
   deliberately 2026-08-08; the day sheet is the drill-in)
+- Re-pinning the `wght` axis on `body`, or reinstating the white heatmap ink, the green
+  good-news states, or `Budget` as a transaction-type label (§3.2, §3.5 — all removed
+  deliberately 2026-08-10)
+- Any change to the category donut's chart config — cap radius, spacing, small-slice
+  folding (explicitly excluded by the 2026-08-10 design review, and asserted
+  pixel-identical in the render loop)
 - Any new backend endpoints, LLM calls, or paid services
 
 ---
@@ -1204,6 +1435,58 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-10 (second pass) — Design fix spec: type, contrast, targets, quieter Today
+  (§3.2–§3.14):** an owner-supplied design review, shipped as three code commits in the
+  spec's own order plus a docs commit. **The find that matters is a real bug:** `body`
+  pinned `font-variation-settings: 'wght' 400`, and in a variable font that axis beats
+  `font-weight` — so ~35 classes had been rendering at regular whatever their CSS said,
+  for the app's whole life. Unpinning it made everything render heavy, so 39 classes came
+  down a step. ⚠️ **The bug is undetectable by computed style** — `getComputedStyle()
+  .fontWeight` reports the declared value either way — which meant the obvious probe would
+  have passed against the defect. Only *measured rendered advance width* catches it, and
+  only with the real variable font loaded, which the render loop had to serve locally
+  because Chromium can't reach fonts.googleapis.com through the proxy (curl can; the woff2
+  is downloaded and routed). Also fixed: light-mode semantic colours reused from dark
+  (2.9:1 / 4.1:1 → 5.4:1 / 5.7:1), heatmap day numbers at **2.01:1**, and five sub-44px
+  targets. ⚠️ **The nav pill is part of the FAB cluster's derived geometry**, so 48→56px
+  forced all four dependent numbers to be re-derived (§3.3) — the kind of coupling
+  CLAUDE.md flags precisely because the spec that asked for the height change didn't
+  mention it. Judgement changes in §3.2/§3.5–§3.9. Three decisions worth keeping.
+  **(1) Good news is stated, not coloured** — five components were delivering the same
+  green reassurance, which is what leaves nothing in reserve for the one that has
+  something wrong to say; the alert states keep their colour and their solid fill, exactly
+  the argument the pace strip already made in 2026-08-03. **(2) The heatmap clip is
+  applied to the render, not to `days`** — the brief's literal patch mutates the array
+  before the figures are computed, which drops future-dated expenses from the chip total
+  while Today's tile still counts them, breaking the to-the-cent parity §3.7 requires; and
+  a negative control turned up a second, worse consequence the review had missed — on a
+  **closed** month `clipped` and `days` are the same reference, so `days.length = 0`
+  empties both and the grid renders **zero cells**. **(3) A fourth `Budget` → `Income`
+  site** (`#recur-type-income-btn`) was swept in, because renaming three of four surfaces
+  is worse than renaming none. Render-loop verified (§3.12; 390/1280 × light/dark +
+  reduced motion, mocked GViz, local Chart.js, stubbed Apps Script, real Roboto Flex, clock
+  pinned to 2026-08-10 on an advancing offset): **178/178**, on a fixture carrying a
+  deliberate future-dated expense, a week holding only future-dated income, and a
+  zero-spend day inside a normal week. **Twelve negative controls run first — and this is
+  the part worth reading.** Five of them fired *nothing at all*, which exposed a harness
+  bug that had made every control a no-op: sections A–E called `openApp(b)` without passing
+  the mutated source, so only the donut section ever saw a mutation. A suite that reported
+  168/168 was, for eleven of twelve defects, testing the unmutated file. After the fix each
+  control fired on its own probes and nothing else — and two of them then exposed **real
+  gaps in the probes themselves**: nothing asserted the good-news chip was *neutral* (only
+  that it cleared contrast, which a green chip also does), and the emoji scan never saw
+  `txnRowHtml`'s icons because those rows only exist inside an open drill sheet. Both are
+  now asserted. Three further harness findings: the donut identity check compared element
+  *screenshots*, which composite the `.donut-center` overlay whose weight legitimately
+  changed — it now compares the **canvas buffer**, which is the ring's own paint and a
+  stronger claim; `settleTransform` returned at the *initial* resting state because two
+  reads of `scale(0.08)` look settled, so sheet measurements were taken on a closed
+  overlay and reported 44px controls as 3.5px; and the `.week-total` contrast probe was
+  reading the *first* week row, which the new empty-week state renders in neutral ink, so
+  it never tested the expense red at all. Two expectations were wrong rather than the code:
+  the forecast carries the app's own `~` approximate prefix, and dark mode's week total
+  lands at 5.1:1 against a spec spot-value measured in light. **The donut is asserted
+  pixel-identical to `e08da4f`.** Front-end only — no Apps Script change, no redeploy.
 - **2026-08-10 — Trends: donut and spending patterns swapped (§3.7):** owner request, one
   markup move — `#category-card` and `#spending-patterns` changed places inside
   `#trends-view`, so the month's category breakdown now sits directly under the archive
@@ -1663,6 +1946,46 @@ woven into §3.
   reusable across push and pull surfaces.
 - **Single implementation beats duplication:** extraction/validation briefly lived in
   two repos — exactly the drift risk that made retiring the bot attractive.
+- **In a variable font, `font-variation-settings` beats `font-weight` — and hides it.**
+  A `'wght' 400` pin on `body` flattened ~35 classes to regular while every stylesheet
+  still declared 700/800/900, for the app's entire life. What makes it a *trap* rather
+  than a bug is that **`getComputedStyle().fontWeight` reports the declared value either
+  way**, so the DOM agrees with the CSS and only the pixels disagree. Any assertion about
+  weight has to measure rendered ink (advance width across 400/700/900), and it only means
+  anything with the real variable font loaded — a fallback font hides the whole thing.
+- **A token that has to read on two grounds needs two values.** `--semantic-income` and
+  `--semantic-expense` were tuned against dark surfaces and reused unchanged on white,
+  where they cleared 2.9:1 and 4.1:1. The theme-flip machinery was already there; one pair
+  of values was just doing two jobs.
+- **If everything is reassuring, nothing is an alert.** Today said "you're fine" in green
+  five separate ways, which spends the only signal that could mark the one state worth
+  noticing. Reserve semantic colour and solid fills for what has gone wrong; state the
+  ordinary case in words. Same argument as "only overspending gets a solid fill" — it just
+  had to be applied to four more components.
+- **Emoji are a third colour system.** A `CAT_COLORS`-tinted chip with an emoji glyph in it
+  has the app's ink, the category's hue and the OS font's palette all inside one 40px
+  square — a cyan Transport chip with a red car. An inline SVG inheriting `currentColor`
+  makes the chip exactly one hue, and the icon becomes themeable for free.
+- **A control that must be tapped should look like a slot, not a mark.** Seven bars
+  floating on a card read as a chart; seven bars sitting in seven tinted slots read as
+  buttons. Nothing about the data changed — only whether the affordance was visible.
+- **Measure targets with the sheet open.** A closed overlay is `scale(0.08)`, so every
+  control inside it measures ~8% of its real size. The same trap in reverse: a "wait until
+  the transform stops changing" helper returns immediately at the *initial* resting state,
+  because two reads of the closed value look settled. Wait for the final state, not for
+  stillness.
+- **Pass the mutated source to EVERY page the suite opens.** Eleven of twelve negative
+  controls silently did nothing because only one section threaded the mutation through —
+  the suite reported a clean 168/168 while testing the unmutated file for almost every
+  defect. The controls were the only reason this surfaced, which is the whole argument for
+  running them: **a control that fires nothing is a finding about the harness, not a pass.**
+  And two controls that then fired nothing pointed at genuinely missing probes (a chip
+  asserted for contrast but never for being *neutral*; an icon that only renders inside an
+  open sheet the scan never opened).
+- **Compare canvas buffers, not element screenshots, to prove a chart is unchanged.** An
+  element screenshot composites whatever HTML overlays sit on top — here the donut's centre
+  total, whose font-weight legitimately changed — so the ring "differed" when only the text
+  above it had. `getImageData` is the chart's own paint, and a stronger claim besides.
 - **Steal patterns, not palettes.** Finance-app refs gave the *structure*; reskinning
   into Alfred's tokens kept one coherent system.
 - **One shared component beats per-tab cards** (`tile-block` let dead CSS be deleted).
