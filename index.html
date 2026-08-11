@@ -128,32 +128,12 @@
     padding-bottom: calc(172px + env(safe-area-inset-bottom, 0px));
   }
 
-  .header { 
-    background: var(--surface-container-low); 
-    padding: 1.25rem 1.5rem; 
-    display: flex; 
-    align-items: center; 
-    justify-content: space-between; 
-    position: sticky; 
-    top: 0; 
-    z-index: 10; 
-    border-bottom: 1px solid var(--outline-variant); 
-  }
-  
-  .header-title { 
-    font-size: 20px; 
-    font-weight: 800; 
-    font-variation-settings: 'wght' 700, 'wdth' 105; 
-    color: var(--on-surface); 
-    letter-spacing: -0.4px; 
-  }
-  
-  /* min-height matches the monthnav chip's rendered height (28px button +
-     2×3px padding + 2×1px border = 36px) so the header is the same total
-     height on Today (no chip) as on Logs/Trends (chip shown) — otherwise
-     the row shrinks to the title's ~24px line-height when the chip is
-     hidden. */
-  .header-actions { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+  /* The app header is GONE (2026-08-11). It was 1.25rem of padding either side
+     of a 36px row plus a border — 77px of sticky chrome on every tab, holding
+     one word of branding and a display:none div once Phase B moved export to
+     Logs and hid the bell. The month became the masthead of the panes that have
+     one; Today has no masthead at all, because the hero already states the
+     month. See #masthead below. */
 
   .icon-btn {
     width: 44px;
@@ -290,7 +270,14 @@
      browser then zooms to fit ("page zooms in slightly after a few toggles").
      clip (not hidden) keeps overflow-y visible, so vertical page scroll and
      the sticky header are unaffected. */
-  .container { max-width: 900px; margin: 0 auto; padding: 1.25rem 1rem; overflow-x: clip; }
+  /* The deleted header was silently providing the status-bar inset in a
+     standalone PWA. With it gone, .container is the first thing under the
+     status bar on Today, so it carries the inset itself. On Trends and Logs
+     the masthead sits above and carries the inset instead — body.has-masthead
+     drops this padding to 12px so the two are never applied twice, and the
+     8px the masthead leaves below itself makes the gap 20px either way. */
+  .container { max-width: 900px; margin: 0 auto; padding: calc(1.25rem + env(safe-area-inset-top, 0px)) 1rem 1.25rem; overflow-x: clip; }
+  body.has-masthead .container { padding-top: 12px; }
   .view-section { display: none; }
   .view-section.active { display: block; }
   /* When there is no ledger to show (no personal link, or a link with no rows
@@ -644,28 +631,6 @@
   .today-bad { color: var(--semantic-expense); font-weight: 600; }
   .today-flat { color: var(--on-surface-variant); font-weight: 600; }
   .today-empty { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
-
-  /* Contextual header month chip (Phase B) — the ONE month selector, shown
-     only on Trends and Logs. Steps the shared viewMonth; ends disable at the
-     earliest data month / the present. Today always shows the real now. */
-  .monthnav {
-    display: inline-flex; align-items: center; gap: 2px;
-    background: var(--surface-container-low); border: 1px solid var(--outline-variant);
-    border-radius: var(--shape-full); padding: 3px;
-  }
-  .monthnav-btn {
-    width: 28px; height: 28px; border-radius: var(--shape-full);
-    border: none; background: transparent; color: var(--on-surface);
-    font-size: 15px; line-height: 1; font-family: inherit; cursor: pointer;
-    transition: background var(--motion-standard), transform var(--motion-snap);
-    outline: none;
-  }
-  .monthnav-btn:not(:disabled):active { transform: scale(0.9); background: var(--surface-container); }
-  .monthnav-btn:disabled { opacity: 0.3; cursor: default; }
-  .monthnav-label {
-    min-width: 52px; text-align: center; white-space: nowrap;
-    font-size: 12.5px; font-weight: 700; letter-spacing: -0.2px;
-  }
 
   /* Month shelf — the ledger's "pages". A horizontal strip of months that hold
      data (most recent first), tap to time-travel. Scrolls inside itself so the
@@ -1395,15 +1360,6 @@
 </style>
 </head>
 <body>
-
-<div class="header">
-  <div class="header-left">
-    <div class="header-title">Project Alfred</div>
-  </div>
-  <div class="header-actions">
-    <div id="header-monthnav" style="display:none"></div>
-  </div>
-</div>
 
 <div class="bottom-bar">
   <button class="fab" onclick="openCaptureModal()" aria-label="Log a transaction" id="global-action-fab">
@@ -2397,13 +2353,13 @@ function bindDrillRowClicks(scope) {
 }
 
 // ── Trends month navigation + archive shelf (roadmap Phase 5) ───────────────
-// The contextual ‹ month › chip in the header (Phase B — the single month
-// selector) steps viewMonth within [earliest data month … current month]. It
-// renders only on Trends and Logs; Today always shows the real current month.
-// On Trends a step re-renders the tab; on Logs it scrolls the continuous
-// ledger to that month's header (no filtering). The archive shelf at the
-// bottom of Trends is a chip row of PAST months that hold data — tapping one
-// time-travels by setting the same viewMonth.
+// The month selector steps viewMonth within [earliest data month … current
+// month]. It lives on Trends and Logs only — as the pane's masthead since
+// 2026-08-11, previously as a chip in the now-deleted header; Today always
+// shows the real current month. On Trends a step re-renders the tab; on Logs
+// it scrolls the continuous ledger to that month's header (no filtering). The
+// archive shelf at the bottom of Trends is a chip row of PAST months that hold
+// data — tapping one time-travels by setting the same viewMonth.
 
 function earliestDataMonth() {
   let best = null;
@@ -2416,6 +2372,24 @@ function earliestDataMonth() {
   return best; // year*12+month, or null with no data
 }
 
+// How much sticky chrome sits at the top of the viewport, for anything that
+// scrolls a target "just under" it. The header used to be it; now it is the
+// masthead, and only on the panes that have one. A scroll always ENDS past the
+// condense threshold, so the offset that matters is the condensed height —
+// measuring the expanded bar mid-scroll would leave the target short.
+function stickyTopOffset() {
+  const el = document.getElementById('masthead');
+  if (!el || el.hidden) return 0;
+  if (el.classList.contains('condensed')) return el.offsetHeight;
+  const probe = el.cloneNode(true);
+  probe.classList.add('condensed');
+  probe.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;width:' + el.offsetWidth + 'px';
+  el.parentNode.appendChild(probe);
+  const h = probe.offsetHeight;
+  probe.remove();
+  return h;
+}
+
 function headerNavMonth(delta) {
   const now = new Date();
   const cur = now.getFullYear() * 12 + now.getMonth();
@@ -2424,7 +2398,6 @@ function headerNavMonth(delta) {
   key = Math.min(cur, Math.max(earliest === null ? cur : earliest, key));
   viewYear = Math.floor(key / 12);
   viewMonth = key % 12;
-  renderHeaderMonthNav();
   if (currentView === 'logs') {
     // Logs never FILTERS by month — the chip loads whatever months it needs to
     // reach the target and scrolls there, leaving everything already loaded in
@@ -2434,32 +2407,6 @@ function headerNavMonth(delta) {
   } else {
     calculateAndRender();
   }
-}
-
-function renderHeaderMonthNav() {
-  const el = document.getElementById('header-monthnav');
-  if (!el) return;
-  const earliest = earliestDataMonth();
-  if ((currentView !== 'trends' && currentView !== 'logs') || earliest === null) {
-    el.style.display = 'none';
-    el.innerHTML = '';
-    return;
-  }
-  const now = new Date();
-  const cur = now.getFullYear() * 12 + now.getMonth();
-  const key = viewYear * 12 + viewMonth;
-  const backDisabled = key <= earliest;
-  const fwdDisabled = key >= cur;
-  const label = viewYear === now.getFullYear()
-    ? MONTHS[viewMonth]
-    : `${MONTHS[viewMonth]} ’${String(viewYear).slice(2)}`;
-  el.style.display = 'flex';
-  el.innerHTML = `
-    <div class="monthnav">
-      <button type="button" class="monthnav-btn" onclick="headerNavMonth(-1)" aria-label="Earlier month" ${backDisabled ? 'disabled' : ''}>‹</button>
-      <span class="monthnav-label">${label}</span>
-      <button type="button" class="monthnav-btn" onclick="headerNavMonth(1)" aria-label="Later month" ${fwdDisabled ? 'disabled' : ''}>›</button>
-    </div>`;
 }
 
 // Scroll the Logs ledger to a month's header, growing the scope until that
@@ -2477,13 +2424,13 @@ function logsScrollToMonth(y, m) {
   logsScrollToYm(`${y}-${m}`);
 }
 
-// Put a month's header just under the sticky header. Shared by the chip and
-// the "Earlier months" tail, so a jump and an append land identically.
+// Put a month's header just under whatever sticky chrome is above it. Shared
+// by the month selector and the "Earlier months" tail, so a jump and an append
+// land identically.
 function logsScrollToYm(key) {
   const target = document.querySelector(`#logs-ledger .month-header[data-ym="${key}"]`);
   if (!target) return;
-  const headerH = document.querySelector('.header').offsetHeight;
-  const top = target.getBoundingClientRect().top + window.scrollY - headerH - 8;
+  const top = target.getBoundingClientRect().top + window.scrollY - stickyTopOffset() - 8;
   window.scrollTo({ top: Math.max(0, top), behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
 }
 
@@ -3601,9 +3548,6 @@ function switchView(view) {
   }
   // Slider slot n = n × (own width + 4px gap); see the .nav-slider CSS note.
   document.getElementById('nav-slider').style.transform = `translateX(calc(${toIdx * 100}% + ${toIdx * 4}px))`;
-  // The contextual month chip lives in the header, outside the view panes —
-  // it must follow every tab change, including renders the key-skip elides.
-  renderHeaderMonthNav();
   calculateAndRender();
 }
 
@@ -3777,12 +3721,10 @@ function calculateAndRender() {
   // reads all the user's rows and scopes them itself with logsMonthsShown, so
   // the header month chip never filters here — it only jumps.
   if (currentView === 'logs') {
-    renderHeaderMonthNav();
     renderLogsLedger();
   }
 
   if (currentView === 'trends') {
-    renderHeaderMonthNav();
     renderTrendsInsight();
     renderArchiveShelf();
 
