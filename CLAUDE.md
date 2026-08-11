@@ -1,6 +1,31 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-11 — **Header deleted; the month is the masthead (§3.3, §3.4).** The
+*Last updated: 2026-08-11 (second pass) — **Lift-off pill: the period on every tab, chevrons
+out, scroll-linked hand-off (§3.3, §3.4, §3.6, §3.7).** Governing principle, which settles the
+hairline, the sub-line and every future request to put a figure up there: **the masthead names
+the period, it never measures it.** The month now appears on **all three tabs**; the binary
+`.condensed` class is replaced by a **continuous scroll-linked `--p`**, and instead of the
+masthead shrinking in place, a **glass pill flies into the top-right corner** as the masthead
+fades. **Today reads the DATE** (`Monday` + a quieter `11 August`; pill `11 Aug`) and is
+**inert** — Today's period is a day, so the unit differs visibly from a control. **The chevrons
+are deleted**; stepping is a **swipe on the pill**, long-press returns to now. **The Trends
+archive shelf is deleted** — roadmap v3 decision 7 deliberately **reversed** (§6), closing open
+item 14's "three doors" at two. On Logs the pill is a **scroll readout**, not a selector: it
+relabels as you cross month headers, and **export follows it**. ⚠️ **`--p` is NOT off the main
+thread** — a scroll-driven animation of a *custom property* recalcs style every frame; the win
+is "no JS", not "no work", so keep the `var(--p)` consumer list to two elements. ⚠️ **The click
+after a committed swipe is EATEN, never out-raced** — the spec's `setTimeout(…, 0)` loses to the
+click task and opens the picker on every swipe. ⚠️ **The readout resolves GEOMETRICALLY against
+a line**, not from the observer's entry list: "topmost intersecting entry" is directionally
+asymmetric and latches on the month you just scrolled *out of*. ⚠️ **`LOGS_PARK` and `SPY_LINE`
+are a pair**; a jump the document can't deliver is **authoritative** rather than corrected.
+⚠️ **The swipe steps through `pickerMonths()`, not the calendar** — same gap-month correction
+§3.4 already records for the picker, so the two remaining doors agree about what a month is.
+⚠️ **`env(safe-area-inset-*)` has been inert app-wide all along** — there is no
+`viewport-fit=cover` on the viewport meta, so every one of them resolves to `0px` (§3.3).
+Render-loop verified **202/202** across four configs, **with nineteen negative controls run
+first**. Front-end only — no Apps Script change, no redeploy.
+Prior banner (2026-08-11) — **Header deleted; the month is the masthead (§3.3, §3.4).** The
 app header is **gone** — 77px of sticky chrome on every tab, holding one word of branding and
 a `display:none` div. On Trends and Logs the month is now the pane's **masthead** (editorial
 serif at 31px via a new `--font-display`, chevrons beside it, **condensing to ~50px on
@@ -508,85 +533,137 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
   either side of a `min-height: 36px` row plus a border — holding one word of branding and
   a `display:none` div; the 36px floor had been sized for the export and bell buttons that
   Phase B moved to Logs and hid. On Trends and Logs the month is now the pane's masthead
-  (§3.4); Today has no top chrome at all. ⚠️ **Two things the header was silently doing had
+  (§3.4); **since 2026-08-11b every tab has one**, and the pill above it is the only thing
+  that stays. ⚠️ **Two things the header was silently doing had
   to be picked up elsewhere:** the **status-bar inset** in standalone PWA mode (now on
   `.container`, with `body.has-masthead` dropping it to 12px where the masthead carries it
-  instead — never both), and the **sticky offset** `logsScrollToYm()` subtracts, now
-  `stickyTopOffset()`. There was never a bell after Phase F, and never a refresh icon
+  instead — never both), and the **sticky offset** `logsScrollToYm()` subtracted. That second
+  one is **gone entirely** — `stickyTopOffset()` was deleted 2026-08-11b, because nothing at
+  the top of the page is sticky any more; a jump parks a header at `LOGS_PARK` instead (§3.6).
+  There was never a bell after Phase F, and never a refresh icon
   (pull-to-refresh covers it; `@keyframes refreshSpin` survives for the capture-send
   spinner).
+- ⚠️ **`env(safe-area-inset-*)` is inert app-wide, and always has been** (found 2026-08-11b).
+  The viewport meta is `width=device-width, initial-scale=1.0` with **no `viewport-fit=cover`**,
+  so the UA insets the layout viewport itself and every `env(safe-area-inset-*)` in the
+  stylesheet resolves to **`0px`** — on a phone, in an installed PWA, everywhere. That covers
+  the FAB cluster's derived geometry above as well as the masthead and pill offsets. Nothing is
+  broken by this (the UA is doing the insetting), and the expressions are kept because they
+  become correct the day the meta changes — but **a "does it clear the status bar?" check
+  passes vacuously today**, and adding `viewport-fit=cover` would shift every one of the
+  derived numbers at once. Not a change to make casually.
 
-### 3.4 Month state — the masthead selector
+### 3.4 Month state — the masthead and the lift-off pill
 
-Still **one** month selector (roadmap v3 decision 1) — that decision said *one contextual
-selector*, not *in a header*, so moving it out of one does not re-litigate it. Since
-2026-08-11 it is the **pane's masthead** rather than a chip in the corner of a branding bar.
+Still **one contextual selector** (roadmap v3 decision 1). Rebuilt 2026-08-11b: the period is on
+**all three tabs**, and it has two representations of the same thing — a **masthead** at the top
+of the pane, and a **pill** that flies into the top-right corner as you scroll.
 
-- `activeMonth`/`activeYear` are **pinned to the real current month at load** and never
-  change — Today always shows now. (Consequence: Today/Logs `renderedKey` viewKeys are
-  constant within a session, busted only by `dataStamp`.)
-- **Shared `viewMonth`/`viewYear`** drive Trends and Logs. `#masthead` is a **sticky**
-  bar sitting **outside `.container`**, where `.header` used to be, rendered by
-  `renderMasthead()` **only when `currentView` is `trends` or `logs`** and data exists;
-  re-rendered on every `switchView`, in the Trends/Logs render branches, and inside
-  `applyViewMonth` (it lives outside the panes, so the key-skip can't cover it). It also
-  toggles `body.has-masthead`, which is what stops the safe-area inset being applied twice.
-  ⚠️ **Sticky, never `position: fixed`** — the shared-axis slide transiently widens the
-  document, and a fixed bar sizes to the widened layout viewport and *sustains* the
-  overflow (§3.2). ⚠️ **Outside `.container` deliberately**: that element is an
-  `overflow-x: clip` ancestor, and whether sticky survives one is a question this doesn't
-  need to answer.
-- **The month is the title:** `.month-txt`, `var(--font-display)` (Newsreader — the app's
-  only non-Roboto face) at **31px/500**, with the year in a quieter `.yr` span. Always in
-  words and **always with the year** — the old chip suppressed the year in the current
-  year to save space it didn't have, and "July" alone is ambiguous the moment you step back
-  past January.
-- ⚠️ **The caret (`.caret`) is load-bearing, not decoration.** A 31px serif title carries no
-  affordance of its own, and "the control doesn't look tappable" is already on the record
-  against the Logs day columns (§6). Don't ship the masthead without it.
-- **Chevrons** (`.arrow-btn`, 44×44) stay — adjacent-month is the common case and must
-  remain one tap. They clamp to [`earliestDataMonth()` … current month], ends disable.
-- **Condense on scroll** (`syncMasthead()`, rAF-throttled `scroll` listener): the M3
-  large-to-small top app bar, one element and two states. **Hysteresis 48 to engage / 36
-  to release** — the condense shortens the document, which can push `scrollY` back across
-  a single threshold and set it oscillating. The **steppers hide when condensed**,
-  deliberately: keeping them means either 44px buttons (so the bar saves nothing) or
-  sub-44px ones. This is the only reason a masthead is acceptable on Logs, where you scroll
-  deep and still want to change month. ⚠️ **`switchView()` clears `.condensed` explicitly**
-  — its `scrollTo(0, 0)` leaves the state stale, and on a round trip through **Today**
-  nothing else clears it: `renderMasthead()` hides the bar before the scroll event lands,
-  `syncMasthead()` returns early on a hidden masthead, and coming back to a pane already at
-  `scrollY 0` fires no scroll event either. Verified with a negative control; the
-  Trends→Logs hop can't reach the case.
-- **`stepViewMonth(delta)`** clamps and hands to **`applyViewMonth(y, m)`**, which is THE
-  month-change handler. **Behavior fork:** on Trends → `calculateAndRender()` (viewKey
-  busts); on Logs → `logsScrollToMonth()` — **no filtering, no re-render**. ⚠️ **The
-  chevrons, the picker and the archive shelf all route through it** — the shelf used to
-  assign `viewMonth` itself and got away with it only because the Trends branch re-rendered
-  the chip anyway. A parallel path makes Logs' scroll-to-month and the `renderedKey`
-  busting diverge (negative-control verified: it breaks lazy-load, the scroll and the
-  no-unload rule at once).
-- **Month picker** (`#month-overlay`, `openMonthPicker()`): tapping the masthead month
-  opens a bottom sheet listing the months. It is the **ledger-list form, not a year grid** —
-  each row carries that month's spend and a proportional bar, so opening the picker doubles
-  as a small pull-based overview. Reuses `.modal-overlay.align-bottom.sheet-rise`, the
-  shell the drill-in sheet already uses (§3.14) — scrim, spring, `trapModalFocus`, Escape
-  and scrim-click all come free. ⚠️ **`.sheet-rise` is required**: `.align-bottom` alone has
-  a FAB-anchored `transform-origin` (§3.3), and this sheet opens from the *top* of the
-  screen. `aria-expanded` toggles on `#masthead-month`; focus returns there on close;
-  Escape is in the hardcoded global chain (after drill, before recurring) and had to be
-  extended by hand.
-- **`pickerMonths()`** — memoised on `dataStamp` — returns months **HOLDING DATA plus the
-  current month**, newest first, grouped under a year header. ⚠️ **Not every calendar month
-  between the earliest and now**, which is what the brief specified: a gap month renders no
-  header in the Logs ledger, so its row would scroll nowhere. Same correction the ledger
-  tail needed (§3.6). Future-dated rows are excluded too — they must not open a month past
-  the chevrons' own clamp. ⚠️ **The name is `pickerMonths()`, not `monthTotals()`** — that
-  name is taken by the existing per-month totals helper Today and the hero trend read.
-  Bar height is `max(4, round(expense / maxExpense × 22))`, so the two smallest months can
-  legitimately tie at the 4px floor. **The amount is neutral ink, never semantic red** —
-  it's an expense figure, but here it is navigation furniture, and the bar carries the
-  comparison (§3.2).
+**Governing principle: the masthead names the period, it never measures it.** No figure goes up
+there, on either representation. This is what settles the hairline, the sub-line, and every
+future request to put "budget left" in the corner — such a request is out of scope by
+definition, not by argument.
+
+- `activeMonth`/`activeYear` are **pinned to the real current month at load** and never change.
+  `viewMonth`/`viewYear` are shared by Trends and Logs and **never persisted** — every launch
+  opens on the real current month, so a stale month can't be misread as now.
+- **Per tab:** Today reads the **date** — `Monday` large, `11 August` in a quieter `.sm` span,
+  pill `11 Aug` — and is **inert**: no caret, `tabindex="-1"`, `aria-haspopup="false"`, and
+  `openMonthPicker()` refuses it. Today's period is a **day**, so the unit itself distinguishes
+  a readout from a control and no caret is needed to say so. Trends and Logs read
+  `MONTHS_FULL[viewMonth]` + a quiet year, pill `Aug 2026`, and open the picker.
+- **Visibility is one rule for all three tabs:** show once `earliestDataMonth() !== null`.
+  `body.has-masthead` is what stops `.container` applying the status-bar inset a second time, so
+  the two must stay in step.
+
+**The lift-off.** `--p` is a registered `@property` number, 0 at the top of a pane and 1 once the
+hand-off is complete, driven by a **scroll-driven animation on `body`** (`animation-range: 0
+86px`) with a `CSS.supports`-gated rAF fallback that attaches only where `animation-timeline` is
+unsupported. It replaced a binary `.condensed` class toggled by a scroll listener with 48/36
+hysteresis: a threshold can only snap, and a hand-off has to be watchable.
+
+- ⚠️ **It is NOT off the main thread.** Only `transform`/`opacity`/`filter`/`backdrop-filter` get
+  the compositor; a scroll-driven animation of a *custom property* recalcs style every frame and
+  re-resolves every `var(--p)` consumer. It is still far cheaper than the listener it replaced —
+  the win is "no JS", not "no work" — so **keep the consumer list to the two elements it has**.
+- ⚠️ **Never animate `font-size`, `height`, `top` or `left` on this timeline.** They reflow, and
+  a reflow per frame stutters. The masthead **fades** (opacity + transform) rather than shrinking,
+  which is exactly why the condensed state's padding and font-size transitions had to go.
+- ⚠️ **`animation` before `animation-timeline`.** The shorthand resets the timeline to `auto`;
+  reordering those two lines silently unhooks it and pins `--p` at 1.
+- `#masthead` is **`position: static`** — the pill took over the job of staying. It still lives
+  **outside `.container`**, and nothing up here is ever `position: fixed` (§3.2's overflow trap).
+
+**The pill** (`#month-pill` in `#month-rail`) is the masthead's destination.
+
+- The **rail is a zero-height `position: sticky` strip** with `pointer-events: none`. That is what
+  lets the pill stay put with nothing being fixed, at no layout cost, without the invisible band
+  across the top of every page becoming a dead zone.
+- **Travel, not a cross-fade:** `--pill-travel` is measured at runtime by `syncPillTravel()`,
+  which walks **both `offsetParent` chains** (`absLeft()`) and subtracts `offsetWidth * 0.14` to
+  compensate the `scale(0.86)` about `transform-origin: 100% 50%`. ⚠️ `offsetLeft`, never
+  `getBoundingClientRect()` — both elements are mid-transform on every frame, so a rect would
+  measure the animation and feed it back into itself. Re-measured from `renderMasthead()`, on
+  `resize`, and on **`document.fonts.ready`** (the pill inherits the UI face, so a late webfont
+  changes its width).
+- **38px tall, under the 44px floor**, and acceptable *only* because the pill is never the sole
+  route to anything: the masthead button above it is 44px+ and opens the same picker. **Do not
+  make the pill the only tappable representation.**
+- ⚠️ **`pointer-events` is gated by discrete keyframes on the pill's own scroll timeline**
+  (`mh-pill-hit`, flipping at 40%). At `--p: 0` the pill is transparent but still in the hit path,
+  so a tap in the corner would land on a button nobody can see. It **must** live on the pill — the
+  element that receives the events — not in `body`'s animation list. `#masthead` carries the
+  mirror (`mh-fade-out` at 74%, where `calc(1 - --p * 1.35)` reaches zero) because a `static`
+  element that has faded to nothing is still hit-testable where it overlaps the viewport.
+- **`tabindex="-1"` permanently.** The pill is a pointer-only duplicate of a control that is
+  always in the DOM; without this, Tab lands on a fully transparent button at the top of a pane.
+- **Reduced motion** drops `transform` on both, keeping opacity linked to `--p` — the hand-off
+  still reads, nothing flies.
+
+**Gestures** (`wirePillGestures()`, `#month-pill` only, skipped when `.inert`): **swipe left for
+the next month, right for the previous, long-press (500ms) to return to now.**
+
+- ⚠️ **The pill is a button and a swipe target on the same element.** `DRAG_SLOP` (6px) is what
+  keeps them apart, and ⚠️ **the click after a committed swipe is EATEN in the click handler,
+  never out-raced.** The obvious `setTimeout(() => dragged = false, 0)` in `pointerup` is a real
+  bug: `click` is dispatched as its own task and a 0ms timer can win it. For the same reason the
+  picker opens **from that handler, not an inline `onclick`** — an inline handler is registered at
+  parse time and fires before anything added later could suppress it.
+- ⚠️ **`DRAG_CAP` is 12px and must stay below the pill's 16px right gutter.** The rail is outside
+  `.container`'s `overflow-x: clip`, so a wider deflection pushes the pill past the viewport's
+  right edge and widens the document — the mobile zoom trap. The idle `scrollWidth` check cannot
+  catch this; it only exists mid-drag.
+- **No separate bounce animation.** At a bound the rubber band is already deflected, and letting
+  it settle back through `.settling` *is* the bounce — which also keeps the pill's `animation`
+  shorthand free for the `pointer-events` gate riding on it. `--drag` is registered so it can be
+  transitioned, but ⚠️ **the transition is scoped to `.settling`, never the base rule**, or every
+  `pointermove` is smoothed and the pill lags the finger.
+
+**`stepViewMonth(delta)`** is the swipe's only caller and returns whether the month moved.
+⚠️ **It steps through `pickerMonths()` — months holding data plus the current one — not through
+the calendar.** The picker already refuses to offer a gap month, and with the chevrons and the
+shelf gone these are the only two doors left, so they have to agree about what a month is. With
+data in June and August but none in July, a swipe back from August lands on **June**.
+
+**`applyViewMonth(y, m)` is still THE month-change handler** (§3.4's long-standing rule): the
+picker, the swipe and the long-press all route through it. **Behavior fork:** on Trends →
+`calculateAndRender()`; on Logs → `logsScrollToMonth()`, no filtering, no re-render.
+
+**Month picker** (`#month-overlay`, `openMonthPicker(trigger)`) is unchanged apart from having
+**two triggers** — a module-level `_pickerTrigger` records which one opened it so `aria-expanded`
+lands there; focus return needed no change, since `trapModalFocus()` already captures
+`document.activeElement`. It stays the **ledger-list form** (each row carries the month's spend
+and a proportional bar), reusing `.modal-overlay.align-bottom.sheet-rise`. ⚠️ `.sheet-rise` is
+required — `.align-bottom`'s `transform-origin` is FAB-anchored and this sheet opens from the
+*top*. **`pickerMonths()`** (memoised on `dataStamp`) returns months **HOLDING DATA plus the
+current month**, newest first, grouped under a year header; future-dated rows are excluded.
+⚠️ The name is `pickerMonths()`, not `monthTotals()` — that one is taken.
+
+**Per-tab scroll memory** lives in `switchView()` (`scrollMemory`), replacing its unconditional
+`window.scrollTo(0, 0)`. Returning to a scrolled tab keeps the pill lifted, which is the only way
+it reads as the app's fixed point during the shared-axis slide rather than something that fades
+out and back on every switch. ⚠️ **Restore after `calculateAndRender()`** — before it the
+incoming pane is empty and the browser clamps the scroll to a short document.
 
 ### 3.5 Today tab
 
@@ -785,16 +862,47 @@ scope" below). The header month chip never filters here; it jumps.
     via `--d`) and **clears the flag after that one render**, so a later re-render doesn't
     replay it. Neither `.settled` nor `.no-entrance` targets `.month-header`/`.week-row`,
     so neither suppresses the append — verified, not assumed.
-- **Scroll-to-month** (`logsScrollToMonth` → shared `logsScrollToYm`): the chip is a jump
-  shortcut — it grows the scope until the target `.month-header[data-ym]` exists, then
-  scrolls it under the sticky header (smooth unless `REDUCED_MOTION`). Stepping **forward
-  never shrinks the scope**; it only scrolls. It bypasses `calculateAndRender()` entirely,
-  so the `renderedKey` early-return can't swallow the jump. A month with no logged weeks
-  has no header → quiet no-op. (The last month can't reach the sticky header — the
-  document bottoms out first. That's the scroll being clamped, not failing.)
-- **Export scope is unchanged** — it still reads `viewMonth`/`viewYear` from the chip, not
-  "everything visible", and `#export-month-label` names that month in the modal, which is
-  what resolves the ambiguity when two months are on screen. Don't "fix" it.
+- **Scroll-to-month** (`logsScrollToMonth` → shared `logsScrollToYm`): the picker and the
+  pill's swipe are jump shortcuts — they grow the scope until the target
+  `.month-header[data-ym]` exists, then park it at **`LOGS_PARK` (56px)** (smooth unless
+  `REDUCED_MOTION`). Stepping **forward never shrinks the scope**; it only scrolls. It
+  bypasses `calculateAndRender()` entirely, so the `renderedKey` early-return can't swallow
+  the jump. A month with no logged weeks has no header → quiet no-op.
+- **The pill is a SCROLL READOUT on Logs** (2026-08-11b), completing roadmap v3 decision 2's
+  "scroll-to-month, not filter": there is no selected month here, only a position. `spyResolve()`
+  writes `viewMonth`/`viewYear` and calls `renderMasthead()` — **label and state only.**
+  ⚠️ **It must never call `calculateAndRender()`**; re-rendering from a scroll handler is an
+  infinite loop waiting to happen, and the suite asserts `#logs-ledger.innerHTML` is
+  byte-identical across a relabel.
+  - ⚠️ **Resolved GEOMETRICALLY against `SPY_LINE` (64px) — the last header above it** — with
+    the `IntersectionObserver` used only as a trigger (`rootMargin: '-64px 0px 0px 0px'`, one
+    edge, so every crossing fires). The obvious "topmost intersecting entry" rule is
+    **directionally asymmetric**: scrolling *up* out of July, July's header leaves the band and
+    nothing intersects, so the readout latches on the month you just left. Resolving against a
+    line is symmetric, and makes the band's *size* irrelevant — which is why this is not the
+    percentage-based band the spec proposed, one that inverts on a short viewport.
+  - ⚠️ **`LOGS_PARK` (56) and `SPY_LINE` (64) are a pair.** A jump must park its header at or
+    above the line or the readout names the month *before* the one you asked for. Change one,
+    re-check the other. 56 also clears the pill (top 12px + 38px tall).
+  - **A jump the document cannot deliver is AUTHORITATIVE.** The oldest months can never reach
+    the line — the page bottoms out first (the clamp §8 already records) — so `logsScrollToYm()`
+    sets `_jumpClamped` and `releaseSpy()` leaves the readout on the month that was asked for.
+    It resumes following the line on the next scroll.
+  - **Future months are skipped.** A future-dated row makes its own ledger block, but
+    `pickerMonths()` refuses to offer that month and the swipe clamps at the current one — a
+    readout naming it would be the one surface claiming a month the other two deny. (The model
+    for future-dated entries is still open, §6 #3; this only keeps the doors agreeing.)
+  - `_spySuppressed` wraps every programmatic scroll, released on `scrollend` with a timeout
+    backstop. ⚠️ **Not `{ once: true }`** — if the timeout wins the race a stale listener
+    survives and releases the *next* suppression early. `wireLogsSpy()` is called from the end of
+    `renderLogsLedger()` (one site covers the tail, the growth loop and optimistic re-renders)
+    and from `switchView()`, where it disconnects off-tab: `#logs-view` is `display: none` there,
+    so every header rect is 0 and a live observer would rewrite `viewMonth` while you scroll
+    Trends.
+- **Export FOLLOWS the readout** (changed 2026-08-11b). It still reads `viewMonth`/`viewYear`
+  and `#export-month-label` still names that month in the modal — but on Logs that month is now
+  wherever you have scrolled to, so scrolling into July and exporting exports **July**. This is
+  intended and asserted; it is the same rule as before applied to a `viewMonth` that now moves.
 - **Toolbar:** slim right-aligned `.logs-toolbar` icon row atop `#logs-view`, now **two
   `.icon-btn`s** (`gap: 8px`): a repeat glyph opening the recurring sheet (§3.13) and the
   export icon. The press-scale rule lives on `.icon-btn:active` (was `.export-btn:active`)
@@ -808,9 +916,9 @@ scope" below). The header month chip never filters here; it jumps.
 ### 3.7 Trends tab
 
 Everything computes from `viewMonth` (`vRows`/`vIncome`/`vExpense`/`vCatData`).
-Composition (resequenced 2026-07-23, donut/patterns swapped 2026-08-10): insight strip →
-tiles (closed months only) → archive card slot → **donut → spending patterns** →
-cumulative line → archive shelf (bottom).
+Composition (resequenced 2026-07-23, donut/patterns swapped 2026-08-10, shelf deleted
+2026-08-11b): insight strip → tiles (closed months only) → archive card slot →
+**donut → spending patterns** → cumulative line.
 The donut card (`#category-card`) and the cumulative card (`#cumulative-card`) are now
 **separate full-width blocks**, not a two-up grid — `.charts-row` was deleted 2026-08-04,
 because the donut card carries a breakdown list under it and pairing them left the shorter
@@ -953,9 +1061,13 @@ below it carried its own.
     parity with `Average Daily` would break; **and on a closed month `clipped` IS `days`,
     so `days.length = 0` empties both and the grid renders ZERO cells.** `.hm-future` is
     now dead for the live month but harmless, and still used by closed-month code paths.
-- **Archive shelf** (`renderArchiveShelf`, `#month-shelf`, "Archive"): chip row of past
-  months holding data; tap sets `viewMonth`. Scrolls inside itself (overflow-x auto
-  within the clipped container).
+- **The archive shelf is DELETED** (2026-08-11b). `#month-shelf`, `renderArchiveShelf()` and
+  the `.shelf-*` CSS are gone; the picker supersedes it (it reaches every month, shows each
+  month's total, and is one tap from anywhere). This is **roadmap v3 decision 7 deliberately
+  reversed** — see §6. ⚠️ **Two different things are called "archive": the closed-month
+  `archiveCardHtml()` in the `#income-bar-card` slot STAYS**, untouched, and so does the Logs
+  `.logs-tail` (which is the lazy-load control, not a month selector). If you are unsure which
+  one you are looking at, stop.
 
 ### 3.8 Capture flow (FAB → sheet → parse → confirm)
 
@@ -1195,10 +1307,16 @@ ledger-list month picker behind it. Today has no top chrome. **Roadmap v3 Phase 
 chip is superseded** (the *one contextual selector* decision is not — see §3.4). Front-end
 only; **no Apps Script change, no redeploy needed.** See §3.3, §3.4.
 
+**Lift-off pill — DONE** (2026-08-11, second pass) — render-loop verified **202/202** across
+390/900 × light/dark plus a reduced-motion pass, **with nineteen negative controls run first**.
+The period is on all three tabs; `.condensed` is a continuous `--p`; the masthead fades while a
+glass pill flies into the corner; the chevrons and the Trends archive shelf are deleted; the
+pill is a scroll readout on Logs. **Roadmap v3 decision 7 is reversed** (§6) and open item 14
+(three doors) is closed at two. Front-end only; **no Apps Script change, no redeploy needed.**
+See §3.3, §3.4, §3.6, §3.7.
+
 **Pending:** the remaining unscheduled candidate features (§6), plus the spec's own
-open questions, recorded under §6 "Recorded but undecided" — including the **three doors
-onto month changing** on Trends (chevrons, picker, archive shelf), left unresolved
-deliberately (§6).
+open questions, recorded under §6 "Recorded but undecided".
 
 ---
 
@@ -1449,6 +1567,54 @@ Three deltas from the spec as written, all deliberate:
 The spec's `.rise` modifier already existed as **`.sheet-rise`**, shipped with the drill-in
 sheet on 2026-08-08 for exactly the same reason; it was reused rather than duplicated.
 
+### Lift-off pill ✅ DONE (2026-08-11, second pass)
+
+Owner-supplied follow-on spec (`SPEC_LIFTOFF_PILL_20260811b.md`), shipped as seven commits.
+Shipped behaviour is in §3.3, §3.4, §3.6 and §3.7. **No owner checklist — front-end only, no
+Apps Script change, no redeploy.**
+
+**It supersedes the previous spec's condense mechanism and its chevrons**, but not roadmap v3
+decision 1 ("one contextual selector") — there is still one selector, now with two
+representations of the same state.
+
+**Roadmap v3 decision 7 ("Archive card stays") is deliberately REVERSED for the shelf.** The
+picker supersedes it: it reaches every month, shows each month's total, and is one tap from
+anywhere. Recorded here so the roadmap does not look like it drifted. ⚠️ **The closed-month
+archive CARD is a different thing and stays** — as does the Logs "Earlier months" tail, which
+is the lazy-load control, not a month selector. The spec's own text conflated the two and said
+to stop and ask; the owner confirmed the Trends shelf only.
+
+Decisions future phases must not re-open:
+
+1. **The masthead names the period; it never measures it.** No figure goes into the masthead or
+   the pill. This is the line that settles the hairline, the sub-line, and every future request.
+2. **There are exactly two doors onto a month**, the picker and the pill's swipe, and they step
+   through the same list. The caret on both representations is **load-bearing** — with the
+   chevrons and the shelf gone it is the only thing saying the month can be changed at all.
+3. **Today reads the date and is inert.** The unit is the tell.
+4. **The pill is never the sole route to anything** — that is the only reason 38px is acceptable
+   under the 44px floor.
+5. **On Logs the readout follows; it never drives.** No re-render from a scroll handler.
+
+Five deltas from the spec as written, all deliberate:
+
+- **The rubber band caps at 12px, not 24** — the pill sits at `right: 16px` outside
+  `.container`'s clip, so 24 pushes it past the viewport edge and widens the document (§3.2).
+- **The click after a swipe is eaten, not out-raced.** The spec's `setTimeout(…, 0)` loses to
+  the click task, so every committed swipe would also open the picker.
+- **The readout resolves geometrically, not from the observer's entry list**, which is
+  directionally asymmetric (§3.6).
+- **The swipe steps through `pickerMonths()`, not the calendar** — otherwise it lands on gap
+  months the picker refuses to offer.
+- **`stepMonth` / `goToMonth` / `nowYear` / `nowMonth` / `readMonthFromHeader` were not written.**
+  `stepViewMonth()` / `applyViewMonth()` already exist and §3.4 forbids a second month-change
+  path; `data-ym` already encodes what `readMonthFromHeader` would have re-encoded.
+
+Two things the spec asked to delete that did not exist: `.mh-sub`, and a year stepper in the
+picker (its year affordance is a non-interactive divider). And **Commit 7 was verification only**
+— nothing has ever persisted `viewMonth`/`viewYear`, so the negative control that *adds*
+persistence is the only thing that makes that check mean anything.
+
 ### Design fix spec ✅ DONE (2026-08-10, second pass)
 
 Owner-supplied review of `main` @ 86054de (`ALFRED_FIX_SPEC.md`), shipped as three code
@@ -1518,13 +1684,13 @@ Open questions, kept so they are not lost. Each needs a decision before it is a 
     retry, and the FAB stays live over an empty in-memory ledger.
 13. **Date input locale** — the manual modal's `type="date"` rendered `MM/DD/YYYY` in
     Chromium; that follows browser locale, so verify on a real phone first.
-14. **Three doors onto the same month change, on Trends** (added 2026-08-11): the masthead
-    chevrons, the masthead picker, and the dashed archive shelf that roadmap v3 decision 7
-    keeps. That is one too many. **Deliberately not resolved in the masthead PR** — ship
-    all three, watch which one actually gets reached for over a fortnight, then delete the
-    loser. Real-data validation beats guessing, and re-litigating decision 7 inside a PR
-    that already changes the app's top-level structure is scope creep. (All three now route
-    through `applyViewMonth`, so deleting any of them is a markup change, not a rewrite.)
+14. ~~**Three doors onto the same month change, on Trends**~~ — **RESOLVED 2026-08-11b.**
+    The chevrons and the archive shelf are both deleted; the picker and a swipe on the pill
+    are the two that remain, and they now agree about what a month is (both step through
+    `pickerMonths()`). Recorded rather than removed because the *reasoning* was reversed:
+    the plan was to ship all three and watch which got used, and the owner's follow-on spec
+    decided it up front instead. Deleting them was the markup change the note predicted,
+    because all three already routed through `applyViewMonth`.
 
 ### Candidate features (refined 2026-07-19 — not yet phased)
 
@@ -1564,9 +1730,15 @@ no longer wanted; capture-parse validation suite — considered resolved.
 - Re-pinning the `wght` axis on `body`, or reinstating the white heatmap ink, the green
   good-news states, or `Budget` as a transaction-type label (§3.2, §3.5 — all removed
   deliberately 2026-08-10)
-- Restoring the app header, putting a masthead on Today, or moving any *figure* into the
-  masthead (§3.3, §3.4 — removed deliberately 2026-08-11; "budget left" up there would be a
-  sixth surface saying what the hero already says once)
+- Restoring the app header, or moving any *figure* into the masthead or the pill (§3.3, §3.4 —
+  the governing principle: the masthead names the period, it never measures it. "Budget left"
+  up there would be a sixth surface saying what the hero already says once.) **Today DOES have
+  a masthead since 2026-08-11b** — it states the date, and is inert
+- Reinstating the masthead chevrons or any month stepper, the Trends archive shelf, or the
+  binary `.condensed` condense-on-scroll (§3.4, §3.7 — all removed deliberately 2026-08-11b)
+- Adding `viewport-fit=cover` casually: every `env(safe-area-inset-*)` in the app is currently
+  inert, so turning it on shifts the FAB cluster's derived geometry and both top offsets at
+  once (§3.3)
 - Spreading `--font-display` beyond the masthead month (§3.2)
 - Any change to the category donut's chart config — cap radius, spacing, small-slice
   folding (explicitly excluded by the 2026-08-10 design review, and asserted
@@ -1582,6 +1754,71 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-11 (second pass) — Lift-off pill: the period on every tab, chevrons out (§3.3,
+  §3.4, §3.6, §3.7):** the follow-on to the masthead PR shipped the same day. The month appears
+  on **all three tabs**; the binary `.condensed` class becomes a **continuous scroll-linked
+  `--p`**; and instead of the bar shrinking in place, a **glass pill flies into the top-right
+  corner** as the masthead fades. Today reads the **date** and is inert. The **chevrons and the
+  Trends archive shelf are deleted**, which closes §6's "three doors" question at two — the
+  picker and a **swipe on the pill** — and reverses roadmap v3 decision 7 for the shelf. On Logs
+  the pill becomes a **scroll readout**: no selected month, only a position, and **export follows
+  it**. Six findings worth keeping. **(1) `--p` is not off the main thread** — the first commit
+  message said it was, and it is wrong: only transform/opacity/filter get the compositor, so a
+  scroll-driven animation of a *custom property* recalcs style every frame and re-resolves every
+  consumer. It is still far cheaper than the scroll listener it replaced; the win is "no JS", not
+  "no work". Left uncorrected, the next person adds twenty consumers on the strength of the
+  claim. **(2) The click after a swipe has to be EATEN, not out-raced.** The spec's
+  `setTimeout(() => dragged = false, 0)` in `pointerup` loses to the click task often enough to
+  matter, so every committed swipe would also open the picker — a bug that only shows up on a
+  real finger. **(3) "Topmost intersecting entry" is directionally asymmetric.** Scrolling *up*
+  out of July, July's header leaves the observer's band, nothing intersects, and the readout
+  latches on the month you just left. Resolving geometrically against a line — the last header
+  above it — is symmetric, and makes the band's size irrelevant, which also removed a percentage
+  margin that inverts on a short viewport. **(4) The swipe and the picker have to agree about
+  what a month is.** The spec clamps the swipe to calendar months; the picker has refused gap
+  months since the previous PR. With a May gap in the fixture, calendar stepping walks from June
+  into an empty May that scrolls nowhere on Logs and renders a blank Trends. Stepping through
+  `pickerMonths()` is the same correction, applied to the second door. **(5) A jump the document
+  cannot deliver is authoritative.** The oldest months can never reach the line — the page
+  bottoms out first, the clamp §8 already records — so the readout keeps naming the month that
+  was asked for rather than being "corrected" to whatever the line points at. **(6)
+  `env(safe-area-inset-*)` has been inert app-wide all along**: there is no `viewport-fit=cover`
+  on the viewport meta, so every one of them resolves to `0px`, including the FAB cluster's
+  documented geometry. Nothing is broken (the UA insets the layout viewport itself) but the
+  spec's "does it clear the status bar in a PWA?" check passes vacuously, and that is now on the
+  record rather than being re-discovered. Render-loop verified (§3.12; 390/900 × light/dark +
+  reduced motion, mocked GViz, local Chart.js, stubbed Apps Script, **real Roboto Flex and
+  Newsreader served from npm** — fonts.googleapis.com and cdnjs are now both proxy-blocked to
+  curl as well as to Chromium — clock pinned to 2026-08-11 on an advancing offset): **202/202**,
+  on a fixture carrying a deliberate **May gap**, a prior-year December, a future-dated September
+  row and another user's row. **Nineteen negative controls run first**, and three of them are the
+  point. The one restoring `scrollTo(0, 0)` to `switchView()` is the direct analogue of the
+  control that fired nothing last pass. The one *adding* `localStorage` persistence of
+  `viewMonth` is the only reason "every launch starts at the current month" means anything —
+  there is no persistence to remove, so without it that check is a guaranteed false pass, and
+  the **first version of that control was itself inert**: it read keys nothing ever wrote, so it
+  persisted nothing and fired nothing. And the harness self-tests itself twice over — a
+  synthetic section that throws mid-way must still report the checks it already ran, and a
+  deliberate `throw` inside the app must surface as failed checks rather than silence.
+  **Three controls initially found nothing**, each a finding about a probe: the spy-re-renders
+  control was invisible because `calculateAndRender()`'s own `renderedKey` skip means the defect
+  produces no ledger re-render on Logs — the probe now wraps `calculateAndRender` itself and
+  asserts the scroll handler never enters the render path at all. **Six probes were wrong rather
+  than the code**, each caught by a failure against correct behaviour: the fixture's future-dated
+  September row makes its own Logs block, so probes assuming August is the newest month were
+  reading September (which also surfaced finding 5 above); a `page.click()` sets Chromium's
+  sequential-navigation start point and `blur()` does not reset it, so the keyboard-order probe
+  was tabbing from inside the pane and never reached the masthead; scrolling to a position the
+  page is already at fires no event, so the bottom-of-document probe was measuring a no-op; the
+  gesture probes needed the pill *actually lifted* — a sparse month makes a short document, `--p`
+  never passes 0.4, and the pill correctly refuses pointer events, so the probe was swiping at
+  nothing, which is now an explicit precondition assertion rather than an assumption; Today's
+  page can legitimately be too short to lift the pill at all, so its inert-pill probe dispatches
+  the pointer sequence directly instead of depending on hit-testing; and a `--drag` read taken
+  one frame after the move caught the value mid-transition, because a `.settling` class left by
+  the previous check makes it interpolate rather than jump — polled now, the same fix #53 made
+  for the counters. Front-end only — no Apps
+  Script change, no redeploy.
 - **2026-08-11 — Header removed, the month becomes the masthead (§3.3, §3.4):** the app
   header is deleted outright — 77px of sticky chrome on every tab, holding one word of
   branding and a `display:none` div, on a 390×844 viewport that is 9% of the screen spent on
@@ -2200,6 +2437,46 @@ woven into §3.
   serif never arriving. Compare the pixels the element paints against the same element
   forced into the other face. (Same family as the `wght`-axis trap: the DOM agrees with the
   CSS, and only the rendering disagrees.)
+- **A scroll-driven animation of a custom property is not off the main thread.** Only
+  `transform`, `opacity`, `filter` and `backdrop-filter` get the compositor. Animating a
+  registered custom property recalcs style every frame and re-resolves every `var()` consumer —
+  still far cheaper than the scroll listener it replaces, because there is no script, but the
+  win is "no JS", not "no work". The distinction matters because the cost scales with the number
+  of consumers, and a comment claiming "free" is an invitation to add more.
+- **A control that is also a gesture target needs the click EATEN, not out-raced.** `click` is
+  dispatched as its own task after `pointerup`, so a `setTimeout(…, 0)` scheduled to clear the
+  "was this a drag?" flag can and does run first. Clear the flag inside the click handler and
+  `preventDefault()` there. Same family: an inline `onclick` is registered at parse time, so no
+  listener added later can suppress it — if a handler needs to decide whether a click counts, it
+  has to own the click outright.
+- **"The topmost thing currently intersecting" is not a position readout.** It is asymmetric:
+  scroll forward and the next item enters the band; scroll back and the item you are returning
+  to has already left it, so nothing intersects and the readout latches on where you were. Use
+  the observer as a *trigger* and resolve geometrically against a single line — the last item
+  above it. That is symmetric in both directions and makes the band's size irrelevant, which
+  removes a whole class of "tune the rootMargin" bugs.
+- **Two doors onto the same state must be built from the same list.** The picker had already
+  been corrected to offer only months holding data; the new swipe was specced against calendar
+  months. On a dataset with a gap the two disagree, and the disagreement is invisible until a
+  user swipes into a month the picker refuses to show. Whenever a second affordance is added for
+  an existing action, derive it from the first one's data, not from the underlying domain.
+- **`env(safe-area-inset-*)` does nothing without `viewport-fit=cover`.** Without that meta the
+  UA insets the layout viewport itself and every `env()` resolves to `0px` — so a stylesheet can
+  be full of carefully reasoned inset arithmetic that has never once been evaluated, and a
+  "does it clear the status bar?" check passes because both sides are zero. Check the meta tag
+  before trusting, or writing, any of it.
+- **A probe that swipes at a control the code has correctly disabled is testing nothing.** The
+  pill only accepts pointer events past `--p: 0.4`, and a sparse month makes a document too
+  short to scroll that far — so "scroll to 200, then swipe" silently swiped at the page. The
+  fix in the harness is to assert the precondition (the pill is lifted), not to raise the number
+  and hope. Same shape as measuring a control inside a closed sheet.
+- **A click sets the browser's sequential-navigation start point, and `blur()` does not reset
+  it.** Any "what does Tab reach first?" probe run after an earlier probe clicked something is
+  measuring the tab order from that click, not from the top of the document. Use a fresh page,
+  and drive view changes by calling the function rather than clicking the tab.
+- **Scrolling to where you already are fires no event.** A probe that scrolls to the bottom when
+  the page is already at the bottom asserts against whatever the last handler left behind. Move
+  away first, then back.
 - **Steal patterns, not palettes.** Finance-app refs gave the *structure*; reskinning
   into Alfred's tokens kept one coherent system.
 - **One shared component beats per-tab cards** (`tile-block` let dead CSS be deleted).
