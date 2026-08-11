@@ -71,11 +71,12 @@
     --motion-snap: 220ms cubic-bezier(0.25, 1, 0.3, 1);
     --motion-standard: 250ms cubic-bezier(0.2, 0, 0, 1);
     --font-body: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    /* Editorial serif, used for exactly one thing: the month as a pane's
-       masthead. Newsreader is variable (400..700), so the condensed state's
-       heavier cut is a real weight rather than a synthesised one. The stack
-       falls back to the platform serif, which keeps the masthead editorial
-       rather than dropping it into the UI face if the webfont never arrives. */
+    /* Editorial serif, used for exactly one thing: the period as a pane's
+       masthead. Deliberately NOT spread to the pill, which is UI furniture in
+       the UI face — the serif reads as a masthead precisely because only the
+       masthead uses it. The stack falls back to the platform serif, which
+       keeps the masthead editorial rather than dropping it into the UI face
+       if the webfont never arrives. */
     --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
   }
 
@@ -276,24 +277,189 @@
      browser then zooms to fit ("page zooms in slightly after a few toggles").
      clip (not hidden) keeps overflow-y visible, so vertical page scroll and
      the sticky header are unaffected. */
-  /* MASTHEAD — the month, set as the pane's title, on Trends and Logs only.
-     Today has none: the hero already states the month, and a second surface
-     saying it would be the app's sixth way of stating one fact.
+  /* --p is the LIFT-OFF PROGRESS: 0 at the top of the pane, 1 once the
+     masthead has handed off to the pill. It replaces the binary .condensed
+     class (2026-08-11) with a continuous value, because a threshold can only
+     snap and a hand-off has to be watchable.
 
-     Sticky, never fixed. The shared-axis slide transiently widens the
-     document; a fixed bar sizes to the widened layout viewport and SUSTAINS
-     the overflow, which mobile then zooms to fit. Sticky is immune, which the
-     old header demonstrated for a year.
+     Registered so it interpolates as a number rather than a string — an
+     unregistered custom property is not animatable, and calc() would see the
+     literal text. It inherits, so everything under body reads the same
+     progress from one animation.
+
+     ⚠️ The value is DRIVEN, not stored: on Chromium by a scroll-driven
+     animation on body, everywhere else by the rAF fallback in the script.
+     Nothing else may write it.
+
+     ⚠️ A scroll-driven animation of a CUSTOM PROPERTY is not compositor-driven
+     — only transform/opacity/filter/backdrop-filter get that. This one recalcs
+     style each frame and re-resolves every var(--p) consumer, so keep the
+     consumer list short (today: #masthead and #month-pill). It is still far
+     cheaper than the scroll listener it replaced, which did the same work plus
+     script; the win is "no JS", not "off the main thread". */
+  @property --p {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 0;
+  }
+
+  @keyframes mh-liftoff { from { --p: 0; } to { --p: 1; } }
+
+  /* ⚠️ Order is load-bearing: the `animation` shorthand RESETS
+     animation-timeline to auto, so it must come first. Reordering these two
+     lines silently unhooks the timeline and leaves --p pinned at 1. */
+  @supports (animation-timeline: scroll()) {
+    body {
+      animation: mh-liftoff linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 86px;
+    }
+  }
+
+  /* --drag is the swipe's rubber band, live only while a finger is down.
+     Registered so it can be TRANSITIONED back to zero on release — but the
+     transition is scoped to .settling, never the base rule: transitioning it
+     always would smooth every pointermove and make the pill lag the finger. */
+  @property --drag {
+    syntax: '<length>';
+    inherits: false;
+    initial-value: 0px;
+  }
+
+  /* THE PILL — the masthead's destination, and the app's fixed point.
+     It TRAVELS: it flies from the masthead's left edge into the top-right
+     corner as the masthead fades, so the two read as one object moving rather
+     than two objects swapping. --pill-travel is measured at runtime by
+     syncPillTravel(), because the distance depends on the label's width.
+
+     The rail is a zero-height sticky strip, which is what lets the pill stay
+     put with nothing being position: fixed (see the #masthead note). It costs
+     no layout and refuses pointer events, so the invisible band across the top
+     of every page isn't a dead zone; the pill takes them back for itself. */
+  .rail {
+    position: sticky; top: 0; height: 0; overflow: visible;
+    z-index: 30; pointer-events: none;
+  }
+
+  /* 38px is under the 44px target floor, and that is acceptable here for one
+     reason only: the pill is never the sole route to anything. The full-size
+     masthead button above it is 44px+ and opens the same picker. Do not make
+     the pill the only tappable representation of the month. */
+  .pill {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 16px;
+    pointer-events: auto;
+    display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+    height: 38px; padding: 0 8px 0 15px;
+    border-radius: var(--shape-full);
+    background: color-mix(in srgb, var(--surface-container-low) 76%, transparent);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface); font-family: inherit;
+    font-size: 13.5px; font-weight: 600; letter-spacing: -0.1px;
+    cursor: pointer; outline: none;
+    /* Lets the horizontal swipe through to our handler while the browser keeps
+       vertical scrolling — the pill is a button and a swipe target at once. */
+    touch-action: pan-y;
+    opacity: var(--p);
+    /* Alpha ramps, geometry does not. Ramping the blur radius would
+       re-rasterise the shadow every frame of the scroll; at --p 0 the alpha is
+       0, so the result is identical for a fraction of the cost. */
+    box-shadow: 0 8px 20px rgba(0, 0, 0, calc(var(--p) * 0.16));
+    transform:
+      translate3d(calc((1 - var(--p)) * var(--pill-travel, -230px) + var(--drag, 0px)), 0, 0)
+      scale(calc(0.86 + var(--p) * 0.14));
+    transform-origin: 100% 50%;
+    will-change: transform, opacity;
+  }
+
+  /* The settle after a swipe. Scoped to a class the gesture handler adds on
+     release, so the drag itself tracks the finger exactly. */
+  #month-pill.settling { transition: --drag var(--motion-snap); }
+
+  .pill-cx {
+    width: 22px; height: 22px; border-radius: var(--shape-full); flex: none;
+    background: var(--surface-container); color: var(--on-surface-variant);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 9px;
+  }
+  /* display: inline-flex above beats the UA sheet's [hidden] { display: none },
+     so hiding the pill needs saying explicitly. */
+  .pill[hidden] { display: none; }
+  #month-pill.inert { cursor: default; padding-right: 15px; }
+  #month-pill.inert .pill-cx { display: none; }
+
+  /* Hit-testing while invisible. At --p 0 the pill is transparent but still in
+     the hit path, so a tap at the top-right corner would land on a button
+     nobody can see instead of the card underneath. pointer-events animates
+     discretely, so one keyframe pair on the same scroll timeline gates it.
+     ⚠️ This has to live on the pill — the element that receives the events —
+     not in body's animation list. The rAF fallback sets the property directly. */
+  @keyframes mh-pill-hit {
+    0%, 40%      { pointer-events: none; }
+    40.01%, 100% { pointer-events: auto; }
+  }
+
+  /* The masthead has the mirror-image problem: it is `static`, so once it has
+     faded to nothing it is still hit-testable wherever it overlaps the
+     viewport — an invisible 44px button under the pill. 74% is where
+     calc(1 - --p * 1.35) reaches zero. Latent today (the masthead scrolls off
+     before it goes transparent) and load-bearing the moment the safe-area
+     inset is real; see the viewport note in CLAUDE.md. */
+  @keyframes mh-fade-out {
+    0%, 74%      { pointer-events: auto; }
+    74.01%, 100% { pointer-events: none; }
+  }
+
+  @supports (animation-timeline: scroll()) {
+    #month-pill {
+      animation: mh-pill-hit linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 86px;
+    }
+    #masthead {
+      animation: mh-fade-out linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 86px;
+    }
+  }
+
+  /* Travel degrades to a plain cross-fade. Opacity stays linked to --p, so the
+     hand-off still reads — nothing flies, and nothing scales. */
+  @media (prefers-reduced-motion: reduce) {
+    #month-pill { transform: none; }
+    #masthead   { transform: none; }
+  }
+
+  /* MASTHEAD — the period, set as the pane's title, on ALL THREE tabs since
+     2026-08-11b. Today reads the DATE (weekday + day/month) and is inert;
+     Trends and Logs read the month and open the picker. Today's period is a
+     day, so the unit itself distinguishes a readout from a control.
+
+     STATIC, not sticky — the pill in #month-rail takes over the job of being
+     the thing that stays. Nothing up here is ever `position: fixed`: the
+     shared-axis slide transiently widens the document, and a fixed bar sizes
+     to the widened layout viewport and SUSTAINS the overflow, which mobile
+     then zooms to fit.
 
      It sits OUTSIDE .container, where the header used to be — .container is
-     an overflow-x: clip ancestor, and whether sticky survives that is a
-     question this doesn't need to answer. */
+     an overflow-x: clip ancestor, and whether a top bar survives one is a
+     question this doesn't need to answer.
+
+     Never animate font-size/height/top/left here. They reflow, and on a
+     scroll-linked timeline that stutters every frame. Transform and opacity
+     only — which is why the masthead FADES and the pill flies, rather than
+     the bar shrinking in place the way the condensed state used to. */
   #masthead {
-    position: sticky; top: 0; z-index: 12;
+    position: static;
     display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
-    padding: calc(22px + env(safe-area-inset-top, 0px)) 18px 8px;
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 18px 6px;
     background: var(--surface);
-    transition: padding var(--motion-standard), background var(--motion-standard);
+    opacity: calc(1 - var(--p) * 1.35);
+    transform: translate3d(0, calc(var(--p) * -6px), 0) scale(calc(1 - var(--p) * 0.07));
+    transform-origin: 0 50%;
+    will-change: transform, opacity;
   }
   #masthead[hidden] { display: none; }
 
@@ -309,9 +475,16 @@
   .month-txt {
     font-family: var(--font-display);
     font-size: 31px; font-weight: 500; letter-spacing: -0.9px; line-height: 1;
-    transition: font-size var(--motion-standard), letter-spacing var(--motion-standard);
   }
-  .month-txt .yr { color: var(--on-surface-variant); font-size: 19px; margin-left: 7px; }
+  /* The second half of the title, quieter: the year on Trends and Logs, the
+     day and month on Today. Always present — the old chip suppressed the year
+     inside the current year to save space it didn't have, and "July" alone is
+     ambiguous the moment you step back past January. */
+  #masthead .month-txt .sm {
+    color: var(--on-surface-variant);
+    font-size: 18px;
+    margin-left: 7px;
+  }
 
   /* The caret is load-bearing, not decoration. A 31px serif title has no
      affordance of its own, and "the control doesn't look tappable" is already
@@ -326,48 +499,21 @@
   }
   .month-btn[aria-expanded="true"] .caret { transform: rotate(180deg); }
 
-  /* Condensed state — the M3 large-to-small top app bar, one element and two
-     states. This is the only reason a masthead is acceptable on Logs, where
-     you scroll deep and still want to change month.
-
-     Vertical padding drops to 3px, not the 8px the spec proposed: .month-btn
-     keeps its 44px touch floor, so 8px either side would leave a 60px bar
-     that saves almost nothing over the 74px expanded one. At 3px it lands at
-     50px, which is the intended size with the target intact. */
-  #masthead.condensed {
-    padding: calc(3px + env(safe-area-inset-top, 0px)) 18px 3px;
-    align-items: center;
-    background: color-mix(in srgb, var(--surface) 82%, transparent);
-    backdrop-filter: blur(16px) saturate(160%);
-    -webkit-backdrop-filter: blur(16px) saturate(160%);
-    border-bottom: 1px solid var(--outline-variant);
-  }
-  #masthead.condensed .month-txt { font-size: 15px; letter-spacing: -0.2px; font-weight: 600; }
-  #masthead.condensed .month-txt .yr { font-size: 13px; margin-left: 5px; }
-  /* The steppers hide deliberately. Keeping them means either 44px buttons —
-     so the condensed bar saves nothing — or sub-44px ones, which fails the
-     target floor. Stepping to an adjacent month is a top-of-pane action; once
-     you are deep in a scroll you are jumping, and the picker is one tap away.
-     Scrolling back up brings them back. */
-  #masthead.condensed .steppers { display: none; }
-
-  .steppers { display: flex; gap: 2px; align-self: center; flex: none; }
-  .arrow-btn {
-    width: 44px; height: 44px; border-radius: var(--shape-full);
-    border: 1px solid var(--outline-variant); background: transparent;
-    color: var(--on-surface); font-family: inherit; font-size: 15px;
-    cursor: pointer; outline: none;
-    transition: background var(--motion-standard), transform var(--motion-snap);
-  }
-  .arrow-btn:active:not(:disabled) { transform: scale(0.9); background: var(--surface-container); }
-  .arrow-btn:disabled { opacity: 0.28; cursor: default; }
+  /* Today states a date, and a date is not a control: no caret, no press
+     state, out of the tab order (set in renderMasthead), and openMonthPicker()
+     refuses it. The unit itself is the tell — Today's period is a day. */
+  #masthead-month.inert { cursor: default; }
+  #masthead-month.inert:active { transform: none; background: transparent; }
+  #masthead-month.inert .caret { display: none; }
 
   /* The deleted header was silently providing the status-bar inset in a
      standalone PWA. With it gone, .container is the first thing under the
-     status bar on Today, so it carries the inset itself. On Trends and Logs
-     the masthead sits above and carries the inset instead — body.has-masthead
-     drops this padding to 12px so the two are never applied twice, and the
-     8px the masthead leaves below itself makes the gap 20px either way. */
+     status bar whenever there is no masthead, so it carries the inset itself.
+     When the masthead is up it sits above and carries the inset instead —
+     body.has-masthead drops this padding to 12px so the two are never applied
+     twice. The masthead is on all three tabs since 2026-08-11b, so in practice
+     the gap above the first card is the masthead's own 6px plus this 12px,
+     identically everywhere; the full-inset branch is the no-data state. */
   .container { max-width: 900px; margin: 0 auto; padding: calc(1.25rem + env(safe-area-inset-top, 0px)) 1rem 1.25rem; overflow-x: clip; }
   body.has-masthead .container { padding-top: 12px; }
   .view-section { display: none; }
@@ -723,26 +869,6 @@
   .today-bad { color: var(--semantic-expense); font-weight: 600; }
   .today-flat { color: var(--on-surface-variant); font-weight: 600; }
   .today-empty { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
-
-  /* Month shelf — the ledger's "pages". A horizontal strip of months that hold
-     data (most recent first), tap to time-travel. Scrolls inside itself so the
-     overflow never widens the document (the .container clips overflow-x). */
-  #month-shelf:not(:empty) { margin-top: 4px; }
-  .shelf-title {
-    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-    color: var(--on-surface-variant); margin: 0 0.25rem 8px;
-  }
-  .shelf-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-  .shelf-row::-webkit-scrollbar { display: none; }
-  .shelf-chip {
-    flex-shrink: 0; cursor: pointer; font-family: var(--font-body);
-    font-size: 12px; font-weight: 700; padding: 6px 13px;
-    border-radius: var(--shape-full); border: 1px solid var(--outline-variant);
-    background: var(--surface-container-low); color: var(--on-surface-variant);
-    white-space: nowrap; transition: transform var(--motion-snap), background var(--motion-standard), color var(--motion-standard), border-color var(--motion-standard);
-  }
-  .shelf-chip:active { transform: scale(0.94); }
-  .shelf-chip.active { background: var(--on-surface); color: var(--surface-container-low); border-color: var(--on-surface); }
 
   /* Archive card — the closed form of the pace bar. When a past month is in
      view it stands in the same slot with an archival, ledger voice. */
@@ -1493,18 +1619,30 @@
 </head>
 <body>
 
-<!-- The month as the pane's masthead (2026-08-11) — Trends and Logs only,
-     hidden on Today. Tapping the month opens the picker; the chevrons keep
-     adjacent-month navigation at one tap, which is the common case. -->
+<!-- The lift-off pill. A zero-height sticky rail is what lets the pill stay put
+     without anything being position: fixed — the rail costs no layout, and the
+     pill is absolutely positioned inside it. The rail ignores pointer events so
+     the invisible strip across the top of the page isn't a dead zone; only the
+     pill itself takes them back. -->
+<div id="month-rail" class="rail">
+  <!-- tabindex="-1" permanently: the pill is a pointer-only duplicate of the
+       masthead button, which is always in the DOM and always in the tab order.
+       Without it, Tab lands on a button that is fully transparent at the top of
+       every pane. Clicking still focuses it, so focus returns where it was. -->
+  <button id="month-pill" class="pill" tabindex="-1" aria-haspopup="dialog" aria-expanded="false">
+    <span id="month-pill-label">Aug 2026</span>
+    <span class="pill-cx" aria-hidden="true">▾</span>
+  </button>
+</div>
+
+<!-- The period as the pane's masthead — all three tabs since 2026-08-11b.
+     Today reads the date and is inert; Trends and Logs read the month and open
+     the picker. Month stepping is a swipe on the pill; there are no chevrons. -->
 <div id="masthead" hidden>
-  <button id="masthead-month" class="month-btn" onclick="openMonthPicker()" aria-haspopup="dialog" aria-expanded="false">
+  <button id="masthead-month" class="month-btn" onclick="openMonthPicker(this)" aria-haspopup="dialog" aria-expanded="false">
     <span class="month-txt"></span>
     <span class="caret" aria-hidden="true">▾</span>
   </button>
-  <div class="steppers">
-    <button class="arrow-btn" id="month-prev" onclick="stepViewMonth(-1)" aria-label="Previous month">‹</button>
-    <button class="arrow-btn" id="month-next" onclick="stepViewMonth(1)" aria-label="Next month">›</button>
-  </div>
 </div>
 
 <div class="bottom-bar">
@@ -1585,7 +1723,6 @@
         </div>
       </div>
     </div>
-    <div id="month-shelf"></div>
   </div>
 </div>
 
@@ -1846,6 +1983,9 @@ const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MONTHS_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const WEEKDAYS_MON = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];  // Mon=0 … Sun=6
+// Sun=0 … Sat=6, i.e. indexed by Date.getDay() — NOT interchangeable with
+// WEEKDAYS_MON above, which is Monday-first and abbreviated.
+const DAYS_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
 // Parse User ID from URL. The installed PWA launches from manifest start_url,
 // which can't carry a per-user query — so remember the last ?user= in
@@ -1868,9 +2008,11 @@ let activeMonth = new Date().getMonth();
 let activeYear = new Date().getFullYear();
 
 // The shared view-month state (roadmap v2 Phase 5, generalized in refinement
-// Phase B): moved by the contextual header ‹ month › chip and the archive
-// shelf. Trends renders it; Logs scrolls to it (never filters); Today
-// ignores it.
+// Phase B, and the readout on Logs since 2026-08-11b). Two doors move it: the
+// month picker and a swipe on the pill. Trends renders it; on Logs it follows
+// the scroll instead of driving it; Today ignores it.
+// Never persisted — every launch opens on the real current month, so a stale
+// month can't be misread as now.
 let viewMonth = new Date().getMonth();
 let viewYear = new Date().getFullYear();
 let currentView = 'today';
@@ -2328,6 +2470,9 @@ function renderLogsLedger() {
   el.innerHTML = html;
   bindDayColClicks(el);
   paintDayColumns(el);
+  // One site covers every way the header set changes: the tail, the scroll-to
+  // growth loop and optimistic re-renders all land here.
+  wireLogsSpy();
 }
 
 // The ledger's footer: either the one control that grows the scope, or a note
@@ -2513,14 +2658,13 @@ function bindDrillRowClicks(scope) {
   });
 }
 
-// ── Trends month navigation + archive shelf (roadmap Phase 5) ───────────────
-// The month selector steps viewMonth within [earliest data month … current
-// month]. It lives on Trends and Logs only — as the pane's masthead since
-// 2026-08-11, previously as a chip in the now-deleted header; Today always
-// shows the real current month. On Trends a step re-renders the tab; on Logs
-// it scrolls the continuous ledger to that month's header (no filtering). The
-// archive shelf at the bottom of Trends is a chip row of PAST months that hold
-// data — tapping one time-travels by setting the same viewMonth.
+// ── Month navigation (roadmap Phase 5, rebuilt 2026-08-11b) ─────────────────
+// Two doors onto a month, and only two: the picker sheet, and a swipe on the
+// pill. The masthead chevrons and the Trends archive shelf are both gone — the
+// picker supersedes the shelf (it reaches every month, shows each month's
+// total, and is one tap from anywhere), which is roadmap v3 decision 7
+// deliberately reversed. On Trends a change re-renders the tab; on Logs it
+// scrolls the continuous ledger to that month's header, never filtering.
 
 function earliestDataMonth() {
   let best = null;
@@ -2533,34 +2677,141 @@ function earliestDataMonth() {
   return best; // year*12+month, or null with no data
 }
 
-// How much sticky chrome sits at the top of the viewport, for anything that
-// scrolls a target "just under" it. The header used to be it; now it is the
-// masthead, and only on the panes that have one. A scroll always ENDS past the
-// condense threshold, so the offset that matters is the condensed height —
-// measuring the expanded bar mid-scroll would leave the target short.
-function stickyTopOffset() {
-  const el = document.getElementById('masthead');
-  if (!el || el.hidden) return 0;
-  if (el.classList.contains('condensed')) return el.offsetHeight;
-  const probe = el.cloneNode(true);
-  probe.classList.add('condensed');
-  probe.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;width:' + el.offsetWidth + 'px';
-  el.parentNode.appendChild(probe);
-  const h = probe.offsetHeight;
-  probe.remove();
-  return h;
+// ── The Logs month readout ──────────────────────────────────────────────────
+// On Logs there is no selected month, only a position: the pill relabels itself
+// as you cross month headers. It is a FOLLOWER, not a door — it never scrolls,
+// never filters and never re-renders the ledger; it only ever agrees with where
+// the ledger already is.
+//
+// Nothing is sticky at the top of the page any more — the masthead scrolls away
+// and the pill floats over it — so stickyTopOffset() is gone and a jump parks a
+// header at a fixed distance from the top instead.
+//
+// ⚠️ THESE TWO NUMBERS ARE A PAIR. SPY_LINE is the reference line the readout
+// resolves against: the month is whichever header is the LAST one above it.
+// LOGS_PARK is where a programmatic jump leaves a header. LOGS_PARK must stay
+// ≤ SPY_LINE, or a picker pick or a swipe parks the header below the line and
+// the readout names the month *before* the one you just asked for. The 8px of
+// slack absorbs smooth-scroll landing rounding. Change one, re-check the other.
+//
+// 56 also clears the pill (top 12px, 38px tall), so a parked header never sits
+// beside it.
+const SPY_LINE  = 64;
+const LOGS_PARK = 56;
+
+// Resolved geometrically rather than from the observer's entry list. The
+// obvious "topmost intersecting entry" rule is directionally asymmetric: when
+// you scroll UP out of July, July's header leaves the band and nothing
+// intersects, so the readout latches on July while August fills the screen.
+// The observer is only a trigger; this decides.
+function spyResolve() {
+  if (_spySuppressed || currentView !== 'logs') return;
+  const now = new Date();
+  const curKey = now.getFullYear() * 12 + now.getMonth();
+  // ⚠️ Future months are skipped. A future-dated row makes its own block in the
+  // ledger, but pickerMonths() refuses to offer such a month and the swipe
+  // clamps at the current one — so a readout that named it would be the one
+  // surface in the app claiming a month the other two say does not exist.
+  // (The model for future-dated entries is an open question; this only keeps
+  // the three doors agreeing in the meantime.)
+  const hs = [...document.querySelectorAll('#logs-ledger .month-header')]
+    .filter(h => {
+      const [y, m] = h.dataset.ym.split('-').map(Number);
+      return y * 12 + m <= curKey;
+    });
+  if (!hs.length) return;
+
+  // The month is whichever header is the LAST one above the line. Resolving
+  // geometrically rather than from the observer's entry list is what makes it
+  // symmetric: "topmost intersecting entry" reports nothing when you scroll up
+  // out of a month, and the readout latches on the month you just left.
+  let pick = null, best = -Infinity;
+  hs.forEach(h => {
+    const t = h.getBoundingClientRect().top;
+    if (t <= SPY_LINE && t > best) { best = t; pick = h; }
+  });
+  if (!pick) pick = hs[0];     // above the first header: the newest month
+
+  const [y, m] = pick.dataset.ym.split('-').map(Number);
+  if (y === viewYear && m === viewMonth) return;
+  viewYear = y;
+  viewMonth = m;
+  renderMasthead();            // label and state ONLY — never calculateAndRender()
 }
 
-// THE month-change handler. The masthead chevrons, the picker sheet and the
-// archive shelf all land here — a parallel path would let Logs' scroll-to-month
-// and the renderedKey busting diverge.
+// A programmatic scroll passes through every month between here and there, and
+// the readout must not narrate the journey.
+let _spySuppressed = false, _spyTimer = null;
+
+// Set when a jump could not park its target because the document ran out of
+// scroll — the oldest months can never reach the line, the page bottoms out
+// first. The jump is then AUTHORITATIVE: the month you asked for is on screen
+// and named, even though the line is pointing at an older one. The readout
+// resumes following the line the moment you scroll again.
+let _jumpClamped = false;
+
+function suppressSpy(ms = 1200) {
+  _spySuppressed = true;
+  clearTimeout(_spyTimer);
+  _spyTimer = setTimeout(releaseSpy, ms);
+  // ⚠️ Not { once: true }: if the timeout wins the race, a stale listener would
+  // survive and release the NEXT suppression early. Explicit removal is
+  // idempotent, and removing a listener that already fired is a no-op.
+  window.addEventListener('scrollend', releaseSpy);
+}
+
+function releaseSpy() {
+  clearTimeout(_spyTimer);
+  window.removeEventListener('scrollend', releaseSpy);
+  _spySuppressed = false;
+  if (_jumpClamped) { _jumpClamped = false; return; }
+  // A jump to a month whose header is already parked scrolls nothing, so it
+  // fires neither scrollend nor an observer callback. Resolve once on release
+  // or the label can stay on a month the ledger has left.
+  spyResolve();
+}
+
+let _spyObserver = null;
+
+function wireLogsSpy() {
+  if (_spyObserver) { _spyObserver.disconnect(); _spyObserver = null; }
+  // Off-tab #logs-view is display:none, so every header rect is 0 — a live
+  // observer would rewrite viewMonth while you scroll Trends.
+  if (currentView !== 'logs') return;
+
+  // Top margin exactly on SPY_LINE, so every crossing of the line produces a
+  // callback. Band SIZE is irrelevant — spyResolve() does the deciding — which
+  // is why this isn't the percentage-based band the spec proposed: a percentage
+  // bottom margin inverts the band on a short viewport.
+  _spyObserver = new IntersectionObserver(spyResolve, {
+    rootMargin: `-${SPY_LINE}px 0px 0px 0px`,
+    threshold: 0
+  });
+  document.querySelectorAll('#logs-view .month-header').forEach(el => _spyObserver.observe(el));
+}
+
+// Step to the adjacent month. The pill's swipe is the only caller since the
+// chevrons went; the picker and the long-press call applyViewMonth() directly
+// with a month they already know.
+//
+// ⚠️ It steps through pickerMonths() — months HOLDING DATA plus the current one
+// — not through the calendar. The picker already refuses to offer a gap month
+// (§3.4: a gap month's row scrolls nowhere on Logs and renders an empty page on
+// Trends), and the swipe has to agree with it, or the app's two remaining month
+// doors disagree about what a month is. With data in June and August but none
+// in July, a swipe back from August lands on June.
+//
+// Returns whether the month actually moved, so a swipe that hits a bound can
+// acknowledge the gesture instead of appearing to do nothing. There is no
+// separate bounce animation: at a bound the rubber band is already deflected,
+// and letting it settle back through .settling IS the bounce.
 function stepViewMonth(delta) {
-  const now = new Date();
-  const cur = now.getFullYear() * 12 + now.getMonth();
-  const earliest = earliestDataMonth();
-  let key = viewYear * 12 + viewMonth + delta;
-  key = Math.min(cur, Math.max(earliest === null ? cur : earliest, key));
-  applyViewMonth(Math.floor(key / 12), key % 12);
+  const list = pickerMonths();                 // newest first
+  const i = list.findIndex(x => x.y === viewYear && x.m === viewMonth);
+  const j = i - delta;                         // delta +1 = forward in time = earlier index
+  if (i < 0 || j < 0 || j >= list.length) return false;
+  applyViewMonth(list[j].y, list[j].m);
+  return true;
 }
 
 // Move to an absolute month. stepViewMonth() clamps into range and calls this;
@@ -2581,42 +2832,199 @@ function applyViewMonth(y, m) {
   }
 }
 
-// The masthead shows on Trends and Logs, and only once there is data to
-// navigate. Months are written in words — the app writes them that way
-// everywhere else, and "07-26" in 31pt serif would read as a filename.
-function renderMasthead() {
-  const el = document.getElementById('masthead');
-  if (!el) return;
-  const earliest = earliestDataMonth();
-  const show = (currentView === 'trends' || currentView === 'logs') && earliest !== null;
-  el.hidden = !show;
-  document.body.classList.toggle('has-masthead', show);
-  if (!show) return;
-  const now = new Date();
-  const cur = now.getFullYear() * 12 + now.getMonth();
-  const key = viewYear * 12 + viewMonth;
-  el.querySelector('.month-txt').innerHTML =
-    `${MONTHS_FULL[viewMonth]}<span class="yr">${viewYear}</span>`;
-  document.getElementById('month-prev').disabled = key <= earliest;
-  document.getElementById('month-next').disabled = key >= cur;
+// How far the pill has to fly to sit on the masthead's left edge at --p 0.
+// Measured rather than guessed, because it depends on the label's width, which
+// changes with the month and the tab.
+//
+// ⚠️ offsetLeft, not getBoundingClientRect(): the pill and the masthead are
+// both mid-transform on every frame of the lift-off, and a rect would return
+// the transformed position and feed the measurement back into itself.
+//
+// The offsetParent chains differ (the pill's is the rail, the anchor's is
+// body), so walk both rather than relying on the two origins coinciding —
+// which they do today, and which nobody would remember to preserve.
+function absLeft(el) {
+  let x = 0;
+  while (el) { x += el.offsetLeft; el = el.offsetParent; }
+  return x;
 }
 
-// Condense on scroll. Hysteresis — 48px to engage, 36px to release — so a
-// scroll parked on the boundary can't flicker between the two states, which a
-// single threshold guarantees the moment the layout shift the condense itself
-// causes pushes scrollY back across it.
-let _mhRAF = null;
-function syncMasthead() {
-  const el = document.getElementById('masthead');
-  if (!el || el.hidden) return;
-  const on = el.classList.contains('condensed');
-  if (!on && window.scrollY > 48) el.classList.add('condensed');
-  else if (on && window.scrollY < 36) el.classList.remove('condensed');
+function syncPillTravel() {
+  const pill = document.getElementById('month-pill');
+  const anchor = document.querySelector('#masthead .month-txt');
+  if (!pill || !anchor) return;
+  // The 0.14×width term is the scale compensation: at --p 0 the pill is at
+  // scale(0.86) about transform-origin 100% 50%, so its VISUAL left edge sits
+  // 14% of its width right of its layout left edge. Without this the pill
+  // lands short of the masthead text by a few pixels.
+  const travel = absLeft(anchor) - absLeft(pill) - pill.offsetWidth * 0.14;
+  pill.style.setProperty('--pill-travel', travel.toFixed(1) + 'px');
 }
-window.addEventListener('scroll', () => {
-  if (_mhRAF) return;
-  _mhRAF = requestAnimationFrame(() => { _mhRAF = null; syncMasthead(); });
+
+// The pill inherits the UI font, so a late webfont changes its width and with
+// it the distance it has to fly.
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncPillTravel);
+
+let _travelRAF = null;
+window.addEventListener('resize', () => {
+  if (_travelRAF) return;
+  _travelRAF = requestAnimationFrame(() => { _travelRAF = null; syncPillTravel(); });
 }, { passive: true });
+
+// Swipe the pill to step months; long-press to come back to now. With the
+// chevrons and the archive shelf both gone, this and the picker are the two
+// doors onto a closed month.
+//
+// ⚠️ The pill is a button AND a swipe target on the same element, so a
+// movement threshold is what keeps the two apart: without DRAG_SLOP every
+// swipe would also fire the picker on the click that follows the release.
+const SWIPE_COMMIT = 26;   // px of travel before a step is committed
+const DRAG_SLOP    = 6;    // px before the gesture stops being a tap
+const LONG_PRESS   = 500;  // ms
+const DRAG_CAP     = 12;   // px the rubber band may deflect — see below
+
+function wirePillGestures() {
+  const pill = document.getElementById('month-pill');
+  if (!pill) return;
+  let x0 = null, dragged = false, lpTimer = null;
+
+  const settle = () => {
+    // The transition lives on .settling, never on the base rule: transitioning
+    // --drag always would smooth every pointermove and lag the finger.
+    pill.classList.add('settling');
+    pill.style.setProperty('--drag', '0px');
+    clearTimeout(pill._settleT);
+    pill._settleT = setTimeout(() => pill.classList.remove('settling'), 600);
+  };
+
+  pill.addEventListener('pointerdown', e => {
+    if (pill.classList.contains('inert')) return;
+    x0 = e.clientX; dragged = false;
+    pill.classList.remove('settling');
+    pill.setPointerCapture(e.pointerId);
+    lpTimer = setTimeout(() => {
+      lpTimer = null;
+      dragged = true;                     // suppress the click that follows
+      applyViewMonth(new Date().getFullYear(), new Date().getMonth());
+      if (navigator.vibrate && !REDUCED_MOTION) navigator.vibrate(12);
+    }, LONG_PRESS);
+  });
+
+  pill.addEventListener('pointermove', e => {
+    if (x0 === null) return;
+    const dx = e.clientX - x0;
+    if (Math.abs(dx) > DRAG_SLOP) {
+      dragged = true;
+      if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+    }
+    // Resisted and capped. ⚠️ The cap must stay BELOW the pill's own 16px right
+    // offset: the rail sits outside .container's overflow-x: clip, so a
+    // deflection wider than the offset would push the pill past the viewport's
+    // right edge and widen the document — which mobile browsers then zoom to
+    // fit, and which no amount of clipping elsewhere would undo.
+    pill.style.setProperty('--drag', Math.max(-DRAG_CAP, Math.min(DRAG_CAP, dx * 0.4)) + 'px');
+  });
+
+  const end = e => {
+    if (x0 === null) return;
+    const dx = e.clientX - x0; x0 = null;
+    if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+    settle();
+    // Swipe left reads as "forward", the direction the months run on screen.
+    if (Math.abs(dx) > SWIPE_COMMIT) stepViewMonth(dx < 0 ? 1 : -1);
+  };
+  pill.addEventListener('pointerup', end);
+  pill.addEventListener('pointercancel', end);
+
+  // ⚠️ The picker opens from here, NOT from an inline onclick. A swipe ends in
+  // a click too, and only this handler knows whether the finger moved — and an
+  // inline handler is registered at parse time, so it would fire before any
+  // listener added later could suppress it.
+  //
+  // ⚠️ The click after a committed swipe is EATEN here, never out-raced. The
+  // obvious `setTimeout(() => dragged = false, 0)` in pointerup is a real bug:
+  // click is dispatched as its own task and a 0ms timer can win, which opens
+  // the picker on every swipe.
+  pill.addEventListener('click', e => {
+    if (dragged) { dragged = false; e.preventDefault(); e.stopPropagation(); return; }
+    openMonthPicker(pill);
+  });
+}
+
+// The masthead names the period. It never measures it — no figure goes up
+// here, on either representation, which is the line that settles the hairline,
+// the sub-line and every future request to put "budget left" in the corner.
+//
+// All three tabs carry one since 2026-08-11b, but Today's says the DATE and is
+// inert: Today's period is a day, so the unit differs visibly from a control
+// and no caret is needed to say so. Trends and Logs say the month and open the
+// picker. Months are written in words — the app writes them that way
+// everywhere else, and "07-26" in 31pt serif would read as a filename.
+//
+// The visibility gate is one rule for all three: show once there is data.
+// body.has-masthead is what stops .container applying the status-bar inset a
+// second time, so the two must stay in step.
+function renderMasthead() {
+  const el = document.getElementById('masthead');
+  const pill = document.getElementById('month-pill');
+  if (!el || !pill) return;
+  const show = earliestDataMonth() !== null;
+  el.hidden = !show;
+  pill.hidden = !show;
+  document.body.classList.toggle('has-masthead', show);
+  if (!show) return;
+
+  const isToday = currentView === 'today';
+  const mhTxt = el.querySelector('.month-txt');
+  const mhBtn = document.getElementById('masthead-month');
+  const pillLbl = document.getElementById('month-pill-label');
+  const now = new Date();
+
+  if (isToday) {
+    mhTxt.innerHTML = `${DAYS_FULL[now.getDay()]}<span class="sm">${now.getDate()} ${MONTHS_FULL[now.getMonth()]}</span>`;
+    pillLbl.textContent = `${now.getDate()} ${MONTHS[now.getMonth()]}`;
+  } else {
+    mhTxt.innerHTML = `${MONTHS_FULL[viewMonth]}<span class="sm">${viewYear}</span>`;
+    pillLbl.textContent = `${MONTHS[viewMonth]} ${viewYear}`;
+  }
+
+  [mhBtn, pill].forEach(btn => {
+    btn.classList.toggle('inert', isToday);
+    btn.setAttribute('aria-haspopup', isToday ? 'false' : 'dialog');
+    if (isToday) btn.removeAttribute('aria-expanded');
+    else btn.setAttribute('aria-expanded', 'false');
+  });
+  // Only the masthead button moves in and out of the tab order — the pill is
+  // tabindex="-1" permanently (see its markup).
+  mhBtn.tabIndex = isToday ? -1 : 0;
+
+  syncPillTravel();
+}
+
+// The lift-off is a scroll-driven CSS animation (see @property --p): it runs
+// off the main thread and costs no JS at all. This is the fallback for engines
+// without scroll-linked timelines, and it attaches ONLY when unsupported — the
+// target platform is Chromium, which must never pay for it.
+//
+// It also carries the pill's hit-testing, which on Chromium rides the discrete
+// mh-pill-hit keyframes: at --p 0 the pill is transparent but still in the hit
+// path, so without this a tap at the top-right corner would land on an
+// invisible button instead of whatever is underneath.
+if (!CSS.supports('animation-timeline', 'scroll()')) {
+  let _pRAF = null;
+  const syncP = () => {
+    _pRAF = null;
+    const p = Math.min(1, Math.max(0, window.scrollY / 86));
+    document.documentElement.style.setProperty('--p', p.toFixed(4));
+    const pill = document.getElementById('month-pill');
+    if (pill) pill.style.pointerEvents = p > 0.4 ? 'auto' : 'none';
+  };
+  window.addEventListener('scroll', () => {
+    if (_pRAF) return;
+    _pRAF = requestAnimationFrame(syncP);
+  }, { passive: true });
+  syncP();
+}
 
 // ── Month picker ────────────────────────────────────────────────────────────
 // Every month the picker offers, newest first. Months HOLDING DATA plus the
@@ -2681,7 +3089,18 @@ function monthPickerHtml() {
   return html;
 }
 
-function openMonthPicker() {
+// Two triggers now open this: the masthead button and the pill. Which one did
+// is remembered so aria-expanded lands on it — focus return needs no help,
+// since trapModalFocus() already captures document.activeElement.
+let _pickerTrigger = null;
+
+function openMonthPicker(trigger) {
+  // Today's period is a day, not a control: both its representations carry
+  // .inert. The masthead button's inline onclick still fires, so the refusal
+  // has to live here as well as in tabindex and pointer-events.
+  const from = trigger || document.getElementById('masthead-month');
+  if (from && from.classList.contains('inert')) return;
+  _pickerTrigger = from;
   const list = document.getElementById('month-list');
   list.innerHTML = monthPickerHtml();
   list.querySelectorAll('.lrow').forEach(btn => {
@@ -2694,7 +3113,7 @@ function openMonthPicker() {
       applyViewMonth(y, m);
     });
   });
-  document.getElementById('masthead-month').setAttribute('aria-expanded', 'true');
+  if (_pickerTrigger) _pickerTrigger.setAttribute('aria-expanded', 'true');
   document.body.classList.add('modal-open-state');
   const overlay = document.getElementById('month-overlay');
   overlay.classList.add('open');
@@ -2706,10 +3125,11 @@ function openMonthPicker() {
 }
 
 function closeMonthPicker() {
-  document.getElementById('masthead-month').setAttribute('aria-expanded', 'false');
+  if (_pickerTrigger) _pickerTrigger.setAttribute('aria-expanded', 'false');
+  _pickerTrigger = null;
   document.body.classList.remove('modal-open-state');
   document.getElementById('month-overlay').classList.remove('open');
-  releaseModalFocus();   // returns focus to #masthead-month
+  releaseModalFocus();   // returns focus to whichever trigger opened it
 }
 
 // Scroll the Logs ledger to a month's header, growing the scope until that
@@ -2727,46 +3147,22 @@ function logsScrollToMonth(y, m) {
   logsScrollToYm(`${y}-${m}`);
 }
 
-// Put a month's header just under whatever sticky chrome is above it. Shared
-// by the month selector and the "Earlier months" tail, so a jump and an append
-// land identically.
+// Park a month's header at LOGS_PARK. Shared by the month picker, the pill's
+// swipe and the "Earlier months" tail, so a jump and an append land
+// identically — and so suppressing the spy here covers every caller by
+// construction.
 function logsScrollToYm(key) {
   const target = document.querySelector(`#logs-ledger .month-header[data-ym="${key}"]`);
   if (!target) return;
-  const top = target.getBoundingClientRect().top + window.scrollY - stickyTopOffset() - 8;
-  window.scrollTo({ top: Math.max(0, top), behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
-}
-
-function renderArchiveShelf() {
-  const el = document.getElementById('month-shelf');
-  if (!el) return;
-  const now = new Date();
-  const curKey = `${now.getFullYear()}-${now.getMonth()}`;
-  const keys = new Set();
-  allRows.forEach(r => {
-    if (!(activeUser && r.User === activeUser)) return;
-    const d = new Date(r.Date);
-    const k = `${d.getFullYear()}-${d.getMonth()}`;
-    if (k !== curKey) keys.add(k);
-  });
-  const months = [...keys]
-    .map(k => { const [y, m] = k.split('-').map(Number); return { y, m }; })
-    .sort((a, b) => (b.y - a.y) || (b.m - a.m))
-    .slice(0, 12);
-  if (!months.length) { el.innerHTML = ''; return; }
-
-  el.innerHTML = `<div class="shelf-title">Archive</div><div class="shelf-row">` + months.map(({ y, m }) => {
-    const active = (m === viewMonth && y === viewYear);
-    const label = (y === now.getFullYear()) ? MONTHS[m] : `${MONTHS[m]} ’${String(y).slice(2)}`;
-    return `<button class="shelf-chip${active ? ' active' : ''}" data-y="${y}" data-m="${m}">${label}</button>`;
-  }).join('') + `</div>`;
-
-  el.querySelectorAll('.shelf-chip').forEach(btn => {
-    // Through the shared handler, so the masthead label follows the shelf.
-    btn.addEventListener('click', () => {
-      applyViewMonth(parseInt(btn.dataset.y), parseInt(btn.dataset.m));
-    });
-  });
+  const want = target.getBoundingClientRect().top + window.scrollY - LOGS_PARK;
+  const top = Math.max(0, want);
+  // The oldest months can't reach the line — the document bottoms out first.
+  // Record it, so releaseSpy() leaves the readout on the month that was asked
+  // for rather than on whatever the line ends up pointing at.
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  _jumpClamped = top > maxScroll + 1;
+  suppressSpy();
+  window.scrollTo({ top, behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
 }
 
 // ── Archive card (Phase 3) ──────────────────────────────────────────────────
@@ -3475,6 +3871,7 @@ async function fetchServerRows() {
 }
 
 async function init() {
+  wirePillGestures();
   try {
     allRows = await fetchServerRows();
     document.getElementById('main-loader').style.display = 'none';
@@ -3829,8 +4226,15 @@ function showToast(msg) {
   _toastTimer = setTimeout(() => el.classList.remove('show'), 4200);
 }
 
+// Each tab remembers where it was left. Returning to a scrolled tab restores
+// the position, which is what keeps the pill lifted across a tab change — it is
+// the app's fixed point during the shared-axis slide, and it can only read as
+// one if it doesn't fade out and back on every switch. A tab never visited
+// starts at its top, as it always did.
+const scrollMemory = { today: 0, logs: 0, trends: 0 };
+
 function switchView(view) {
-  window.scrollTo(0, 0);
+  if (view !== currentView) scrollMemory[currentView] = window.scrollY;
   const fromIdx = VIEW_ORDER.indexOf(currentView);
   const toIdx = VIEW_ORDER.indexOf(view);
   const isTabChange = view !== currentView;
@@ -3851,12 +4255,16 @@ function switchView(view) {
   // Slider slot n = n × (own width + 4px gap); see the .nav-slider CSS note.
   document.getElementById('nav-slider').style.transform = `translateX(calc(${toIdx * 100}% + ${toIdx * 4}px))`;
   // The masthead lives outside the view panes, so it must follow every tab
-  // change — including the ones calculateAndRender()'s key-skip elides. The
-  // scrollTo(0,0) above means the condensed state is always stale here, and
-  // the scroll handler won't fire to clear it if we were already at the top.
-  document.getElementById('masthead').classList.remove('condensed');
+  // change — including the ones calculateAndRender()'s key-skip elides.
   renderMasthead();
   calculateAndRender();
+  // ⚠️ Restore AFTER the render: before it the incoming pane has no content
+  // yet, so the browser clamps the scroll to a short document and the position
+  // is silently lost. Suppressed so the jump doesn't drag the readout through
+  // every month on the way.
+  suppressSpy(400);
+  window.scrollTo(0, scrollMemory[view] || 0);
+  wireLogsSpy();
 }
 
 function calculateAndRender() {
@@ -3883,7 +4291,8 @@ function calculateAndRender() {
   // Skip entirely if this view already shows the current month + data —
   // switching back to a tab should reveal it as-is, not replay everything.
   // (.settled pins child animations, since display:none → block restarts them.)
-  // Trends keys on the shared viewMonth (chip + shelf bust it); Today/Logs key
+  // Trends keys on the shared viewMonth (the picker and the swipe bust it);
+  // Today/Logs key
   // on activeMonth, constant within a session since Phase B — only dataStamp
   // busts them. Logs month-chip taps scroll instead of re-rendering, so the
   // skip is exactly right there.
@@ -3928,6 +4337,10 @@ function calculateAndRender() {
   const activeIncomeColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-income').trim() || "#00A36C";
 
   if (currentView === 'today') {
+    // Today carries a masthead too now, so it needs the call the Logs and
+    // Trends branches already had — the visibility gate is "once there is
+    // data", and data arriving while Today is open is the common first paint.
+    renderMasthead();
     let lastMo = activeMonth - 1, lastYr = activeYear;
     if (lastMo < 0) { lastMo = 11; lastYr -= 1; }
     const lastMonth = monthTotals(lastYr, lastMo);
@@ -4036,7 +4449,6 @@ function calculateAndRender() {
   if (currentView === 'trends') {
     renderMasthead();
     renderTrendsInsight();
-    renderArchiveShelf();
 
     // Trends reads its own viewMonth (Phase 5), never the header month state —
     // so it filters its own row set instead of using the shared `rows`.
