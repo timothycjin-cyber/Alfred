@@ -371,6 +371,9 @@
     background: var(--surface-container); color: var(--on-surface-variant);
     display: inline-flex; align-items: center; justify-content: center; font-size: 9px;
   }
+  /* display: inline-flex above beats the UA sheet's [hidden] { display: none },
+     so hiding the pill needs saying explicitly. */
+  .pill[hidden] { display: none; }
   #month-pill.inert { cursor: default; padding-right: 15px; }
   #month-pill.inert .pill-cx { display: none; }
 
@@ -444,7 +447,15 @@
     font-family: var(--font-display);
     font-size: 31px; font-weight: 500; letter-spacing: -0.9px; line-height: 1;
   }
-  .month-txt .yr { color: var(--on-surface-variant); font-size: 19px; margin-left: 7px; }
+  /* The second half of the title, quieter: the year on Trends and Logs, the
+     day and month on Today. Always present — the old chip suppressed the year
+     inside the current year to save space it didn't have, and "July" alone is
+     ambiguous the moment you step back past January. */
+  #masthead .month-txt .sm {
+    color: var(--on-surface-variant);
+    font-size: 18px;
+    margin-left: 7px;
+  }
 
   /* The caret is load-bearing, not decoration. A 31px serif title has no
      affordance of its own, and "the control doesn't look tappable" is already
@@ -459,23 +470,21 @@
   }
   .month-btn[aria-expanded="true"] .caret { transform: rotate(180deg); }
 
-  .steppers { display: flex; gap: 2px; align-self: center; flex: none; }
-  .arrow-btn {
-    width: 44px; height: 44px; border-radius: var(--shape-full);
-    border: 1px solid var(--outline-variant); background: transparent;
-    color: var(--on-surface); font-family: inherit; font-size: 15px;
-    cursor: pointer; outline: none;
-    transition: background var(--motion-standard), transform var(--motion-snap);
-  }
-  .arrow-btn:active:not(:disabled) { transform: scale(0.9); background: var(--surface-container); }
-  .arrow-btn:disabled { opacity: 0.28; cursor: default; }
+  /* Today states a date, and a date is not a control: no caret, no press
+     state, out of the tab order (set in renderMasthead), and openMonthPicker()
+     refuses it. The unit itself is the tell — Today's period is a day. */
+  #masthead-month.inert { cursor: default; }
+  #masthead-month.inert:active { transform: none; background: transparent; }
+  #masthead-month.inert .caret { display: none; }
 
   /* The deleted header was silently providing the status-bar inset in a
      standalone PWA. With it gone, .container is the first thing under the
-     status bar on Today, so it carries the inset itself. On Trends and Logs
-     the masthead sits above and carries the inset instead — body.has-masthead
-     drops this padding to 12px so the two are never applied twice, and the
-     8px the masthead leaves below itself makes the gap 20px either way. */
+     status bar whenever there is no masthead, so it carries the inset itself.
+     When the masthead is up it sits above and carries the inset instead —
+     body.has-masthead drops this padding to 12px so the two are never applied
+     twice. The masthead is on all three tabs since 2026-08-11b, so in practice
+     the gap above the first card is the masthead's own 6px plus this 12px,
+     identically everywhere; the full-inset branch is the no-data state. */
   .container { max-width: 900px; margin: 0 auto; padding: calc(1.25rem + env(safe-area-inset-top, 0px)) 1rem 1.25rem; overflow-x: clip; }
   body.has-masthead .container { padding-top: 12px; }
   .view-section { display: none; }
@@ -1617,14 +1626,10 @@
      Today reads the date and is inert; Trends and Logs read the month and open
      the picker. Month stepping is a swipe on the pill; there are no chevrons. -->
 <div id="masthead" hidden>
-  <button id="masthead-month" class="month-btn" onclick="openMonthPicker()" aria-haspopup="dialog" aria-expanded="false">
+  <button id="masthead-month" class="month-btn" onclick="openMonthPicker(this)" aria-haspopup="dialog" aria-expanded="false">
     <span class="month-txt"></span>
     <span class="caret" aria-hidden="true">▾</span>
   </button>
-  <div class="steppers">
-    <button class="arrow-btn" id="month-prev" onclick="stepViewMonth(-1)" aria-label="Previous month">‹</button>
-    <button class="arrow-btn" id="month-next" onclick="stepViewMonth(1)" aria-label="Next month">›</button>
-  </div>
 </div>
 
 <div class="bottom-bar">
@@ -1966,6 +1971,9 @@ const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MONTHS_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const WEEKDAYS_MON = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];  // Mon=0 … Sun=6
+// Sun=0 … Sat=6, i.e. indexed by Date.getDay() — NOT interchangeable with
+// WEEKDAYS_MON above, which is Monday-first and abbreviated.
+const DAYS_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
 // Parse User ID from URL. The installed PWA launches from manifest start_url,
 // which can't carry a per-user query — so remember the last ?user= in
@@ -2724,24 +2732,55 @@ window.addEventListener('resize', () => {
   _travelRAF = requestAnimationFrame(() => { _travelRAF = null; syncPillTravel(); });
 }, { passive: true });
 
-// The masthead shows on Trends and Logs, and only once there is data to
-// navigate. Months are written in words — the app writes them that way
+// The masthead names the period. It never measures it — no figure goes up
+// here, on either representation, which is the line that settles the hairline,
+// the sub-line and every future request to put "budget left" in the corner.
+//
+// All three tabs carry one since 2026-08-11b, but Today's says the DATE and is
+// inert: Today's period is a day, so the unit differs visibly from a control
+// and no caret is needed to say so. Trends and Logs say the month and open the
+// picker. Months are written in words — the app writes them that way
 // everywhere else, and "07-26" in 31pt serif would read as a filename.
+//
+// The visibility gate is one rule for all three: show once there is data.
+// body.has-masthead is what stops .container applying the status-bar inset a
+// second time, so the two must stay in step.
 function renderMasthead() {
   const el = document.getElementById('masthead');
-  if (!el) return;
-  const earliest = earliestDataMonth();
-  const show = (currentView === 'trends' || currentView === 'logs') && earliest !== null;
+  const pill = document.getElementById('month-pill');
+  if (!el || !pill) return;
+  const show = earliestDataMonth() !== null;
   el.hidden = !show;
+  pill.hidden = !show;
   document.body.classList.toggle('has-masthead', show);
   if (!show) return;
+
+  const isToday = currentView === 'today';
+  const mhTxt = el.querySelector('.month-txt');
+  const mhBtn = document.getElementById('masthead-month');
+  const pillLbl = document.getElementById('month-pill-label');
   const now = new Date();
-  const cur = now.getFullYear() * 12 + now.getMonth();
-  const key = viewYear * 12 + viewMonth;
-  el.querySelector('.month-txt').innerHTML =
-    `${MONTHS_FULL[viewMonth]}<span class="yr">${viewYear}</span>`;
-  document.getElementById('month-prev').disabled = key <= earliest;
-  document.getElementById('month-next').disabled = key >= cur;
+
+  if (isToday) {
+    mhTxt.innerHTML = `${DAYS_FULL[now.getDay()]}<span class="sm">${now.getDate()} ${MONTHS_FULL[now.getMonth()]}</span>`;
+    pillLbl.textContent = `${now.getDate()} ${MONTHS[now.getMonth()]}`;
+  } else {
+    mhTxt.innerHTML = `${MONTHS_FULL[viewMonth]}<span class="sm">${viewYear}</span>`;
+    pillLbl.textContent = `${MONTHS[viewMonth]} ${viewYear}`;
+  }
+
+  [mhBtn, pill].forEach(btn => {
+    btn.classList.toggle('inert', isToday);
+    btn.setAttribute('aria-haspopup', isToday ? 'false' : 'dialog');
+    if (isToday) {
+      btn.setAttribute('tabindex', '-1');
+      btn.removeAttribute('aria-expanded');
+    } else {
+      btn.removeAttribute('tabindex');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
   syncPillTravel();
 }
 
@@ -4089,6 +4128,10 @@ function calculateAndRender() {
   const activeIncomeColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-income').trim() || "#00A36C";
 
   if (currentView === 'today') {
+    // Today carries a masthead too now, so it needs the call the Logs and
+    // Trends branches already had — the visibility gate is "once there is
+    // data", and data arriving while Today is open is the common first paint.
+    renderMasthead();
     let lastMo = activeMonth - 1, lastYr = activeYear;
     if (lastMo < 0) { lastMo = 11; lastYr -= 1; }
     const lastMonth = monthTotals(lastYr, lastMo);
