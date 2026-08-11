@@ -870,26 +870,6 @@
   .today-flat { color: var(--on-surface-variant); font-weight: 600; }
   .today-empty { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
 
-  /* Month shelf — the ledger's "pages". A horizontal strip of months that hold
-     data (most recent first), tap to time-travel. Scrolls inside itself so the
-     overflow never widens the document (the .container clips overflow-x). */
-  #month-shelf:not(:empty) { margin-top: 4px; }
-  .shelf-title {
-    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-    color: var(--on-surface-variant); margin: 0 0.25rem 8px;
-  }
-  .shelf-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-  .shelf-row::-webkit-scrollbar { display: none; }
-  .shelf-chip {
-    flex-shrink: 0; cursor: pointer; font-family: var(--font-body);
-    font-size: 12px; font-weight: 700; padding: 6px 13px;
-    border-radius: var(--shape-full); border: 1px solid var(--outline-variant);
-    background: var(--surface-container-low); color: var(--on-surface-variant);
-    white-space: nowrap; transition: transform var(--motion-snap), background var(--motion-standard), color var(--motion-standard), border-color var(--motion-standard);
-  }
-  .shelf-chip:active { transform: scale(0.94); }
-  .shelf-chip.active { background: var(--on-surface); color: var(--surface-container-low); border-color: var(--on-surface); }
-
   /* Archive card — the closed form of the pace bar. When a past month is in
      view it stands in the same slot with an archival, ledger voice. */
   .archive-card { display: flex; flex-direction: column; }
@@ -1743,7 +1723,6 @@
         </div>
       </div>
     </div>
-    <div id="month-shelf"></div>
   </div>
 </div>
 
@@ -2029,9 +2008,11 @@ let activeMonth = new Date().getMonth();
 let activeYear = new Date().getFullYear();
 
 // The shared view-month state (roadmap v2 Phase 5, generalized in refinement
-// Phase B): moved by the contextual header ‹ month › chip and the archive
-// shelf. Trends renders it; Logs scrolls to it (never filters); Today
-// ignores it.
+// Phase B, and the readout on Logs since 2026-08-11b). Two doors move it: the
+// month picker and a swipe on the pill. Trends renders it; on Logs it follows
+// the scroll instead of driving it; Today ignores it.
+// Never persisted — every launch opens on the real current month, so a stale
+// month can't be misread as now.
 let viewMonth = new Date().getMonth();
 let viewYear = new Date().getFullYear();
 let currentView = 'today';
@@ -2677,14 +2658,13 @@ function bindDrillRowClicks(scope) {
   });
 }
 
-// ── Trends month navigation + archive shelf (roadmap Phase 5) ───────────────
-// The month selector steps viewMonth within [earliest data month … current
-// month]. It lives on Trends and Logs only — as the pane's masthead since
-// 2026-08-11, previously as a chip in the now-deleted header; Today always
-// shows the real current month. On Trends a step re-renders the tab; on Logs
-// it scrolls the continuous ledger to that month's header (no filtering). The
-// archive shelf at the bottom of Trends is a chip row of PAST months that hold
-// data — tapping one time-travels by setting the same viewMonth.
+// ── Month navigation (roadmap Phase 5, rebuilt 2026-08-11b) ─────────────────
+// Two doors onto a month, and only two: the picker sheet, and a swipe on the
+// pill. The masthead chevrons and the Trends archive shelf are both gone — the
+// picker supersedes the shelf (it reaches every month, shows each month's
+// total, and is one tap from anywhere), which is roadmap v3 decision 7
+// deliberately reversed. On Trends a change re-renders the tab; on Logs it
+// scrolls the continuous ledger to that month's header, never filtering.
 
 function earliestDataMonth() {
   let best = null;
@@ -3160,38 +3140,6 @@ function logsScrollToYm(key) {
   const top = target.getBoundingClientRect().top + window.scrollY - LOGS_PARK;
   suppressSpy();
   window.scrollTo({ top: Math.max(0, top), behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
-}
-
-function renderArchiveShelf() {
-  const el = document.getElementById('month-shelf');
-  if (!el) return;
-  const now = new Date();
-  const curKey = `${now.getFullYear()}-${now.getMonth()}`;
-  const keys = new Set();
-  allRows.forEach(r => {
-    if (!(activeUser && r.User === activeUser)) return;
-    const d = new Date(r.Date);
-    const k = `${d.getFullYear()}-${d.getMonth()}`;
-    if (k !== curKey) keys.add(k);
-  });
-  const months = [...keys]
-    .map(k => { const [y, m] = k.split('-').map(Number); return { y, m }; })
-    .sort((a, b) => (b.y - a.y) || (b.m - a.m))
-    .slice(0, 12);
-  if (!months.length) { el.innerHTML = ''; return; }
-
-  el.innerHTML = `<div class="shelf-title">Archive</div><div class="shelf-row">` + months.map(({ y, m }) => {
-    const active = (m === viewMonth && y === viewYear);
-    const label = (y === now.getFullYear()) ? MONTHS[m] : `${MONTHS[m]} ’${String(y).slice(2)}`;
-    return `<button class="shelf-chip${active ? ' active' : ''}" data-y="${y}" data-m="${m}">${label}</button>`;
-  }).join('') + `</div>`;
-
-  el.querySelectorAll('.shelf-chip').forEach(btn => {
-    // Through the shared handler, so the masthead label follows the shelf.
-    btn.addEventListener('click', () => {
-      applyViewMonth(parseInt(btn.dataset.y), parseInt(btn.dataset.m));
-    });
-  });
 }
 
 // ── Archive card (Phase 3) ──────────────────────────────────────────────────
@@ -4320,7 +4268,8 @@ function calculateAndRender() {
   // Skip entirely if this view already shows the current month + data —
   // switching back to a tab should reveal it as-is, not replay everything.
   // (.settled pins child animations, since display:none → block restarts them.)
-  // Trends keys on the shared viewMonth (chip + shelf bust it); Today/Logs key
+  // Trends keys on the shared viewMonth (the picker and the swipe bust it);
+  // Today/Logs key
   // on activeMonth, constant within a session since Phase B — only dataStamp
   // busts them. Logs month-chip taps scroll instead of re-rendering, so the
   // skip is exactly right there.
@@ -4477,7 +4426,6 @@ function calculateAndRender() {
   if (currentView === 'trends') {
     renderMasthead();
     renderTrendsInsight();
-    renderArchiveShelf();
 
     // Trends reads its own viewMonth (Phase 5), never the header month state —
     // so it filters its own row set instead of using the shared `rows`.
