@@ -2489,6 +2489,9 @@ function renderLogsLedger() {
   el.innerHTML = html;
   bindDayColClicks(el);
   paintDayColumns(el);
+  // One site covers every way the header set changes: the tail, the scroll-to
+  // growth loop and optimistic re-renders all land here.
+  wireLogsSpy();
 }
 
 // The ledger's footer: either the one control that grows the scope, or a note
@@ -2695,22 +2698,100 @@ function earliestDataMonth() {
 }
 
 // ── The Logs month readout ──────────────────────────────────────────────────
+// On Logs there is no selected month, only a position: the pill relabels itself
+// as you cross month headers. It is a FOLLOWER, not a door — it never scrolls,
+// never filters and never re-renders the ledger; it only ever agrees with where
+// the ledger already is.
+//
 // Nothing is sticky at the top of the page any more — the masthead scrolls away
 // and the pill floats over it — so stickyTopOffset() is gone and a jump parks a
-// month header at a fixed distance from the top instead.
+// header at a fixed distance from the top instead.
 //
-// ⚠️ THESE TWO NUMBERS ARE A PAIR. LOGS_SCROLL_TOP is where a programmatic jump
-// leaves a header; SPY_BAND_TOP is where the scroll-spy starts looking. The
-// parked position must land INSIDE the spy's band (SPY_BAND_TOP … 22% of the
-// viewport), or a picker pick or a swipe puts the header somewhere the spy
-// cannot see and the readout either doesn't update or names the neighbouring
-// month. 72 sits inside 56…~186 at a phone's height with room either side.
-// Change one and re-check the other.
+// ⚠️ THESE TWO NUMBERS ARE A PAIR. SPY_LINE is the reference line the readout
+// resolves against: the month is whichever header is the LAST one above it.
+// LOGS_PARK is where a programmatic jump leaves a header. LOGS_PARK must stay
+// ≤ SPY_LINE, or a picker pick or a swipe parks the header below the line and
+// the readout names the month *before* the one you just asked for. The 8px of
+// slack absorbs smooth-scroll landing rounding. Change one, re-check the other.
 //
-// 72 rather than the ~58 the condensed masthead used to need: the pill now
-// floats at top 12px and is 38px tall, so a header has to clear ~50px of glass.
-const LOGS_SCROLL_TOP = 72;
-const SPY_BAND_TOP    = 56;
+// 56 also clears the pill (top 12px, 38px tall), so a parked header never sits
+// beside it.
+const SPY_LINE  = 64;
+const LOGS_PARK = 56;
+
+// Resolved geometrically rather than from the observer's entry list. The
+// obvious "topmost intersecting entry" rule is directionally asymmetric: when
+// you scroll UP out of July, July's header leaves the band and nothing
+// intersects, so the readout latches on July while August fills the screen.
+// The observer is only a trigger; this decides.
+function spyResolve() {
+  if (_spySuppressed || currentView !== 'logs') return;
+  const hs = [...document.querySelectorAll('#logs-ledger .month-header')];
+  if (!hs.length) return;
+
+  // The last month can never be scrolled to the line — the document bottoms out
+  // first — so at the end of the ledger the answer is the oldest header, not
+  // whichever one last happened to cross.
+  const atBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+  let pick = atBottom ? hs[hs.length - 1] : null;
+  if (!pick) {
+    let best = -Infinity;
+    hs.forEach(h => {
+      const t = h.getBoundingClientRect().top;
+      if (t <= SPY_LINE && t > best) { best = t; pick = h; }
+    });
+    if (!pick) pick = hs[0];   // above the first header: the newest month
+  }
+
+  const [y, m] = pick.dataset.ym.split('-').map(Number);
+  if (y === viewYear && m === viewMonth) return;
+  viewYear = y;
+  viewMonth = m;
+  renderMasthead();            // label and state ONLY — never calculateAndRender()
+}
+
+// A programmatic scroll passes through every month between here and there, and
+// the readout must not narrate the journey.
+let _spySuppressed = false, _spyTimer = null;
+
+function suppressSpy(ms = 1200) {
+  _spySuppressed = true;
+  clearTimeout(_spyTimer);
+  _spyTimer = setTimeout(releaseSpy, ms);
+  // ⚠️ Not { once: true }: if the timeout wins the race, a stale listener would
+  // survive and release the NEXT suppression early. Explicit removal is
+  // idempotent, and removing a listener that already fired is a no-op.
+  window.addEventListener('scrollend', releaseSpy);
+}
+
+function releaseSpy() {
+  clearTimeout(_spyTimer);
+  window.removeEventListener('scrollend', releaseSpy);
+  _spySuppressed = false;
+  // A jump to a month whose header is already parked scrolls nothing, so it
+  // fires neither scrollend nor an observer callback. Resolve once on release
+  // or the label can stay on a month the ledger has left.
+  spyResolve();
+}
+
+let _spyObserver = null;
+
+function wireLogsSpy() {
+  if (_spyObserver) { _spyObserver.disconnect(); _spyObserver = null; }
+  // Off-tab #logs-view is display:none, so every header rect is 0 — a live
+  // observer would rewrite viewMonth while you scroll Trends.
+  if (currentView !== 'logs') return;
+
+  // Top margin exactly on SPY_LINE, so every crossing of the line produces a
+  // callback. Band SIZE is irrelevant — spyResolve() does the deciding — which
+  // is why this isn't the percentage-based band the spec proposed: a percentage
+  // bottom margin inverts the band on a short viewport.
+  _spyObserver = new IntersectionObserver(spyResolve, {
+    rootMargin: `-${SPY_LINE}px 0px 0px 0px`,
+    threshold: 0
+  });
+  document.querySelectorAll('#logs-view .month-header').forEach(el => _spyObserver.observe(el));
+}
 
 // Step to the adjacent month. The pill's swipe is the only caller since the
 // chevrons went; the picker and the long-press call applyViewMonth() directly
@@ -3069,13 +3150,15 @@ function logsScrollToMonth(y, m) {
   logsScrollToYm(`${y}-${m}`);
 }
 
-// Put a month's header just under whatever sticky chrome is above it. Shared
-// by the month selector and the "Earlier months" tail, so a jump and an append
-// land identically.
+// Park a month's header at LOGS_PARK. Shared by the month picker, the pill's
+// swipe and the "Earlier months" tail, so a jump and an append land
+// identically — and so suppressing the spy here covers every caller by
+// construction.
 function logsScrollToYm(key) {
   const target = document.querySelector(`#logs-ledger .month-header[data-ym="${key}"]`);
   if (!target) return;
-  const top = target.getBoundingClientRect().top + window.scrollY - stickyTopOffset() - 8;
+  const top = target.getBoundingClientRect().top + window.scrollY - LOGS_PARK;
+  suppressSpy();
   window.scrollTo({ top: Math.max(0, top), behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
 }
 
@@ -4172,8 +4255,15 @@ function showToast(msg) {
   _toastTimer = setTimeout(() => el.classList.remove('show'), 4200);
 }
 
+// Each tab remembers where it was left. Returning to a scrolled tab restores
+// the position, which is what keeps the pill lifted across a tab change — it is
+// the app's fixed point during the shared-axis slide, and it can only read as
+// one if it doesn't fade out and back on every switch. A tab never visited
+// starts at its top, as it always did.
+const scrollMemory = { today: 0, logs: 0, trends: 0 };
+
 function switchView(view) {
-  window.scrollTo(0, 0);
+  if (view !== currentView) scrollMemory[currentView] = window.scrollY;
   const fromIdx = VIEW_ORDER.indexOf(currentView);
   const toIdx = VIEW_ORDER.indexOf(view);
   const isTabChange = view !== currentView;
@@ -4197,6 +4287,13 @@ function switchView(view) {
   // change — including the ones calculateAndRender()'s key-skip elides.
   renderMasthead();
   calculateAndRender();
+  // ⚠️ Restore AFTER the render: before it the incoming pane has no content
+  // yet, so the browser clamps the scroll to a short document and the position
+  // is silently lost. Suppressed so the jump doesn't drag the readout through
+  // every month on the way.
+  suppressSpy(400);
+  window.scrollTo(0, scrollMemory[view] || 0);
+  wireLogsSpy();
 }
 
 function calculateAndRender() {
