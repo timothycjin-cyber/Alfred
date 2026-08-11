@@ -326,6 +326,31 @@
   }
   .month-btn[aria-expanded="true"] .caret { transform: rotate(180deg); }
 
+  /* Condensed state — the M3 large-to-small top app bar, one element and two
+     states. This is the only reason a masthead is acceptable on Logs, where
+     you scroll deep and still want to change month.
+
+     Vertical padding drops to 3px, not the 8px the spec proposed: .month-btn
+     keeps its 44px touch floor, so 8px either side would leave a 60px bar
+     that saves almost nothing over the 74px expanded one. At 3px it lands at
+     50px, which is the intended size with the target intact. */
+  #masthead.condensed {
+    padding: calc(3px + env(safe-area-inset-top, 0px)) 18px 3px;
+    align-items: center;
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border-bottom: 1px solid var(--outline-variant);
+  }
+  #masthead.condensed .month-txt { font-size: 15px; letter-spacing: -0.2px; font-weight: 600; }
+  #masthead.condensed .month-txt .yr { font-size: 13px; margin-left: 5px; }
+  /* The steppers hide deliberately. Keeping them means either 44px buttons —
+     so the condensed bar saves nothing — or sub-44px ones, which fails the
+     target floor. Stepping to an adjacent month is a top-of-pane action; once
+     you are deep in a scroll you are jumping, and the picker is one tap away.
+     Scrolling back up brings them back. */
+  #masthead.condensed .steppers { display: none; }
+
   .steppers { display: flex; gap: 2px; align-self: center; flex: none; }
   .arrow-btn {
     width: 44px; height: 44px; border-radius: var(--shape-full);
@@ -2521,6 +2546,23 @@ function renderMasthead() {
   document.getElementById('month-next').disabled = key >= cur;
 }
 
+// Condense on scroll. Hysteresis — 48px to engage, 36px to release — so a
+// scroll parked on the boundary can't flicker between the two states, which a
+// single threshold guarantees the moment the layout shift the condense itself
+// causes pushes scrollY back across it.
+let _mhRAF = null;
+function syncMasthead() {
+  const el = document.getElementById('masthead');
+  if (!el || el.hidden) return;
+  const on = el.classList.contains('condensed');
+  if (!on && window.scrollY > 48) el.classList.add('condensed');
+  else if (on && window.scrollY < 36) el.classList.remove('condensed');
+}
+window.addEventListener('scroll', () => {
+  if (_mhRAF) return;
+  _mhRAF = requestAnimationFrame(() => { _mhRAF = null; syncMasthead(); });
+}, { passive: true });
+
 // Scroll the Logs ledger to a month's header, growing the scope until that
 // month is rendered — the chip is a jump shortcut, so it loads whatever it
 // needs to get there and leaves it loaded. Stepping FORWARD never shrinks the
@@ -3660,7 +3702,10 @@ function switchView(view) {
   // Slider slot n = n × (own width + 4px gap); see the .nav-slider CSS note.
   document.getElementById('nav-slider').style.transform = `translateX(calc(${toIdx * 100}% + ${toIdx * 4}px))`;
   // The masthead lives outside the view panes, so it must follow every tab
-  // change — including the ones calculateAndRender()'s key-skip elides.
+  // change — including the ones calculateAndRender()'s key-skip elides. The
+  // scrollTo(0,0) above means the condensed state is always stale here, and
+  // the scroll handler won't fire to clear it if we were already at the top.
+  document.getElementById('masthead').classList.remove('condensed');
   renderMasthead();
   calculateAndRender();
 }
