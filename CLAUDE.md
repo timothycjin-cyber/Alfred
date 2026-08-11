@@ -1,6 +1,29 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-10 (second pass) — **Design fix spec: type, contrast, targets, and a
+*Last updated: 2026-08-11 — **Header deleted; the month is the masthead (§3.3, §3.4).** The
+app header is **gone** — 77px of sticky chrome on every tab, holding one word of branding and
+a `display:none` div. On Trends and Logs the month is now the pane's **masthead** (editorial
+serif at 31px via a new `--font-display`, chevrons beside it, **condensing to ~50px on
+scroll** with the steppers hidden); tapping it opens a **ledger-list month picker** whose rows
+carry each month's spend and a proportional bar. **Today has no top chrome at all** — the hero
+already states the month. ⚠️ **The header was doing two invisible jobs**: supplying the
+status-bar inset in standalone PWA mode (now on `.container`, with `body.has-masthead`
+preventing a double application) and being the sticky offset `logsScrollToYm()` subtracts (now
+`stickyTopOffset()`). ⚠️ **The masthead is `sticky`, never `fixed`, and lives OUTSIDE
+`.container`** (the overflow trap, and the `overflow-x: clip` question). ⚠️ **The caret is
+load-bearing** — a 31px serif title has no affordance. ⚠️ **`pickerMonths()` lists months
+HOLDING DATA plus the current one**, not calendar months — a gap month's row scrolls nowhere
+on Logs; and the name isn't `monthTotals()`, which is already taken. ⚠️ **All three month
+doors — chevrons, picker, archive shelf — route through `applyViewMonth`**; the shelf used to
+assign `viewMonth` itself. **Supersedes roadmap v3 Phase B's header chip** but NOT its "one
+contextual selector" decision. Condensed padding is **3px, not the spec's 8px**, because
+`.month-btn` keeps its 44px floor. Render-loop verified **231/231**, **with fourteen negative
+controls run first** — one of which fired nothing and exposed that the `.condensed` reset is
+only reachable via a round trip through Today, and two of which exposed a harness bug that
+discarded a crashed section's already-passing checks. The **three doors onto month changing on
+Trends** are left unresolved deliberately (§6). Front-end only — no Apps Script change, no
+redeploy.
+Prior banner (2026-08-10, second pass) — **Design fix spec: type, contrast, targets, and a
 quieter Today (§3.2–§3.14).** Shipped as four commits from an owner-supplied review of
 `main` @ 86054de. **The headline is a real bug: `body` pinned
 `font-variation-settings: 'wght' 400`, and in a variable font that axis BEATS `font-weight`** —
@@ -382,6 +405,14 @@ ramp after the rebalancing sits at **500–800**, with 650/750 used where a half
 better; the rule of thumb for anything new is one step below what a flattened rendering would
 have tempted you into (900 → 750/800, 800 → 700, 700 → 600).
 
+**A second face, for one job (2026-08-11).** `--font-display` (**Newsreader**, falling back to
+the platform serif) is the app's only non-Roboto face, and it sets exactly one thing: the month
+as a pane's masthead (§3.4). It is variable (400..700), so the condensed state's heavier cut is
+a real weight rather than a synthesised one. **Don't spread it** — the editorial serif reads as
+a masthead precisely because nothing else on the page uses it. ⚠️ Verifying it needs *rendered
+pixels*, not advance width: "August" at 31px measures 93.6px in Newsreader and 93.0px in Roboto
+Flex, so a width probe passes with the serif never loading.
+
 **Colour, amended 2026-08-10 (second pass).** Three rules the pass added:
 
 - **Light and dark semantic tokens are tuned separately.** `--semantic-income` /
@@ -471,30 +502,91 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
   rule they meet is the one §3.6 states — **≥44px tall, with the whole cell (track +
   label) as the hit area**. ⚠️ **Measure targets with the sheet OPEN**: a closed overlay is
   `scale(0.08)` and reports a 44px control as 3.5px.
-- **Header:** just "Project Alfred" on Today; on Trends/Logs a contextual month chip
-  appears (§3.4). `.header-actions` carries a `min-height: 36px` (2026-07-21) matching
-  the monthnav chip's rendered height, so the header row is the same total height on
-  Today (chip absent) as on Logs/Trends (chip shown) — without it the row shrank to the
-  title's ~24px line-height whenever the chip was hidden. No bell (the push digest is
-  retired — Phase F removed the button, `togglePush()`, and the Firebase client
-  entirely). No refresh icon (pull-to-refresh
-  covers it; `@keyframes refreshSpin` survives for the capture-send spinner).
+- **There is no header** (deleted 2026-08-11). `.header`, `.header-title`,
+  `.header-actions` and `#header-monthnav` are all gone, along with `renderHeaderMonthNav()`
+  and the `.monthnav*` CSS. It was 77px of sticky chrome on every tab — 1.25rem of padding
+  either side of a `min-height: 36px` row plus a border — holding one word of branding and
+  a `display:none` div; the 36px floor had been sized for the export and bell buttons that
+  Phase B moved to Logs and hid. On Trends and Logs the month is now the pane's masthead
+  (§3.4); Today has no top chrome at all. ⚠️ **Two things the header was silently doing had
+  to be picked up elsewhere:** the **status-bar inset** in standalone PWA mode (now on
+  `.container`, with `body.has-masthead` dropping it to 12px where the masthead carries it
+  instead — never both), and the **sticky offset** `logsScrollToYm()` subtracts, now
+  `stickyTopOffset()`. There was never a bell after Phase F, and never a refresh icon
+  (pull-to-refresh covers it; `@keyframes refreshSpin` survives for the capture-send
+  spinner).
 
-### 3.4 Month state — single contextual selector
+### 3.4 Month state — the masthead selector
+
+Still **one** month selector (roadmap v3 decision 1) — that decision said *one contextual
+selector*, not *in a header*, so moving it out of one does not re-litigate it. Since
+2026-08-11 it is the **pane's masthead** rather than a chip in the corner of a branding bar.
 
 - `activeMonth`/`activeYear` are **pinned to the real current month at load** and never
   change — Today always shows now. (Consequence: Today/Logs `renderedKey` viewKeys are
   constant within a session, busted only by `dataStamp`.)
-- **Shared `viewMonth`/`viewYear`** drive Trends and Logs, stepped by the compact
-  `‹ Jul ›` header chip (`#header-monthnav`, `renderHeaderMonthNav()`; `’YY` appended
-  when not the current year). Rendered **only when `currentView` is `trends` or `logs`**
-  and data exists; re-rendered on every `switchView`, in the Trends/Logs render
-  branches, and inside `headerNavMonth` (it lives outside the panes, so the key-skip
-  can't cover it).
-- `headerNavMonth(delta)` clamps to [`earliestDataMonth()` … current month], ends
-  disable. **Behavior fork:** on Trends → `calculateAndRender()` (viewKey busts); on
-  Logs → `logsScrollToMonth()` — **no filtering, no re-render**.
-- The Trends archive shelf also sets `viewMonth`; the chip label follows.
+- **Shared `viewMonth`/`viewYear`** drive Trends and Logs. `#masthead` is a **sticky**
+  bar sitting **outside `.container`**, where `.header` used to be, rendered by
+  `renderMasthead()` **only when `currentView` is `trends` or `logs`** and data exists;
+  re-rendered on every `switchView`, in the Trends/Logs render branches, and inside
+  `applyViewMonth` (it lives outside the panes, so the key-skip can't cover it). It also
+  toggles `body.has-masthead`, which is what stops the safe-area inset being applied twice.
+  ⚠️ **Sticky, never `position: fixed`** — the shared-axis slide transiently widens the
+  document, and a fixed bar sizes to the widened layout viewport and *sustains* the
+  overflow (§3.2). ⚠️ **Outside `.container` deliberately**: that element is an
+  `overflow-x: clip` ancestor, and whether sticky survives one is a question this doesn't
+  need to answer.
+- **The month is the title:** `.month-txt`, `var(--font-display)` (Newsreader — the app's
+  only non-Roboto face) at **31px/500**, with the year in a quieter `.yr` span. Always in
+  words and **always with the year** — the old chip suppressed the year in the current
+  year to save space it didn't have, and "July" alone is ambiguous the moment you step back
+  past January.
+- ⚠️ **The caret (`.caret`) is load-bearing, not decoration.** A 31px serif title carries no
+  affordance of its own, and "the control doesn't look tappable" is already on the record
+  against the Logs day columns (§6). Don't ship the masthead without it.
+- **Chevrons** (`.arrow-btn`, 44×44) stay — adjacent-month is the common case and must
+  remain one tap. They clamp to [`earliestDataMonth()` … current month], ends disable.
+- **Condense on scroll** (`syncMasthead()`, rAF-throttled `scroll` listener): the M3
+  large-to-small top app bar, one element and two states. **Hysteresis 48 to engage / 36
+  to release** — the condense shortens the document, which can push `scrollY` back across
+  a single threshold and set it oscillating. The **steppers hide when condensed**,
+  deliberately: keeping them means either 44px buttons (so the bar saves nothing) or
+  sub-44px ones. This is the only reason a masthead is acceptable on Logs, where you scroll
+  deep and still want to change month. ⚠️ **`switchView()` clears `.condensed` explicitly**
+  — its `scrollTo(0, 0)` leaves the state stale, and on a round trip through **Today**
+  nothing else clears it: `renderMasthead()` hides the bar before the scroll event lands,
+  `syncMasthead()` returns early on a hidden masthead, and coming back to a pane already at
+  `scrollY 0` fires no scroll event either. Verified with a negative control; the
+  Trends→Logs hop can't reach the case.
+- **`stepViewMonth(delta)`** clamps and hands to **`applyViewMonth(y, m)`**, which is THE
+  month-change handler. **Behavior fork:** on Trends → `calculateAndRender()` (viewKey
+  busts); on Logs → `logsScrollToMonth()` — **no filtering, no re-render**. ⚠️ **The
+  chevrons, the picker and the archive shelf all route through it** — the shelf used to
+  assign `viewMonth` itself and got away with it only because the Trends branch re-rendered
+  the chip anyway. A parallel path makes Logs' scroll-to-month and the `renderedKey`
+  busting diverge (negative-control verified: it breaks lazy-load, the scroll and the
+  no-unload rule at once).
+- **Month picker** (`#month-overlay`, `openMonthPicker()`): tapping the masthead month
+  opens a bottom sheet listing the months. It is the **ledger-list form, not a year grid** —
+  each row carries that month's spend and a proportional bar, so opening the picker doubles
+  as a small pull-based overview. Reuses `.modal-overlay.align-bottom.sheet-rise`, the
+  shell the drill-in sheet already uses (§3.14) — scrim, spring, `trapModalFocus`, Escape
+  and scrim-click all come free. ⚠️ **`.sheet-rise` is required**: `.align-bottom` alone has
+  a FAB-anchored `transform-origin` (§3.3), and this sheet opens from the *top* of the
+  screen. `aria-expanded` toggles on `#masthead-month`; focus returns there on close;
+  Escape is in the hardcoded global chain (after drill, before recurring) and had to be
+  extended by hand.
+- **`pickerMonths()`** — memoised on `dataStamp` — returns months **HOLDING DATA plus the
+  current month**, newest first, grouped under a year header. ⚠️ **Not every calendar month
+  between the earliest and now**, which is what the brief specified: a gap month renders no
+  header in the Logs ledger, so its row would scroll nowhere. Same correction the ledger
+  tail needed (§3.6). Future-dated rows are excluded too — they must not open a month past
+  the chevrons' own clamp. ⚠️ **The name is `pickerMonths()`, not `monthTotals()`** — that
+  name is taken by the existing per-month totals helper Today and the hero trend read.
+  Bar height is `max(4, round(expense / maxExpense × 22))`, so the two smallest months can
+  legitimately tie at the 4px floor. **The amount is neutral ink, never semantic red** —
+  it's an expense figure, but here it is navigation furniture, and the bar carries the
+  comparison (§3.2).
 
 ### 3.5 Today tab
 
@@ -1096,8 +1188,17 @@ targets + the re-derived FAB-cluster geometry), the 39-class weight rebalancing,
 judgement changes, and a one-pixel `.logs-tail` fix the measurements surfaced. Front-end
 only; **no Apps Script change, no redeploy needed.** See §3.2, §3.3, §3.5–§3.9, §3.14.
 
+**Header removed, month becomes the masthead — DONE** (2026-08-11) — render-loop verified
+**231/231**, with **fourteen negative controls run first**. `.header` is deleted outright;
+on Trends and Logs the month is the pane's masthead, condensing to ~50px on scroll, with a
+ledger-list month picker behind it. Today has no top chrome. **Roadmap v3 Phase B's header
+chip is superseded** (the *one contextual selector* decision is not — see §3.4). Front-end
+only; **no Apps Script change, no redeploy needed.** See §3.3, §3.4.
+
 **Pending:** the remaining unscheduled candidate features (§6), plus the spec's own
-open questions, recorded under §6 "Recorded but undecided".
+open questions, recorded under §6 "Recorded but undecided" — including the **three doors
+onto month changing** on Trends (chevrons, picker, archive shelf), left unresolved
+deliberately (§6).
 
 ---
 
@@ -1313,6 +1414,41 @@ Counting data months keeps the tail's promise honest. `monthsAvailable()` theref
 added: `_logsTotalMonths` already is that quantity, and the brief's own instruction was not
 to write a second helper.
 
+### Header removal — month becomes the masthead ✅ DONE (2026-08-11)
+
+Owner-supplied spec (`SPEC_HEADER_MASTHEAD_20260811.md`), shipped as the five commits it
+set out. Shipped behaviour is in §3.2, §3.3 and §3.4. **No owner checklist — front-end
+only, no Apps Script change, no redeploy.**
+
+**It supersedes roadmap v3 Phase B's header chip** — but *not* Phase B's decision that there
+is exactly **one contextual month selector**. That decision said one selector, not one
+selector *in a header*; the masthead is still the only one.
+
+Decisions future phases must not re-open:
+
+1. **There is no app header, and Today has no top chrome.** Not collapsed, not slimmed.
+   Anything that wants to live at the top of Today has to justify 9% of the viewport.
+2. **The masthead is sticky and lives outside `.container`.** Nothing up there becomes
+   `position: fixed` (§3.2's overflow trap).
+3. **The caret stays.** A 31px serif title has no affordance; this is the Logs day-column
+   failure repeated on primary navigation, which is worse.
+4. **The steppers hide when condensed** — the alternative is a condensed bar that saves
+   nothing, or sub-44px targets.
+5. **The picker is the ledger-list form**, and its amounts are neutral ink.
+
+Three deltas from the spec as written, all deliberate:
+
+- **`pickerMonths()`, not `monthTotals()`** — the latter name is already taken by the
+  per-month totals helper Today reads, and shadowing it would have broken the hero trend.
+- **Months holding data, not calendar months** (§3.4). The literal reading puts a row in
+  the picker for a gap month, and tapping it scrolls nowhere on Logs.
+- **Condensed padding is 3px, not 8px** (§3.4). `.month-btn` keeps its 44px floor, so the
+  spec's 8px would have produced a 60px bar — barely smaller than the 74px expanded one,
+  which defeats the point of condensing. 3px lands it at ~50px, the size the spec intended.
+
+The spec's `.rise` modifier already existed as **`.sheet-rise`**, shipped with the drill-in
+sheet on 2026-08-08 for exactly the same reason; it was reused rather than duplicated.
+
 ### Design fix spec ✅ DONE (2026-08-10, second pass)
 
 Owner-supplied review of `main` @ 86054de (`ALFRED_FIX_SPEC.md`), shipped as three code
@@ -1382,6 +1518,13 @@ Open questions, kept so they are not lost. Each needs a decision before it is a 
     retry, and the FAB stays live over an empty in-memory ledger.
 13. **Date input locale** — the manual modal's `type="date"` rendered `MM/DD/YYYY` in
     Chromium; that follows browser locale, so verify on a real phone first.
+14. **Three doors onto the same month change, on Trends** (added 2026-08-11): the masthead
+    chevrons, the masthead picker, and the dashed archive shelf that roadmap v3 decision 7
+    keeps. That is one too many. **Deliberately not resolved in the masthead PR** — ship
+    all three, watch which one actually gets reached for over a fortnight, then delete the
+    loser. Real-data validation beats guessing, and re-litigating decision 7 inside a PR
+    that already changes the app's top-level structure is scope creep. (All three now route
+    through `applyViewMonth`, so deleting any of them is a markup change, not a rewrite.)
 
 ### Candidate features (refined 2026-07-19 — not yet phased)
 
@@ -1421,6 +1564,10 @@ no longer wanted; capture-parse validation suite — considered resolved.
 - Re-pinning the `wght` axis on `body`, or reinstating the white heatmap ink, the green
   good-news states, or `Budget` as a transaction-type label (§3.2, §3.5 — all removed
   deliberately 2026-08-10)
+- Restoring the app header, putting a masthead on Today, or moving any *figure* into the
+  masthead (§3.3, §3.4 — removed deliberately 2026-08-11; "budget left" up there would be a
+  sixth surface saying what the hero already says once)
+- Spreading `--font-display` beyond the masthead month (§3.2)
 - Any change to the category donut's chart config — cap radius, spacing, small-slice
   folding (explicitly excluded by the 2026-08-10 design review, and asserted
   pixel-identical in the render loop)
@@ -1435,6 +1582,53 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-11 — Header removed, the month becomes the masthead (§3.3, §3.4):** the app
+  header is deleted outright — 77px of sticky chrome on every tab, holding one word of
+  branding and a `display:none` div, on a 390×844 viewport that is 9% of the screen spent on
+  branding in a PWA the user opens from their own home screen. On Trends and Logs the month
+  is now the pane's **masthead** (editorial serif at 31px, chevrons beside it, condensing to
+  ~50px on scroll); tapping it opens a **ledger-list month picker** whose rows carry each
+  month's spend and a proportional bar, so picking a month doubles as a small overview.
+  Today gets no masthead — the hero already states the month. **Supersedes roadmap v3 Phase
+  B's header chip, but not Phase B's "one contextual selector" decision** (§6). Four
+  decisions worth keeping. **(1) The header was doing two invisible jobs** — providing the
+  status-bar inset in standalone PWA mode, and being the sticky offset `logsScrollToYm()`
+  subtracts. Deleting it without picking both up runs Today's content under the status bar
+  and lands every Logs jump 77px off. The inset now lives on `.container`, with
+  `body.has-masthead` dropping it where the masthead carries it instead — *never both*, and
+  the suite asserts the 47px inset isn't applied twice. **(2) The picker lists months
+  HOLDING DATA, not calendar months** — the spec said the latter, and it is the same error
+  the ledger tail made: with a May gap in the fixture, the calendar reading puts a May row
+  in the picker that scrolls nowhere on Logs. **(3) One month-change handler, and the
+  archive shelf now uses it** — the shelf had been assigning `viewMonth` itself and getting
+  away with it because the Trends branch re-rendered the chip anyway; a control that
+  restored that parallel path broke Logs' lazy-load, its scroll and its no-unload rule all
+  at once. **(4) The condensed bar is 50px, not the spec's 60px** — `.month-btn` keeps its
+  44px floor, so the spec's own 8px padding would have made condensing pointless. Also
+  worth recording: `monthTotals()` was already taken (Today and the hero trend read it), so
+  the new helper is `pickerMonths()`; and the spec's `.rise` modifier already existed as
+  `.sheet-rise`, shipped with the drill-in sheet three days earlier for the identical
+  reason — a sheet not opened from the FAB must not bloom out of it. Render-loop verified
+  (§3.12; 390/900 × light/dark + reduced motion, mocked GViz, local Chart.js, stubbed Apps
+  Script, **real variable fonts served locally**, clock pinned to 2026-08-11 on an advancing
+  offset): **231/231**, on a fixture carrying a deliberate May gap, a prior-year December, a
+  future-dated September row and an income row. **Fourteen negative controls run first, and
+  three of them are the point.** `stale_condensed` fired **nothing** — which was correct
+  about the probe, not the code: the explicit `.condensed` reset in `switchView()` is only
+  load-bearing on a round trip through **Today**, where `renderMasthead()` hides the bar
+  before the scroll event lands and `syncMasthead()` then returns early on a hidden
+  masthead; a Trends→Logs hop can never reach it, and that was the only case the suite
+  tested. `calendar_months` and `parallel_path` reported "SECTION CRASHED" **and nothing
+  else**, which exposed a harness bug: results were collected in a trailing `push(ck)`, so a
+  section that threw discarded every check it had *already run correctly* — they now
+  register the moment a bucket is created, and both controls report their real blast radius.
+  `fab_origin` initially fired only a class-name check, so it now asserts the sheet's
+  computed `transform-origin` sits on its own bottom edge rather than 38px below it. Two
+  probes were wrong rather than the code: an advance-width comparison "proving" the display
+  face was in use passes with the serif never loading (93.6px vs 93.0px for "August"), so it
+  compares rendered pixels now; and the "equal gap" check was measuring box-to-box when the
+  masthead's own 8px bottom padding is inside its background. Front-end only — no Apps
+  Script change, no redeploy.
 - **2026-08-10 (second pass) — Design fix spec: type, contrast, targets, quieter Today
   (§3.2–§3.14):** an owner-supplied design review, shipped as three code commits in the
   spec's own order plus a docs commit. **The find that matters is a real bug:** `body`
@@ -1986,6 +2180,26 @@ woven into §3.
   element screenshot composites whatever HTML overlays sit on top — here the donut's centre
   total, whose font-weight legitimately changed — so the ring "differed" when only the text
   above it had. `getImageData` is the chart's own paint, and a stronger claim besides.
+- **A chrome element is usually doing an invisible job as well as its visible one.** The
+  header looked like it held a title and nothing else. It was also supplying the status-bar
+  inset in standalone PWA mode and being the sticky offset the Logs scroll subtracted.
+  Neither is visible in the markup, and neither fails loudly — one runs content under the
+  status bar only in an installed PWA, the other lands every month jump 77px off. Before
+  deleting a layout element, grep for what *measures* it, not just what styles it.
+- **A control that fires nothing is a finding about the probe, not a pass.** The reset that
+  keeps the masthead from returning condensed only matters on a round trip through the tab
+  where the masthead is *hidden* — the hidden state is what makes the scroll handler bail.
+  The suite only ever tested a hop between two visible mastheads, so the control found
+  nothing and the real case was untested. The control is the only reason anyone looked.
+- **Collect assertions as they run, not at the end of the section.** A trailing
+  `push(ck)` means a section that throws discards every check it already ran correctly, so
+  a negative control reports "CRASHED" and hides the fact that its actual probes fired.
+  Two controls looked far narrower than they were until the results registered eagerly.
+- **Advance width is not proof a font loaded.** "August" at 31px measures 93.6px in
+  Newsreader and 93.0px in Roboto Flex — near enough that a width probe passes with the
+  serif never arriving. Compare the pixels the element paints against the same element
+  forced into the other face. (Same family as the `wght`-axis trap: the DOM agrees with the
+  CSS, and only the rendering disagrees.)
 - **Steal patterns, not palettes.** Finance-app refs gave the *structure*; reskinning
   into Alfred's tokens kept one coherent system.
 - **One shared component beats per-tab cards** (`tile-block` let dead CSS be deleted).

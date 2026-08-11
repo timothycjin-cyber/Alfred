@@ -12,7 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght,wdth@8..144,300..900,75..125&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400..700&family=Roboto+Flex:opsz,wght,wdth@8..144,300..900,75..125&display=swap" rel="stylesheet">
 <style>
   /* ────────────────────────────────────────────────────────────
      M3 EXPRESSIVE DESIGN TOKENS — CLEAN MONOCHROME
@@ -71,6 +71,12 @@
     --motion-snap: 220ms cubic-bezier(0.25, 1, 0.3, 1);
     --motion-standard: 250ms cubic-bezier(0.2, 0, 0, 1);
     --font-body: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    /* Editorial serif, used for exactly one thing: the month as a pane's
+       masthead. Newsreader is variable (400..700), so the condensed state's
+       heavier cut is a real weight rather than a synthesised one. The stack
+       falls back to the platform serif, which keeps the masthead editorial
+       rather than dropping it into the UI face if the webfont never arrives. */
+    --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
   }
 
   /* Real damped-spring physics where linear() is supported (the beziers above
@@ -128,32 +134,12 @@
     padding-bottom: calc(172px + env(safe-area-inset-bottom, 0px));
   }
 
-  .header { 
-    background: var(--surface-container-low); 
-    padding: 1.25rem 1.5rem; 
-    display: flex; 
-    align-items: center; 
-    justify-content: space-between; 
-    position: sticky; 
-    top: 0; 
-    z-index: 10; 
-    border-bottom: 1px solid var(--outline-variant); 
-  }
-  
-  .header-title { 
-    font-size: 20px; 
-    font-weight: 800; 
-    font-variation-settings: 'wght' 700, 'wdth' 105; 
-    color: var(--on-surface); 
-    letter-spacing: -0.4px; 
-  }
-  
-  /* min-height matches the monthnav chip's rendered height (28px button +
-     2×3px padding + 2×1px border = 36px) so the header is the same total
-     height on Today (no chip) as on Logs/Trends (chip shown) — otherwise
-     the row shrinks to the title's ~24px line-height when the chip is
-     hidden. */
-  .header-actions { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+  /* The app header is GONE (2026-08-11). It was 1.25rem of padding either side
+     of a 36px row plus a border — 77px of sticky chrome on every tab, holding
+     one word of branding and a display:none div once Phase B moved export to
+     Logs and hid the bell. The month became the masthead of the panes that have
+     one; Today has no masthead at all, because the hero already states the
+     month. See #masthead below. */
 
   .icon-btn {
     width: 44px;
@@ -290,7 +276,100 @@
      browser then zooms to fit ("page zooms in slightly after a few toggles").
      clip (not hidden) keeps overflow-y visible, so vertical page scroll and
      the sticky header are unaffected. */
-  .container { max-width: 900px; margin: 0 auto; padding: 1.25rem 1rem; overflow-x: clip; }
+  /* MASTHEAD — the month, set as the pane's title, on Trends and Logs only.
+     Today has none: the hero already states the month, and a second surface
+     saying it would be the app's sixth way of stating one fact.
+
+     Sticky, never fixed. The shared-axis slide transiently widens the
+     document; a fixed bar sizes to the widened layout viewport and SUSTAINS
+     the overflow, which mobile then zooms to fit. Sticky is immune, which the
+     old header demonstrated for a year.
+
+     It sits OUTSIDE .container, where the header used to be — .container is
+     an overflow-x: clip ancestor, and whether sticky survives that is a
+     question this doesn't need to answer. */
+  #masthead {
+    position: sticky; top: 0; z-index: 12;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    padding: calc(22px + env(safe-area-inset-top, 0px)) 18px 8px;
+    background: var(--surface);
+    transition: padding var(--motion-standard), background var(--motion-standard);
+  }
+  #masthead[hidden] { display: none; }
+
+  .month-btn {
+    display: inline-flex; align-items: baseline; gap: 8px;
+    border: none; background: transparent; color: inherit; font-family: inherit;
+    padding: 4px 10px 4px 4px; margin-left: -4px; border-radius: 12px;
+    min-height: 44px; cursor: pointer; outline: none;
+    transition: background var(--motion-standard), transform var(--motion-snap);
+  }
+  .month-btn:active { transform: scale(0.97); background: var(--surface-container); }
+
+  .month-txt {
+    font-family: var(--font-display);
+    font-size: 31px; font-weight: 500; letter-spacing: -0.9px; line-height: 1;
+    transition: font-size var(--motion-standard), letter-spacing var(--motion-standard);
+  }
+  .month-txt .yr { color: var(--on-surface-variant); font-size: 19px; margin-left: 7px; }
+
+  /* The caret is load-bearing, not decoration. A 31px serif title has no
+     affordance of its own, and "the control doesn't look tappable" is already
+     on the record against the Logs day columns. Repeating that on primary
+     navigation would be worse than repeating it on a drill-in. */
+  .caret {
+    width: 22px; height: 22px; border-radius: var(--shape-full);
+    background: var(--surface-container); color: var(--on-surface-variant);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; align-self: center; flex: none;
+    transition: transform var(--motion-snap);
+  }
+  .month-btn[aria-expanded="true"] .caret { transform: rotate(180deg); }
+
+  /* Condensed state — the M3 large-to-small top app bar, one element and two
+     states. This is the only reason a masthead is acceptable on Logs, where
+     you scroll deep and still want to change month.
+
+     Vertical padding drops to 3px, not the 8px the spec proposed: .month-btn
+     keeps its 44px touch floor, so 8px either side would leave a 60px bar
+     that saves almost nothing over the 74px expanded one. At 3px it lands at
+     50px, which is the intended size with the target intact. */
+  #masthead.condensed {
+    padding: calc(3px + env(safe-area-inset-top, 0px)) 18px 3px;
+    align-items: center;
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border-bottom: 1px solid var(--outline-variant);
+  }
+  #masthead.condensed .month-txt { font-size: 15px; letter-spacing: -0.2px; font-weight: 600; }
+  #masthead.condensed .month-txt .yr { font-size: 13px; margin-left: 5px; }
+  /* The steppers hide deliberately. Keeping them means either 44px buttons —
+     so the condensed bar saves nothing — or sub-44px ones, which fails the
+     target floor. Stepping to an adjacent month is a top-of-pane action; once
+     you are deep in a scroll you are jumping, and the picker is one tap away.
+     Scrolling back up brings them back. */
+  #masthead.condensed .steppers { display: none; }
+
+  .steppers { display: flex; gap: 2px; align-self: center; flex: none; }
+  .arrow-btn {
+    width: 44px; height: 44px; border-radius: var(--shape-full);
+    border: 1px solid var(--outline-variant); background: transparent;
+    color: var(--on-surface); font-family: inherit; font-size: 15px;
+    cursor: pointer; outline: none;
+    transition: background var(--motion-standard), transform var(--motion-snap);
+  }
+  .arrow-btn:active:not(:disabled) { transform: scale(0.9); background: var(--surface-container); }
+  .arrow-btn:disabled { opacity: 0.28; cursor: default; }
+
+  /* The deleted header was silently providing the status-bar inset in a
+     standalone PWA. With it gone, .container is the first thing under the
+     status bar on Today, so it carries the inset itself. On Trends and Logs
+     the masthead sits above and carries the inset instead — body.has-masthead
+     drops this padding to 12px so the two are never applied twice, and the
+     8px the masthead leaves below itself makes the gap 20px either way. */
+  .container { max-width: 900px; margin: 0 auto; padding: calc(1.25rem + env(safe-area-inset-top, 0px)) 1rem 1.25rem; overflow-x: clip; }
+  body.has-masthead .container { padding-top: 12px; }
   .view-section { display: none; }
   .view-section.active { display: block; }
   /* When there is no ledger to show (no personal link, or a link with no rows
@@ -644,28 +723,6 @@
   .today-bad { color: var(--semantic-expense); font-weight: 600; }
   .today-flat { color: var(--on-surface-variant); font-weight: 600; }
   .today-empty { font-size: 13px; font-weight: 600; color: var(--on-surface-variant); }
-
-  /* Contextual header month chip (Phase B) — the ONE month selector, shown
-     only on Trends and Logs. Steps the shared viewMonth; ends disable at the
-     earliest data month / the present. Today always shows the real now. */
-  .monthnav {
-    display: inline-flex; align-items: center; gap: 2px;
-    background: var(--surface-container-low); border: 1px solid var(--outline-variant);
-    border-radius: var(--shape-full); padding: 3px;
-  }
-  .monthnav-btn {
-    width: 28px; height: 28px; border-radius: var(--shape-full);
-    border: none; background: transparent; color: var(--on-surface);
-    font-size: 15px; line-height: 1; font-family: inherit; cursor: pointer;
-    transition: background var(--motion-standard), transform var(--motion-snap);
-    outline: none;
-  }
-  .monthnav-btn:not(:disabled):active { transform: scale(0.9); background: var(--surface-container); }
-  .monthnav-btn:disabled { opacity: 0.3; cursor: default; }
-  .monthnav-label {
-    min-width: 52px; text-align: center; white-space: nowrap;
-    font-size: 12.5px; font-weight: 700; letter-spacing: -0.2px;
-  }
 
   /* Month shelf — the ledger's "pages". A horizontal strip of months that hold
      data (most recent first), tap to time-travel. Scrolls inside itself so the
@@ -1354,6 +1411,46 @@
      category is genuinely new information. */
   .hide-cat-badge .badge { display: none; }
 
+  /* ── Month picker (2026-08-11) ──────────────────────────────────────────────
+     The ledger-list form, not a year grid: each row carries the month's spend
+     and a proportional bar, so opening the picker doubles as a small
+     pull-based overview instead of being pure navigation furniture. Reuses the
+     shipped .align-bottom.sheet-rise shell — the scrim, the spring, the focus
+     trap, Escape and scrim-click all come with it. sheet-rise matters here:
+     .align-bottom alone springs from the FAB, and this sheet is opened from
+     the top of the screen. */
+  #month-list { max-height: 60vh; overflow-y: auto; margin: 0 -6px; }
+  .lrow {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    width: 100%; min-height: 52px; padding: 10px 12px;
+    border: none; border-bottom: 1px solid var(--outline-variant); border-radius: 10px;
+    background: transparent; color: var(--on-surface);
+    font-family: inherit; text-align: left; cursor: pointer; outline: none;
+    transition: background var(--motion-standard);
+  }
+  .lrow:last-child { border-bottom: none; }
+  .lrow:active, .lrow.sel { background: var(--surface-container); }
+  .lrow-l { display: flex; flex-direction: column; gap: 2px; }
+  .lrow-m { font-size: 14.5px; font-weight: 600; }
+  .lrow-s { font-size: 11px; color: var(--on-surface-variant); }
+  .lrow-r { display: flex; align-items: center; gap: 10px; }
+  /* Neutral, never semantic red. It is an expense figure, but here it is
+     navigation furniture — and the app already states the same news in more
+     places than it has attention to spend. The bar carries the comparison. */
+  .lrow-amt { font-size: 13.5px; font-weight: 600; }
+  .spark {
+    width: 54px; height: 22px; border-radius: 4px; flex: none;
+    background: var(--surface-container); position: relative; overflow: hidden;
+  }
+  .spark > span {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--primary); opacity: 0.55; border-radius: 3px;
+  }
+  .yr-hdr {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--on-surface-variant); padding: 12px 12px 6px;
+  }
+
   /* ── Review list (multi-entry confirm) ──────────────────────────────────── */
   #review-list { max-height: 45vh; overflow-y: auto; margin-bottom: 0.5rem; }
   .review-row {
@@ -1396,12 +1493,17 @@
 </head>
 <body>
 
-<div class="header">
-  <div class="header-left">
-    <div class="header-title">Project Alfred</div>
-  </div>
-  <div class="header-actions">
-    <div id="header-monthnav" style="display:none"></div>
+<!-- The month as the pane's masthead (2026-08-11) — Trends and Logs only,
+     hidden on Today. Tapping the month opens the picker; the chevrons keep
+     adjacent-month navigation at one tap, which is the common case. -->
+<div id="masthead" hidden>
+  <button id="masthead-month" class="month-btn" onclick="openMonthPicker()" aria-haspopup="dialog" aria-expanded="false">
+    <span class="month-txt"></span>
+    <span class="caret" aria-hidden="true">▾</span>
+  </button>
+  <div class="steppers">
+    <button class="arrow-btn" id="month-prev" onclick="stepViewMonth(-1)" aria-label="Previous month">‹</button>
+    <button class="arrow-btn" id="month-next" onclick="stepViewMonth(1)" aria-label="Next month">›</button>
   </div>
 </div>
 
@@ -1703,6 +1805,21 @@
     <div class="drill-body" id="drill-body"></div>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="closeDrillSheet()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Month picker — opened from the masthead month. The ledger-list form: every
+     row carries its month's spend and a proportional bar, so picking a month
+     is also a small overview. Same bottom-anchored shell as the drill-in
+     sheet, and .sheet-rise for the same reason — nothing was tapped at the
+     FAB, so nothing should bloom out of it. -->
+<div class="modal-overlay align-bottom sheet-rise" id="month-overlay" onclick="if(event.target===this) closeMonthPicker()">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-label="Pick a month" tabindex="-1">
+    <div class="modal-title">Pick a month</div>
+    <div id="month-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeMonthPicker()">Close</button>
     </div>
   </div>
 </div>
@@ -2397,13 +2514,13 @@ function bindDrillRowClicks(scope) {
 }
 
 // ── Trends month navigation + archive shelf (roadmap Phase 5) ───────────────
-// The contextual ‹ month › chip in the header (Phase B — the single month
-// selector) steps viewMonth within [earliest data month … current month]. It
-// renders only on Trends and Logs; Today always shows the real current month.
-// On Trends a step re-renders the tab; on Logs it scrolls the continuous
-// ledger to that month's header (no filtering). The archive shelf at the
-// bottom of Trends is a chip row of PAST months that hold data — tapping one
-// time-travels by setting the same viewMonth.
+// The month selector steps viewMonth within [earliest data month … current
+// month]. It lives on Trends and Logs only — as the pane's masthead since
+// 2026-08-11, previously as a chip in the now-deleted header; Today always
+// shows the real current month. On Trends a step re-renders the tab; on Logs
+// it scrolls the continuous ledger to that month's header (no filtering). The
+// archive shelf at the bottom of Trends is a chip row of PAST months that hold
+// data — tapping one time-travels by setting the same viewMonth.
 
 function earliestDataMonth() {
   let best = null;
@@ -2416,50 +2533,183 @@ function earliestDataMonth() {
   return best; // year*12+month, or null with no data
 }
 
-function headerNavMonth(delta) {
+// How much sticky chrome sits at the top of the viewport, for anything that
+// scrolls a target "just under" it. The header used to be it; now it is the
+// masthead, and only on the panes that have one. A scroll always ENDS past the
+// condense threshold, so the offset that matters is the condensed height —
+// measuring the expanded bar mid-scroll would leave the target short.
+function stickyTopOffset() {
+  const el = document.getElementById('masthead');
+  if (!el || el.hidden) return 0;
+  if (el.classList.contains('condensed')) return el.offsetHeight;
+  const probe = el.cloneNode(true);
+  probe.classList.add('condensed');
+  probe.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;width:' + el.offsetWidth + 'px';
+  el.parentNode.appendChild(probe);
+  const h = probe.offsetHeight;
+  probe.remove();
+  return h;
+}
+
+// THE month-change handler. The masthead chevrons, the picker sheet and the
+// archive shelf all land here — a parallel path would let Logs' scroll-to-month
+// and the renderedKey busting diverge.
+function stepViewMonth(delta) {
   const now = new Date();
   const cur = now.getFullYear() * 12 + now.getMonth();
   const earliest = earliestDataMonth();
   let key = viewYear * 12 + viewMonth + delta;
   key = Math.min(cur, Math.max(earliest === null ? cur : earliest, key));
-  viewYear = Math.floor(key / 12);
-  viewMonth = key % 12;
-  renderHeaderMonthNav();
+  applyViewMonth(Math.floor(key / 12), key % 12);
+}
+
+// Move to an absolute month. stepViewMonth() clamps into range and calls this;
+// the picker passes a month straight from the data, so it is in range by
+// construction.
+function applyViewMonth(y, m) {
+  viewYear = y;
+  viewMonth = m;
+  renderMasthead();
   if (currentView === 'logs') {
-    // Logs never FILTERS by month — the chip loads whatever months it needs to
-    // reach the target and scrolls there, leaving everything already loaded in
-    // place. It deliberately bypasses calculateAndRender(), so the renderedKey
-    // early-return can't swallow the jump.
+    // Logs never FILTERS by month — the selector loads whatever months it needs
+    // to reach the target and scrolls there, leaving everything already loaded
+    // in place. It deliberately bypasses calculateAndRender(), so the
+    // renderedKey early-return can't swallow the jump.
     logsScrollToMonth(viewYear, viewMonth);
   } else {
     calculateAndRender();
   }
 }
 
-function renderHeaderMonthNav() {
-  const el = document.getElementById('header-monthnav');
+// The masthead shows on Trends and Logs, and only once there is data to
+// navigate. Months are written in words — the app writes them that way
+// everywhere else, and "07-26" in 31pt serif would read as a filename.
+function renderMasthead() {
+  const el = document.getElementById('masthead');
   if (!el) return;
   const earliest = earliestDataMonth();
-  if ((currentView !== 'trends' && currentView !== 'logs') || earliest === null) {
-    el.style.display = 'none';
-    el.innerHTML = '';
-    return;
-  }
+  const show = (currentView === 'trends' || currentView === 'logs') && earliest !== null;
+  el.hidden = !show;
+  document.body.classList.toggle('has-masthead', show);
+  if (!show) return;
   const now = new Date();
   const cur = now.getFullYear() * 12 + now.getMonth();
   const key = viewYear * 12 + viewMonth;
-  const backDisabled = key <= earliest;
-  const fwdDisabled = key >= cur;
-  const label = viewYear === now.getFullYear()
-    ? MONTHS[viewMonth]
-    : `${MONTHS[viewMonth]} ’${String(viewYear).slice(2)}`;
-  el.style.display = 'flex';
-  el.innerHTML = `
-    <div class="monthnav">
-      <button type="button" class="monthnav-btn" onclick="headerNavMonth(-1)" aria-label="Earlier month" ${backDisabled ? 'disabled' : ''}>‹</button>
-      <span class="monthnav-label">${label}</span>
-      <button type="button" class="monthnav-btn" onclick="headerNavMonth(1)" aria-label="Later month" ${fwdDisabled ? 'disabled' : ''}>›</button>
-    </div>`;
+  el.querySelector('.month-txt').innerHTML =
+    `${MONTHS_FULL[viewMonth]}<span class="yr">${viewYear}</span>`;
+  document.getElementById('month-prev').disabled = key <= earliest;
+  document.getElementById('month-next').disabled = key >= cur;
+}
+
+// Condense on scroll. Hysteresis — 48px to engage, 36px to release — so a
+// scroll parked on the boundary can't flicker between the two states, which a
+// single threshold guarantees the moment the layout shift the condense itself
+// causes pushes scrollY back across it.
+let _mhRAF = null;
+function syncMasthead() {
+  const el = document.getElementById('masthead');
+  if (!el || el.hidden) return;
+  const on = el.classList.contains('condensed');
+  if (!on && window.scrollY > 48) el.classList.add('condensed');
+  else if (on && window.scrollY < 36) el.classList.remove('condensed');
+}
+window.addEventListener('scroll', () => {
+  if (_mhRAF) return;
+  _mhRAF = requestAnimationFrame(() => { _mhRAF = null; syncMasthead(); });
+}, { passive: true });
+
+// ── Month picker ────────────────────────────────────────────────────────────
+// Every month the picker offers, newest first. Months HOLDING DATA plus the
+// current one — NOT every calendar month between the earliest and now. A gap
+// month would be a row that navigates nowhere: on Logs a month with no weeks
+// renders no header, so the scroll is a silent no-op. Same reasoning that made
+// the ledger tail count data months rather than calendar months back.
+// Memoised on dataStamp, since this runs on every open.
+let _pickerCache = null;
+let _pickerStamp = -1;
+function pickerMonths() {
+  if (_pickerCache && _pickerStamp === dataStamp) return _pickerCache;
+  const now = new Date();
+  const curY = now.getFullYear(), curM = now.getMonth();
+  const curKey = curY * 12 + curM;
+  const acc = new Map();
+  acc.set(curKey, { y: curY, m: curM, expense: 0, entries: 0 });
+  allRows.forEach(r => {
+    if (!(activeUser && r.User === activeUser) || !r.Date) return;
+    const d = new Date(r.Date);
+    const key = d.getFullYear() * 12 + d.getMonth();
+    // A future-dated row must not open a month past the chevrons' own clamp.
+    if (key > curKey) return;
+    if (!acc.has(key)) acc.set(key, { y: d.getFullYear(), m: d.getMonth(), expense: 0, entries: 0 });
+    const rec = acc.get(key);
+    rec.entries++;
+    if (r.Type !== 'Income') rec.expense += r.Amount;
+  });
+  _pickerCache = [...acc.values()]
+    .map(v => ({ ...v, isCurrent: v.y === curY && v.m === curM }))
+    .sort((a, b) => (b.y - a.y) || (b.m - a.m));
+  _pickerStamp = dataStamp;
+  return _pickerCache;
+}
+
+function monthPickerHtml() {
+  const months = pickerMonths();
+  const max = months.reduce((mx, x) => Math.max(mx, x.expense), 0);
+  const now = new Date();
+  let html = '', lastYear = null;
+  months.forEach(mo => {
+    if (mo.y !== lastYear) { html += `<div class="yr-hdr">${mo.y}</div>`; lastYear = mo.y; }
+    const sub = mo.isCurrent
+      ? `${now.getDate()} days in · running`
+      : `${daysInMonthOf(mo.y, mo.m)} days · closed`;
+    const h = max > 0 ? Math.max(4, Math.round(mo.expense / max * 22)) : 4;
+    const sel = (mo.y === viewYear && mo.m === viewMonth) ? ' sel' : '';
+    const amt = `RM ${formatCurrency(mo.expense)}`;
+    html += `
+      <button type="button" class="lrow${sel}" data-y="${mo.y}" data-m="${mo.m}"
+        aria-label="${MONTHS_FULL[mo.m]} ${mo.y}, ${mo.entries} ${mo.entries === 1 ? 'entry' : 'entries'}, ${amt} spent">
+        <span class="lrow-l">
+          <span class="lrow-m">${MONTHS_FULL[mo.m]}</span>
+          <span class="lrow-s">${sub}</span>
+        </span>
+        <span class="lrow-r">
+          <span class="spark" aria-hidden="true"><span style="height:${h}px"></span></span>
+          <span class="lrow-amt">${amt}</span>
+        </span>
+      </button>`;
+  });
+  return html;
+}
+
+function openMonthPicker() {
+  const list = document.getElementById('month-list');
+  list.innerHTML = monthPickerHtml();
+  list.querySelectorAll('.lrow').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const y = parseInt(btn.dataset.y), m = parseInt(btn.dataset.m);
+      // Close before re-rendering: focus goes back to the masthead first, and
+      // on Logs the handler scrolls the page, which shouldn't happen behind an
+      // open scrim.
+      closeMonthPicker();
+      applyViewMonth(y, m);
+    });
+  });
+  document.getElementById('masthead-month').setAttribute('aria-expanded', 'true');
+  document.body.classList.add('modal-open-state');
+  const overlay = document.getElementById('month-overlay');
+  overlay.classList.add('open');
+  trapModalFocus(overlay, overlay.querySelector('.modal-sheet'));
+  // Centre the current selection. scrollIntoView() would scroll the page as
+  // well as the list; setting scrollTop keeps it inside the sheet.
+  const sel = list.querySelector('.lrow.sel');
+  if (sel) list.scrollTop = Math.max(0, sel.offsetTop - list.clientHeight / 2 + sel.offsetHeight / 2);
+}
+
+function closeMonthPicker() {
+  document.getElementById('masthead-month').setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('modal-open-state');
+  document.getElementById('month-overlay').classList.remove('open');
+  releaseModalFocus();   // returns focus to #masthead-month
 }
 
 // Scroll the Logs ledger to a month's header, growing the scope until that
@@ -2477,13 +2727,13 @@ function logsScrollToMonth(y, m) {
   logsScrollToYm(`${y}-${m}`);
 }
 
-// Put a month's header just under the sticky header. Shared by the chip and
-// the "Earlier months" tail, so a jump and an append land identically.
+// Put a month's header just under whatever sticky chrome is above it. Shared
+// by the month selector and the "Earlier months" tail, so a jump and an append
+// land identically.
 function logsScrollToYm(key) {
   const target = document.querySelector(`#logs-ledger .month-header[data-ym="${key}"]`);
   if (!target) return;
-  const headerH = document.querySelector('.header').offsetHeight;
-  const top = target.getBoundingClientRect().top + window.scrollY - headerH - 8;
+  const top = target.getBoundingClientRect().top + window.scrollY - stickyTopOffset() - 8;
   window.scrollTo({ top: Math.max(0, top), behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
 }
 
@@ -2512,10 +2762,9 @@ function renderArchiveShelf() {
   }).join('') + `</div>`;
 
   el.querySelectorAll('.shelf-chip').forEach(btn => {
+    // Through the shared handler, so the masthead label follows the shelf.
     btn.addEventListener('click', () => {
-      viewYear = parseInt(btn.dataset.y);
-      viewMonth = parseInt(btn.dataset.m);
-      calculateAndRender();
+      applyViewMonth(parseInt(btn.dataset.y), parseInt(btn.dataset.m));
     });
   });
 }
@@ -3601,9 +3850,12 @@ function switchView(view) {
   }
   // Slider slot n = n × (own width + 4px gap); see the .nav-slider CSS note.
   document.getElementById('nav-slider').style.transform = `translateX(calc(${toIdx * 100}% + ${toIdx * 4}px))`;
-  // The contextual month chip lives in the header, outside the view panes —
-  // it must follow every tab change, including renders the key-skip elides.
-  renderHeaderMonthNav();
+  // The masthead lives outside the view panes, so it must follow every tab
+  // change — including the ones calculateAndRender()'s key-skip elides. The
+  // scrollTo(0,0) above means the condensed state is always stale here, and
+  // the scroll handler won't fire to clear it if we were already at the top.
+  document.getElementById('masthead').classList.remove('condensed');
+  renderMasthead();
   calculateAndRender();
 }
 
@@ -3777,12 +4029,12 @@ function calculateAndRender() {
   // reads all the user's rows and scopes them itself with logsMonthsShown, so
   // the header month chip never filters here — it only jumps.
   if (currentView === 'logs') {
-    renderHeaderMonthNav();
+    renderMasthead();
     renderLogsLedger();
   }
 
   if (currentView === 'trends') {
-    renderHeaderMonthNav();
+    renderMasthead();
     renderTrendsInsight();
     renderArchiveShelf();
 
@@ -4331,6 +4583,8 @@ document.addEventListener('keydown', (e) => {
     closeCaptureModal();
   } else if (document.getElementById('drill-overlay').classList.contains('open')) {
     closeDrillSheet();
+  } else if (document.getElementById('month-overlay').classList.contains('open')) {
+    closeMonthPicker();
   } else if (document.getElementById('recurring-overlay').classList.contains('open')) {
     // Same one-step-back shape as the txn modal: confirm → form → list → closed.
     if (document.getElementById('recur-confirm').classList.contains('show')) cancelRecurDeleteConfirm();
