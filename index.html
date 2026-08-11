@@ -1411,6 +1411,46 @@
      category is genuinely new information. */
   .hide-cat-badge .badge { display: none; }
 
+  /* ── Month picker (2026-08-11) ──────────────────────────────────────────────
+     The ledger-list form, not a year grid: each row carries the month's spend
+     and a proportional bar, so opening the picker doubles as a small
+     pull-based overview instead of being pure navigation furniture. Reuses the
+     shipped .align-bottom.sheet-rise shell — the scrim, the spring, the focus
+     trap, Escape and scrim-click all come with it. sheet-rise matters here:
+     .align-bottom alone springs from the FAB, and this sheet is opened from
+     the top of the screen. */
+  #month-list { max-height: 60vh; overflow-y: auto; margin: 0 -6px; }
+  .lrow {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    width: 100%; min-height: 52px; padding: 10px 12px;
+    border: none; border-bottom: 1px solid var(--outline-variant); border-radius: 10px;
+    background: transparent; color: var(--on-surface);
+    font-family: inherit; text-align: left; cursor: pointer; outline: none;
+    transition: background var(--motion-standard);
+  }
+  .lrow:last-child { border-bottom: none; }
+  .lrow:active, .lrow.sel { background: var(--surface-container); }
+  .lrow-l { display: flex; flex-direction: column; gap: 2px; }
+  .lrow-m { font-size: 14.5px; font-weight: 600; }
+  .lrow-s { font-size: 11px; color: var(--on-surface-variant); }
+  .lrow-r { display: flex; align-items: center; gap: 10px; }
+  /* Neutral, never semantic red. It is an expense figure, but here it is
+     navigation furniture — and the app already states the same news in more
+     places than it has attention to spend. The bar carries the comparison. */
+  .lrow-amt { font-size: 13.5px; font-weight: 600; }
+  .spark {
+    width: 54px; height: 22px; border-radius: 4px; flex: none;
+    background: var(--surface-container); position: relative; overflow: hidden;
+  }
+  .spark > span {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--primary); opacity: 0.55; border-radius: 3px;
+  }
+  .yr-hdr {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--on-surface-variant); padding: 12px 12px 6px;
+  }
+
   /* ── Review list (multi-entry confirm) ──────────────────────────────────── */
   #review-list { max-height: 45vh; overflow-y: auto; margin-bottom: 0.5rem; }
   .review-row {
@@ -1765,6 +1805,21 @@
     <div class="drill-body" id="drill-body"></div>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" onclick="closeDrillSheet()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Month picker — opened from the masthead month. The ledger-list form: every
+     row carries its month's spend and a proportional bar, so picking a month
+     is also a small overview. Same bottom-anchored shell as the drill-in
+     sheet, and .sheet-rise for the same reason — nothing was tapped at the
+     FAB, so nothing should bloom out of it. -->
+<div class="modal-overlay align-bottom sheet-rise" id="month-overlay" onclick="if(event.target===this) closeMonthPicker()">
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-label="Pick a month" tabindex="-1">
+    <div class="modal-title">Pick a month</div>
+    <div id="month-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeMonthPicker()">Close</button>
     </div>
   </div>
 </div>
@@ -2562,6 +2617,100 @@ window.addEventListener('scroll', () => {
   if (_mhRAF) return;
   _mhRAF = requestAnimationFrame(() => { _mhRAF = null; syncMasthead(); });
 }, { passive: true });
+
+// ── Month picker ────────────────────────────────────────────────────────────
+// Every month the picker offers, newest first. Months HOLDING DATA plus the
+// current one — NOT every calendar month between the earliest and now. A gap
+// month would be a row that navigates nowhere: on Logs a month with no weeks
+// renders no header, so the scroll is a silent no-op. Same reasoning that made
+// the ledger tail count data months rather than calendar months back.
+// Memoised on dataStamp, since this runs on every open.
+let _pickerCache = null;
+let _pickerStamp = -1;
+function pickerMonths() {
+  if (_pickerCache && _pickerStamp === dataStamp) return _pickerCache;
+  const now = new Date();
+  const curY = now.getFullYear(), curM = now.getMonth();
+  const curKey = curY * 12 + curM;
+  const acc = new Map();
+  acc.set(curKey, { y: curY, m: curM, expense: 0, entries: 0 });
+  allRows.forEach(r => {
+    if (!(activeUser && r.User === activeUser) || !r.Date) return;
+    const d = new Date(r.Date);
+    const key = d.getFullYear() * 12 + d.getMonth();
+    // A future-dated row must not open a month past the chevrons' own clamp.
+    if (key > curKey) return;
+    if (!acc.has(key)) acc.set(key, { y: d.getFullYear(), m: d.getMonth(), expense: 0, entries: 0 });
+    const rec = acc.get(key);
+    rec.entries++;
+    if (r.Type !== 'Income') rec.expense += r.Amount;
+  });
+  _pickerCache = [...acc.values()]
+    .map(v => ({ ...v, isCurrent: v.y === curY && v.m === curM }))
+    .sort((a, b) => (b.y - a.y) || (b.m - a.m));
+  _pickerStamp = dataStamp;
+  return _pickerCache;
+}
+
+function monthPickerHtml() {
+  const months = pickerMonths();
+  const max = months.reduce((mx, x) => Math.max(mx, x.expense), 0);
+  const now = new Date();
+  let html = '', lastYear = null;
+  months.forEach(mo => {
+    if (mo.y !== lastYear) { html += `<div class="yr-hdr">${mo.y}</div>`; lastYear = mo.y; }
+    const sub = mo.isCurrent
+      ? `${now.getDate()} days in · running`
+      : `${daysInMonthOf(mo.y, mo.m)} days · closed`;
+    const h = max > 0 ? Math.max(4, Math.round(mo.expense / max * 22)) : 4;
+    const sel = (mo.y === viewYear && mo.m === viewMonth) ? ' sel' : '';
+    const amt = `RM ${formatCurrency(mo.expense)}`;
+    html += `
+      <button type="button" class="lrow${sel}" data-y="${mo.y}" data-m="${mo.m}"
+        aria-label="${MONTHS_FULL[mo.m]} ${mo.y}, ${mo.entries} ${mo.entries === 1 ? 'entry' : 'entries'}, ${amt} spent">
+        <span class="lrow-l">
+          <span class="lrow-m">${MONTHS_FULL[mo.m]}</span>
+          <span class="lrow-s">${sub}</span>
+        </span>
+        <span class="lrow-r">
+          <span class="spark" aria-hidden="true"><span style="height:${h}px"></span></span>
+          <span class="lrow-amt">${amt}</span>
+        </span>
+      </button>`;
+  });
+  return html;
+}
+
+function openMonthPicker() {
+  const list = document.getElementById('month-list');
+  list.innerHTML = monthPickerHtml();
+  list.querySelectorAll('.lrow').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const y = parseInt(btn.dataset.y), m = parseInt(btn.dataset.m);
+      // Close before re-rendering: focus goes back to the masthead first, and
+      // on Logs the handler scrolls the page, which shouldn't happen behind an
+      // open scrim.
+      closeMonthPicker();
+      applyViewMonth(y, m);
+    });
+  });
+  document.getElementById('masthead-month').setAttribute('aria-expanded', 'true');
+  document.body.classList.add('modal-open-state');
+  const overlay = document.getElementById('month-overlay');
+  overlay.classList.add('open');
+  trapModalFocus(overlay, overlay.querySelector('.modal-sheet'));
+  // Centre the current selection. scrollIntoView() would scroll the page as
+  // well as the list; setting scrollTop keeps it inside the sheet.
+  const sel = list.querySelector('.lrow.sel');
+  if (sel) list.scrollTop = Math.max(0, sel.offsetTop - list.clientHeight / 2 + sel.offsetHeight / 2);
+}
+
+function closeMonthPicker() {
+  document.getElementById('masthead-month').setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('modal-open-state');
+  document.getElementById('month-overlay').classList.remove('open');
+  releaseModalFocus();   // returns focus to #masthead-month
+}
 
 // Scroll the Logs ledger to a month's header, growing the scope until that
 // month is rendered — the chip is a jump shortcut, so it loads whatever it
@@ -4434,6 +4583,8 @@ document.addEventListener('keydown', (e) => {
     closeCaptureModal();
   } else if (document.getElementById('drill-overlay').classList.contains('open')) {
     closeDrillSheet();
+  } else if (document.getElementById('month-overlay').classList.contains('open')) {
+    closeMonthPicker();
   } else if (document.getElementById('recurring-overlay').classList.contains('open')) {
     // Same one-step-back shape as the txn modal: confirm → form → list → closed.
     if (document.getElementById('recur-confirm').classList.contains('show')) cancelRecurDeleteConfirm();
