@@ -2706,22 +2706,31 @@ const LOGS_PARK = 56;
 // The observer is only a trigger; this decides.
 function spyResolve() {
   if (_spySuppressed || currentView !== 'logs') return;
-  const hs = [...document.querySelectorAll('#logs-ledger .month-header')];
+  const now = new Date();
+  const curKey = now.getFullYear() * 12 + now.getMonth();
+  // ⚠️ Future months are skipped. A future-dated row makes its own block in the
+  // ledger, but pickerMonths() refuses to offer such a month and the swipe
+  // clamps at the current one — so a readout that named it would be the one
+  // surface in the app claiming a month the other two say does not exist.
+  // (The model for future-dated entries is an open question; this only keeps
+  // the three doors agreeing in the meantime.)
+  const hs = [...document.querySelectorAll('#logs-ledger .month-header')]
+    .filter(h => {
+      const [y, m] = h.dataset.ym.split('-').map(Number);
+      return y * 12 + m <= curKey;
+    });
   if (!hs.length) return;
 
-  // The last month can never be scrolled to the line — the document bottoms out
-  // first — so at the end of the ledger the answer is the oldest header, not
-  // whichever one last happened to cross.
-  const atBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
-  let pick = atBottom ? hs[hs.length - 1] : null;
-  if (!pick) {
-    let best = -Infinity;
-    hs.forEach(h => {
-      const t = h.getBoundingClientRect().top;
-      if (t <= SPY_LINE && t > best) { best = t; pick = h; }
-    });
-    if (!pick) pick = hs[0];   // above the first header: the newest month
-  }
+  // The month is whichever header is the LAST one above the line. Resolving
+  // geometrically rather than from the observer's entry list is what makes it
+  // symmetric: "topmost intersecting entry" reports nothing when you scroll up
+  // out of a month, and the readout latches on the month you just left.
+  let pick = null, best = -Infinity;
+  hs.forEach(h => {
+    const t = h.getBoundingClientRect().top;
+    if (t <= SPY_LINE && t > best) { best = t; pick = h; }
+  });
+  if (!pick) pick = hs[0];     // above the first header: the newest month
 
   const [y, m] = pick.dataset.ym.split('-').map(Number);
   if (y === viewYear && m === viewMonth) return;
@@ -2733,6 +2742,13 @@ function spyResolve() {
 // A programmatic scroll passes through every month between here and there, and
 // the readout must not narrate the journey.
 let _spySuppressed = false, _spyTimer = null;
+
+// Set when a jump could not park its target because the document ran out of
+// scroll — the oldest months can never reach the line, the page bottoms out
+// first. The jump is then AUTHORITATIVE: the month you asked for is on screen
+// and named, even though the line is pointing at an older one. The readout
+// resumes following the line the moment you scroll again.
+let _jumpClamped = false;
 
 function suppressSpy(ms = 1200) {
   _spySuppressed = true;
@@ -2748,6 +2764,7 @@ function releaseSpy() {
   clearTimeout(_spyTimer);
   window.removeEventListener('scrollend', releaseSpy);
   _spySuppressed = false;
+  if (_jumpClamped) { _jumpClamped = false; return; }
   // A jump to a month whose header is already parked scrolls nothing, so it
   // fires neither scrollend nor an observer callback. Resolve once on release
   // or the label can stay on a month the ledger has left.
@@ -3137,9 +3154,15 @@ function logsScrollToMonth(y, m) {
 function logsScrollToYm(key) {
   const target = document.querySelector(`#logs-ledger .month-header[data-ym="${key}"]`);
   if (!target) return;
-  const top = target.getBoundingClientRect().top + window.scrollY - LOGS_PARK;
+  const want = target.getBoundingClientRect().top + window.scrollY - LOGS_PARK;
+  const top = Math.max(0, want);
+  // The oldest months can't reach the line — the document bottoms out first.
+  // Record it, so releaseSpy() leaves the readout on the month that was asked
+  // for rather than on whatever the line ends up pointing at.
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  _jumpClamped = top > maxScroll + 1;
   suppressSpy();
-  window.scrollTo({ top: Math.max(0, top), behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
+  window.scrollTo({ top, behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
 }
 
 // ── Archive card (Phase 3) ──────────────────────────────────────────────────
