@@ -1616,7 +1616,7 @@
      the invisible strip across the top of the page isn't a dead zone; only the
      pill itself takes them back. -->
 <div id="month-rail" class="rail">
-  <button id="month-pill" class="pill" onclick="openMonthPicker(this)" aria-haspopup="dialog" aria-expanded="false">
+  <button id="month-pill" class="pill" aria-haspopup="dialog" aria-expanded="false">
     <span id="month-pill-label">Aug 2026</span>
     <span class="pill-cx" aria-hidden="true">▾</span>
   </button>
@@ -2679,16 +2679,24 @@ function stickyTopOffset() {
   return h;
 }
 
-// THE month-change handler. The masthead chevrons, the picker sheet and the
-// archive shelf all land here — a parallel path would let Logs' scroll-to-month
-// and the renderedKey busting diverge.
+// Step to the adjacent month, clamped to [earliest data month … current month].
+// The pill's swipe is the only caller since the chevrons went; the picker and
+// the long-press call applyViewMonth() directly with a month they already know.
+//
+// Returns whether the month actually moved, so a swipe that hits a bound can
+// acknowledge the gesture instead of appearing to do nothing. There is no
+// separate bounce animation: at a bound the rubber band is already deflected,
+// and letting it settle back through .settling IS the bounce.
 function stepViewMonth(delta) {
   const now = new Date();
   const cur = now.getFullYear() * 12 + now.getMonth();
   const earliest = earliestDataMonth();
-  let key = viewYear * 12 + viewMonth + delta;
+  const from = viewYear * 12 + viewMonth;
+  let key = from + delta;
   key = Math.min(cur, Math.max(earliest === null ? cur : earliest, key));
+  if (key === from) return false;
   applyViewMonth(Math.floor(key / 12), key % 12);
+  return true;
 }
 
 // Move to an absolute month. stepViewMonth() clamps into range and calls this;
@@ -2731,6 +2739,79 @@ window.addEventListener('resize', () => {
   if (_travelRAF) return;
   _travelRAF = requestAnimationFrame(() => { _travelRAF = null; syncPillTravel(); });
 }, { passive: true });
+
+// Swipe the pill to step months; long-press to come back to now. With the
+// chevrons and the archive shelf both gone, this and the picker are the two
+// doors onto a closed month.
+//
+// ⚠️ The pill is a button AND a swipe target on the same element, so a
+// movement threshold is what keeps the two apart: without DRAG_SLOP every
+// swipe would also fire the picker on the click that follows the release.
+const SWIPE_COMMIT = 26;   // px of travel before a step is committed
+const DRAG_SLOP    = 6;    // px before the gesture stops being a tap
+const LONG_PRESS   = 500;  // ms
+const DRAG_CAP     = 12;   // px the rubber band may deflect — see below
+
+function wirePillGestures() {
+  const pill = document.getElementById('month-pill');
+  if (!pill) return;
+  let x0 = null, dragged = false, lpTimer = null;
+
+  const settle = () => {
+    // The transition lives on .settling, never on the base rule: transitioning
+    // --drag always would smooth every pointermove and lag the finger.
+    pill.classList.add('settling');
+    pill.style.setProperty('--drag', '0px');
+    clearTimeout(pill._settleT);
+    pill._settleT = setTimeout(() => pill.classList.remove('settling'), 600);
+  };
+
+  pill.addEventListener('pointerdown', e => {
+    if (pill.classList.contains('inert')) return;
+    x0 = e.clientX; dragged = false;
+    pill.classList.remove('settling');
+    pill.setPointerCapture(e.pointerId);
+    lpTimer = setTimeout(() => {
+      lpTimer = null;
+      dragged = true;                     // suppress the click that follows
+      applyViewMonth(new Date().getFullYear(), new Date().getMonth());
+      if (navigator.vibrate && !REDUCED_MOTION) navigator.vibrate(12);
+    }, LONG_PRESS);
+  });
+
+  pill.addEventListener('pointermove', e => {
+    if (x0 === null) return;
+    const dx = e.clientX - x0;
+    if (Math.abs(dx) > DRAG_SLOP) {
+      dragged = true;
+      if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+    }
+    // Resisted and capped. ⚠️ The cap must stay BELOW the pill's own 16px right
+    // offset: the rail sits outside .container's overflow-x: clip, so a
+    // deflection wider than the offset would push the pill past the viewport's
+    // right edge and widen the document — which mobile browsers then zoom to
+    // fit, and which no amount of clipping elsewhere would undo.
+    pill.style.setProperty('--drag', Math.max(-DRAG_CAP, Math.min(DRAG_CAP, dx * 0.4)) + 'px');
+  });
+
+  const end = e => {
+    if (x0 === null) return;
+    const dx = e.clientX - x0; x0 = null;
+    if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+    settle();
+    // Swipe left reads as "forward", the direction the months run on screen.
+    if (Math.abs(dx) > SWIPE_COMMIT) stepViewMonth(dx < 0 ? 1 : -1);
+    setTimeout(() => { dragged = false; }, 0);
+  };
+  pill.addEventListener('pointerup', end);
+  pill.addEventListener('pointercancel', end);
+
+  // ⚠️ The picker opens from here, NOT from an inline onclick. A swipe ends in
+  // a click too, and only this handler knows whether the finger moved — and an
+  // inline handler is registered at parse time, so it would fire before any
+  // listener added later could suppress it.
+  pill.addEventListener('click', () => { if (!dragged) openMonthPicker(pill); });
+}
 
 // The masthead names the period. It never measures it — no figure goes up
 // here, on either representation, which is the line that settles the hairline,
@@ -3678,6 +3759,7 @@ async function fetchServerRows() {
 }
 
 async function init() {
+  wirePillGestures();
   try {
     allRows = await fetchServerRows();
     document.getElementById('main-loader').style.display = 'none';
