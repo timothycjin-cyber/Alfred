@@ -12,7 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght,wdth@8..144,300..900,75..125&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400..700&family=Roboto+Flex:opsz,wght,wdth@8..144,300..900,75..125&display=swap" rel="stylesheet">
 <style>
   /* ────────────────────────────────────────────────────────────
      M3 EXPRESSIVE DESIGN TOKENS — CLEAN MONOCHROME
@@ -71,6 +71,12 @@
     --motion-snap: 220ms cubic-bezier(0.25, 1, 0.3, 1);
     --motion-standard: 250ms cubic-bezier(0.2, 0, 0, 1);
     --font-body: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    /* Editorial serif, used for exactly one thing: the month as a pane's
+       masthead. Newsreader is variable (400..700), so the condensed state's
+       heavier cut is a real weight rather than a synthesised one. The stack
+       falls back to the platform serif, which keeps the masthead editorial
+       rather than dropping it into the UI face if the webfont never arrives. */
+    --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
   }
 
   /* Real damped-spring physics where linear() is supported (the beziers above
@@ -270,6 +276,67 @@
      browser then zooms to fit ("page zooms in slightly after a few toggles").
      clip (not hidden) keeps overflow-y visible, so vertical page scroll and
      the sticky header are unaffected. */
+  /* MASTHEAD — the month, set as the pane's title, on Trends and Logs only.
+     Today has none: the hero already states the month, and a second surface
+     saying it would be the app's sixth way of stating one fact.
+
+     Sticky, never fixed. The shared-axis slide transiently widens the
+     document; a fixed bar sizes to the widened layout viewport and SUSTAINS
+     the overflow, which mobile then zooms to fit. Sticky is immune, which the
+     old header demonstrated for a year.
+
+     It sits OUTSIDE .container, where the header used to be — .container is
+     an overflow-x: clip ancestor, and whether sticky survives that is a
+     question this doesn't need to answer. */
+  #masthead {
+    position: sticky; top: 0; z-index: 12;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    padding: calc(22px + env(safe-area-inset-top, 0px)) 18px 8px;
+    background: var(--surface);
+    transition: padding var(--motion-standard), background var(--motion-standard);
+  }
+  #masthead[hidden] { display: none; }
+
+  .month-btn {
+    display: inline-flex; align-items: baseline; gap: 8px;
+    border: none; background: transparent; color: inherit; font-family: inherit;
+    padding: 4px 10px 4px 4px; margin-left: -4px; border-radius: 12px;
+    min-height: 44px; cursor: pointer; outline: none;
+    transition: background var(--motion-standard), transform var(--motion-snap);
+  }
+  .month-btn:active { transform: scale(0.97); background: var(--surface-container); }
+
+  .month-txt {
+    font-family: var(--font-display);
+    font-size: 31px; font-weight: 500; letter-spacing: -0.9px; line-height: 1;
+    transition: font-size var(--motion-standard), letter-spacing var(--motion-standard);
+  }
+  .month-txt .yr { color: var(--on-surface-variant); font-size: 19px; margin-left: 7px; }
+
+  /* The caret is load-bearing, not decoration. A 31px serif title has no
+     affordance of its own, and "the control doesn't look tappable" is already
+     on the record against the Logs day columns. Repeating that on primary
+     navigation would be worse than repeating it on a drill-in. */
+  .caret {
+    width: 22px; height: 22px; border-radius: var(--shape-full);
+    background: var(--surface-container); color: var(--on-surface-variant);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; align-self: center; flex: none;
+    transition: transform var(--motion-snap);
+  }
+  .month-btn[aria-expanded="true"] .caret { transform: rotate(180deg); }
+
+  .steppers { display: flex; gap: 2px; align-self: center; flex: none; }
+  .arrow-btn {
+    width: 44px; height: 44px; border-radius: var(--shape-full);
+    border: 1px solid var(--outline-variant); background: transparent;
+    color: var(--on-surface); font-family: inherit; font-size: 15px;
+    cursor: pointer; outline: none;
+    transition: background var(--motion-standard), transform var(--motion-snap);
+  }
+  .arrow-btn:active:not(:disabled) { transform: scale(0.9); background: var(--surface-container); }
+  .arrow-btn:disabled { opacity: 0.28; cursor: default; }
+
   /* The deleted header was silently providing the status-bar inset in a
      standalone PWA. With it gone, .container is the first thing under the
      status bar on Today, so it carries the inset itself. On Trends and Logs
@@ -1361,6 +1428,20 @@
 </head>
 <body>
 
+<!-- The month as the pane's masthead (2026-08-11) — Trends and Logs only,
+     hidden on Today. Tapping the month opens the picker; the chevrons keep
+     adjacent-month navigation at one tap, which is the common case. -->
+<div id="masthead" hidden>
+  <button id="masthead-month" class="month-btn" onclick="openMonthPicker()" aria-haspopup="dialog" aria-expanded="false">
+    <span class="month-txt"></span>
+    <span class="caret" aria-hidden="true">▾</span>
+  </button>
+  <div class="steppers">
+    <button class="arrow-btn" id="month-prev" onclick="stepViewMonth(-1)" aria-label="Previous month">‹</button>
+    <button class="arrow-btn" id="month-next" onclick="stepViewMonth(1)" aria-label="Next month">›</button>
+  </div>
+</div>
+
 <div class="bottom-bar">
   <button class="fab" onclick="openCaptureModal()" aria-label="Log a transaction" id="global-action-fab">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
@@ -2390,23 +2471,54 @@ function stickyTopOffset() {
   return h;
 }
 
-function headerNavMonth(delta) {
+// THE month-change handler. The masthead chevrons, the picker sheet and the
+// archive shelf all land here — a parallel path would let Logs' scroll-to-month
+// and the renderedKey busting diverge.
+function stepViewMonth(delta) {
   const now = new Date();
   const cur = now.getFullYear() * 12 + now.getMonth();
   const earliest = earliestDataMonth();
   let key = viewYear * 12 + viewMonth + delta;
   key = Math.min(cur, Math.max(earliest === null ? cur : earliest, key));
-  viewYear = Math.floor(key / 12);
-  viewMonth = key % 12;
+  applyViewMonth(Math.floor(key / 12), key % 12);
+}
+
+// Move to an absolute month. stepViewMonth() clamps into range and calls this;
+// the picker passes a month straight from the data, so it is in range by
+// construction.
+function applyViewMonth(y, m) {
+  viewYear = y;
+  viewMonth = m;
+  renderMasthead();
   if (currentView === 'logs') {
-    // Logs never FILTERS by month — the chip loads whatever months it needs to
-    // reach the target and scrolls there, leaving everything already loaded in
-    // place. It deliberately bypasses calculateAndRender(), so the renderedKey
-    // early-return can't swallow the jump.
+    // Logs never FILTERS by month — the selector loads whatever months it needs
+    // to reach the target and scrolls there, leaving everything already loaded
+    // in place. It deliberately bypasses calculateAndRender(), so the
+    // renderedKey early-return can't swallow the jump.
     logsScrollToMonth(viewYear, viewMonth);
   } else {
     calculateAndRender();
   }
+}
+
+// The masthead shows on Trends and Logs, and only once there is data to
+// navigate. Months are written in words — the app writes them that way
+// everywhere else, and "07-26" in 31pt serif would read as a filename.
+function renderMasthead() {
+  const el = document.getElementById('masthead');
+  if (!el) return;
+  const earliest = earliestDataMonth();
+  const show = (currentView === 'trends' || currentView === 'logs') && earliest !== null;
+  el.hidden = !show;
+  document.body.classList.toggle('has-masthead', show);
+  if (!show) return;
+  const now = new Date();
+  const cur = now.getFullYear() * 12 + now.getMonth();
+  const key = viewYear * 12 + viewMonth;
+  el.querySelector('.month-txt').innerHTML =
+    `${MONTHS_FULL[viewMonth]}<span class="yr">${viewYear}</span>`;
+  document.getElementById('month-prev').disabled = key <= earliest;
+  document.getElementById('month-next').disabled = key >= cur;
 }
 
 // Scroll the Logs ledger to a month's header, growing the scope until that
@@ -2459,10 +2571,9 @@ function renderArchiveShelf() {
   }).join('') + `</div>`;
 
   el.querySelectorAll('.shelf-chip').forEach(btn => {
+    // Through the shared handler, so the masthead label follows the shelf.
     btn.addEventListener('click', () => {
-      viewYear = parseInt(btn.dataset.y);
-      viewMonth = parseInt(btn.dataset.m);
-      calculateAndRender();
+      applyViewMonth(parseInt(btn.dataset.y), parseInt(btn.dataset.m));
     });
   });
 }
@@ -3548,6 +3659,9 @@ function switchView(view) {
   }
   // Slider slot n = n × (own width + 4px gap); see the .nav-slider CSS note.
   document.getElementById('nav-slider').style.transform = `translateX(calc(${toIdx * 100}% + ${toIdx * 4}px))`;
+  // The masthead lives outside the view panes, so it must follow every tab
+  // change — including the ones calculateAndRender()'s key-skip elides.
+  renderMasthead();
   calculateAndRender();
 }
 
@@ -3721,10 +3835,12 @@ function calculateAndRender() {
   // reads all the user's rows and scopes them itself with logsMonthsShown, so
   // the header month chip never filters here — it only jumps.
   if (currentView === 'logs') {
+    renderMasthead();
     renderLogsLedger();
   }
 
   if (currentView === 'trends') {
+    renderMasthead();
     renderTrendsInsight();
     renderArchiveShelf();
 
