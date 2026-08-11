@@ -306,6 +306,100 @@
     }
   }
 
+  /* --drag is the swipe's rubber band, live only while a finger is down.
+     Registered so it can be TRANSITIONED back to zero on release — but the
+     transition is scoped to .settling, never the base rule: transitioning it
+     always would smooth every pointermove and make the pill lag the finger. */
+  @property --drag {
+    syntax: '<length>';
+    inherits: false;
+    initial-value: 0px;
+  }
+
+  /* THE PILL — the masthead's destination, and the app's fixed point.
+     It TRAVELS: it flies from the masthead's left edge into the top-right
+     corner as the masthead fades, so the two read as one object moving rather
+     than two objects swapping. --pill-travel is measured at runtime by
+     syncPillTravel(), because the distance depends on the label's width.
+
+     The rail is a zero-height sticky strip, which is what lets the pill stay
+     put with nothing being position: fixed (see the #masthead note). It costs
+     no layout and refuses pointer events, so the invisible band across the top
+     of every page isn't a dead zone; the pill takes them back for itself. */
+  .rail {
+    position: sticky; top: 0; height: 0; overflow: visible;
+    z-index: 30; pointer-events: none;
+  }
+
+  /* 38px is under the 44px target floor, and that is acceptable here for one
+     reason only: the pill is never the sole route to anything. The full-size
+     masthead button above it is 44px+ and opens the same picker. Do not make
+     the pill the only tappable representation of the month. */
+  .pill {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 16px;
+    pointer-events: auto;
+    display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+    height: 38px; padding: 0 8px 0 15px;
+    border-radius: var(--shape-full);
+    background: color-mix(in srgb, var(--surface-container-low) 76%, transparent);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface); font-family: inherit;
+    font-size: 13.5px; font-weight: 600; letter-spacing: -0.1px;
+    cursor: pointer; outline: none;
+    /* Lets the horizontal swipe through to our handler while the browser keeps
+       vertical scrolling — the pill is a button and a swipe target at once. */
+    touch-action: pan-y;
+    opacity: var(--p);
+    box-shadow: 0 calc(var(--p) * 10px) calc(var(--p) * 24px) rgba(0, 0, 0, calc(var(--p) * 0.16));
+    transform:
+      translate3d(calc((1 - var(--p)) * var(--pill-travel, -230px) + var(--drag, 0px)), 0, 0)
+      scale(calc(0.86 + var(--p) * 0.14));
+    transform-origin: 100% 50%;
+    will-change: transform, opacity;
+  }
+
+  /* The settle after a swipe. Scoped to a class the gesture handler adds on
+     release, so the drag itself tracks the finger exactly. */
+  #month-pill.settling { transition: --drag var(--motion-snap); }
+
+  .pill-cx {
+    width: 22px; height: 22px; border-radius: var(--shape-full); flex: none;
+    background: var(--surface-container); color: var(--on-surface-variant);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 9px;
+  }
+  #month-pill.inert { cursor: default; padding-right: 15px; }
+  #month-pill.inert .pill-cx { display: none; }
+
+  /* Hit-testing while invisible. At --p 0 the pill is transparent but still in
+     the hit path, so a tap at the top-right corner would land on a button
+     nobody can see instead of the card underneath. pointer-events animates
+     discretely, so one keyframe pair on the same scroll timeline gates it.
+     ⚠️ This has to live on the pill — the element that receives the events —
+     not in body's animation list. The rAF fallback sets the property directly. */
+  @keyframes mh-pill-hit {
+    0%, 40%      { pointer-events: none; }
+    40.01%, 100% { pointer-events: auto; }
+  }
+
+  @supports (animation-timeline: scroll()) {
+    #month-pill {
+      animation: mh-pill-hit linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 86px;
+    }
+  }
+
+  /* Travel degrades to a plain cross-fade. Opacity stays linked to --p, so the
+     hand-off still reads — nothing flies, and nothing scales. */
+  @media (prefers-reduced-motion: reduce) {
+    #month-pill { transform: none; }
+    #masthead   { transform: none; }
+  }
+
   /* MASTHEAD — the period, set as the pane's title, on ALL THREE tabs since
      2026-08-11b. Today reads the DATE (weekday + day/month) and is inert;
      Trends and Logs read the month and open the picker. Today's period is a
@@ -1507,9 +1601,21 @@
 </head>
 <body>
 
-<!-- The month as the pane's masthead (2026-08-11) — Trends and Logs only,
-     hidden on Today. Tapping the month opens the picker; the chevrons keep
-     adjacent-month navigation at one tap, which is the common case. -->
+<!-- The lift-off pill. A zero-height sticky rail is what lets the pill stay put
+     without anything being position: fixed — the rail costs no layout, and the
+     pill is absolutely positioned inside it. The rail ignores pointer events so
+     the invisible strip across the top of the page isn't a dead zone; only the
+     pill itself takes them back. -->
+<div id="month-rail" class="rail">
+  <button id="month-pill" class="pill" onclick="openMonthPicker(this)" aria-haspopup="dialog" aria-expanded="false">
+    <span id="month-pill-label">Aug 2026</span>
+    <span class="pill-cx" aria-hidden="true">▾</span>
+  </button>
+</div>
+
+<!-- The period as the pane's masthead — all three tabs since 2026-08-11b.
+     Today reads the date and is inert; Trends and Logs read the month and open
+     the picker. Month stepping is a swipe on the pill; there are no chevrons. -->
 <div id="masthead" hidden>
   <button id="masthead-month" class="month-btn" onclick="openMonthPicker()" aria-haspopup="dialog" aria-expanded="false">
     <span class="month-txt"></span>
@@ -2595,6 +2701,29 @@ function applyViewMonth(y, m) {
   }
 }
 
+// How far the pill has to fly to sit on the masthead's left edge at --p 0.
+// Measured rather than guessed, because it depends on the label's width, which
+// changes with the month and the tab.
+//
+// ⚠️ offsetLeft, not getBoundingClientRect(): the pill and the masthead are
+// both mid-transform on every frame of the lift-off, and a rect would return
+// the transformed position and feed the measurement back into itself.
+// The two origins coincide — the pill's offsetParent is the rail, a body child
+// at the content-box left edge, and .month-txt's is body itself, which has no
+// left padding or margin.
+function syncPillTravel() {
+  const pill = document.getElementById('month-pill');
+  const anchor = document.querySelector('#masthead .month-txt');
+  if (!pill || !anchor) return;
+  pill.style.setProperty('--pill-travel', (anchor.offsetLeft - pill.offsetLeft) + 'px');
+}
+
+let _travelRAF = null;
+window.addEventListener('resize', () => {
+  if (_travelRAF) return;
+  _travelRAF = requestAnimationFrame(() => { _travelRAF = null; syncPillTravel(); });
+}, { passive: true });
+
 // The masthead shows on Trends and Logs, and only once there is data to
 // navigate. Months are written in words — the app writes them that way
 // everywhere else, and "07-26" in 31pt serif would read as a filename.
@@ -2613,6 +2742,7 @@ function renderMasthead() {
     `${MONTHS_FULL[viewMonth]}<span class="yr">${viewYear}</span>`;
   document.getElementById('month-prev').disabled = key <= earliest;
   document.getElementById('month-next').disabled = key >= cur;
+  syncPillTravel();
 }
 
 // The lift-off is a scroll-driven CSS animation (see @property --p): it runs
@@ -2703,7 +2833,18 @@ function monthPickerHtml() {
   return html;
 }
 
-function openMonthPicker() {
+// Two triggers now open this: the masthead button and the pill. Which one did
+// is remembered so aria-expanded lands on it — focus return needs no help,
+// since trapModalFocus() already captures document.activeElement.
+let _pickerTrigger = null;
+
+function openMonthPicker(trigger) {
+  // Today's period is a day, not a control: both its representations carry
+  // .inert. The masthead button's inline onclick still fires, so the refusal
+  // has to live here as well as in tabindex and pointer-events.
+  const from = trigger || document.getElementById('masthead-month');
+  if (from && from.classList.contains('inert')) return;
+  _pickerTrigger = from;
   const list = document.getElementById('month-list');
   list.innerHTML = monthPickerHtml();
   list.querySelectorAll('.lrow').forEach(btn => {
@@ -2716,7 +2857,7 @@ function openMonthPicker() {
       applyViewMonth(y, m);
     });
   });
-  document.getElementById('masthead-month').setAttribute('aria-expanded', 'true');
+  if (_pickerTrigger) _pickerTrigger.setAttribute('aria-expanded', 'true');
   document.body.classList.add('modal-open-state');
   const overlay = document.getElementById('month-overlay');
   overlay.classList.add('open');
@@ -2728,10 +2869,11 @@ function openMonthPicker() {
 }
 
 function closeMonthPicker() {
-  document.getElementById('masthead-month').setAttribute('aria-expanded', 'false');
+  if (_pickerTrigger) _pickerTrigger.setAttribute('aria-expanded', 'false');
+  _pickerTrigger = null;
   document.body.classList.remove('modal-open-state');
   document.getElementById('month-overlay').classList.remove('open');
-  releaseModalFocus();   // returns focus to #masthead-month
+  releaseModalFocus();   // returns focus to whichever trigger opened it
 }
 
 // Scroll the Logs ledger to a month's header, growing the scope until that
