@@ -262,6 +262,13 @@
     outline: none;
     z-index: 2;
     transition: transform var(--motion-snap);
+    /* The FAB is held down, not just tapped (long-press → camera), and a held
+       button raises the selection callout on iOS and the double-tap-zoom delay
+       everywhere. Neither belongs on top of a camera about to open. */
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
   }
   .fab svg {
     transition: transform var(--motion-wobble);
@@ -1646,7 +1653,10 @@
 </div>
 
 <div class="bottom-bar">
-  <button class="fab" onclick="openCaptureModal()" aria-label="Log a transaction" id="global-action-fab">
+  <!-- No inline onclick: a long press opens the camera and the click that
+       follows has to be eaten, which only a listener that knows how long the
+       press was can do. See wireFabGestures(). -->
+  <button class="fab" aria-label="Log a transaction" id="global-action-fab">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
       <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
     </svg>
@@ -3872,6 +3882,7 @@ async function fetchServerRows() {
 
 async function init() {
   wirePillGestures();
+  wireFabGestures();
   try {
     allRows = await fetchServerRows();
     document.getElementById('main-loader').style.display = 'none';
@@ -5141,6 +5152,81 @@ function openManualFromCapture() {
   openTxnModal(null);
 }
 
+// ── FAB long-press → straight to the camera ────────────────────────────────
+// Tap is unchanged: it opens the capture sheet. A long press skips the sheet
+// and opens the camera, because a receipt photo is always the same three taps
+// — FAB, camera button, shutter — and the middle one carries no decision.
+// This is the accelerator §6 parked as "FAB long-press accelerator".
+//
+// ⚠️ The FAB's click had to come OFF the markup and move in here. An inline
+// onclick is registered at parse time, so it fires before any listener added
+// later could suppress it — the same reason the month pill opens its picker
+// from a listener rather than an attribute (§3.4). Only this handler knows
+// whether the press was long.
+const FAB_LONG_PRESS = 450;  // ms. Shorter than the pill's 500: nothing is
+                             // being read here, and the finger is already on
+                             // its way to a shutter button.
+
+// True while a shortcut-opened camera is in flight, so the file handler knows
+// to raise the sheet this press deliberately skipped.
+let _fabCameraShortcut = false;
+
+function wireFabGestures() {
+  const fab = document.getElementById('global-action-fab');
+  if (!fab) return;
+  let x0 = null, y0 = null, fired = false, lpTimer = null;
+
+  const cancelTimer = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+
+  fab.addEventListener('pointerdown', e => {
+    x0 = e.clientX; y0 = e.clientY; fired = false;
+    // Capture keeps a drifting finger's moves coming to us. It throws if the
+    // pointer is no longer active, and the press must survive that — the timer
+    // below is the whole feature, and it is set after this line.
+    try { fab.setPointerCapture(e.pointerId); } catch (_) {}
+    lpTimer = setTimeout(() => {
+      lpTimer = null;
+      fired = true;                    // suppress the click that follows
+      openCameraDirect();
+      if (navigator.vibrate && !REDUCED_MOTION) navigator.vibrate(12);
+    }, FAB_LONG_PRESS);
+  });
+
+  // A finger that drifts is a slip or a scroll, not a press. Same DRAG_SLOP
+  // the pill uses, measured radially since this target is round.
+  fab.addEventListener('pointermove', e => {
+    if (x0 === null || !lpTimer) return;
+    if (Math.hypot(e.clientX - x0, e.clientY - y0) > DRAG_SLOP) cancelTimer();
+  });
+
+  const end = () => { x0 = null; cancelTimer(); };
+  fab.addEventListener('pointerup', end);
+  fab.addEventListener('pointercancel', end);
+
+  // ⚠️ The click after a fired long press is EATEN here, never out-raced. The
+  // obvious `setTimeout(() => fired = false, 0)` in pointerup is a real bug:
+  // click is dispatched as its own task and a 0ms timer can win it, which
+  // opens the capture sheet on top of the camera the press just launched.
+  fab.addEventListener('click', e => {
+    if (fired) { fired = false; e.preventDefault(); e.stopPropagation(); return; }
+    openCaptureModal();
+  });
+
+  // A held button raises the context menu / selection callout on some mobile
+  // browsers — directly over the camera the hold is opening.
+  fab.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+// The shortcut opens the camera with the sheet still closed; the photo comes
+// back through the ordinary handleCaptureFile path, which parks it as an
+// attachment and raises the sheet — so the note field and Send sit exactly
+// where they always do. Nothing is written without a confirm: this saves a
+// tap, not a step (§0's confirm-before-save pillar).
+function openCameraDirect() {
+  _fabCameraShortcut = true;
+  document.getElementById('capture-camera-file').click();
+}
+
 let pendingSource = null;  // 'web' | 'web-image' while a capture confirm is open
 let reviewTxns = [];
 let reviewSource = 'web';
@@ -5194,9 +5280,21 @@ function clearCaptureAttachment() {
 
 // One handler for both routes: camera (capture attr) and gallery/files (clip).
 async function handleCaptureFile(e) {
+  // Read and clear the shortcut flag first: cancelling the camera fires no
+  // change event at all, so a flag left set would raise the sheet on some
+  // later, unrelated pick.
+  const viaShortcut = _fabCameraShortcut;
+  _fabCameraShortcut = false;
   const file = e.target.files && e.target.files[0];
   e.target.value = ''; // same photo re-selectable
   if (!file || captureBusy) return;
+  // A shortcut photo raises the sheet the long press skipped — before the
+  // downscale, so the busy state is visible rather than the app looking idle
+  // for a beat. Guarded on the overlay being closed: openCaptureModal() would
+  // otherwise re-trap focus over a live trap and clobber the return chain.
+  if (viaShortcut && !document.getElementById('capture-overlay').classList.contains('open')) {
+    openCaptureModal();
+  }
   try {
     setCaptureBusy(true);
     pendingImageB64 = await downscaleImage(file);

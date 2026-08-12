@@ -1,6 +1,25 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-11 (second pass) — **Lift-off pill: the period on every tab, chevrons
+*Last updated: 2026-08-12 — **FAB long-press → camera (§3.3, §3.8).** Tap the FAB is unchanged
+(it opens the capture sheet); **hold it ~450ms and the camera opens directly**, skipping the
+sheet. This is the accelerator §6 had parked since the v2 roadmap. A receipt photo was always
+the same three taps — FAB, camera button, shutter — and the middle one carries no decision.
+The photo comes back through the **ordinary `handleCaptureFile` path**, which parks it as an
+attachment and *then* raises the sheet, so the note field and Send sit exactly where they always
+do: **this saves a tap, not a step — nothing is written without a confirm.** ⚠️ **The FAB's
+`onclick` had to come OFF the markup**, same as the pill's picker: an inline handler is
+registered at parse time, so it fires before any listener added later could suppress it. ⚠️
+**The click after a fired long-press is EATEN in the click handler, never out-raced** — and the
+control proving it needs a **macrotask boundary between `pointerup` and `click`**, because
+synthetic mouse input dispatches the two in one task and hides the bug a real finger exposes.
+⚠️ **Cancelling the camera fires no `change` event at all**, so the shortcut flag survives into
+the user's next, unrelated pick — the sheet-raise is guarded on the overlay being closed, or it
+re-arms the focus trap over a live one. ⚠️ **`setPointerCapture` throws if the pointer is no
+longer active** and is wrapped, because the long-press timer is set on the line after it.
+Render-loop verified **104/104** across 390/light, 900/dark and reduced motion, **with six
+negative controls run first** — two of which fired nothing on the first attempt and were the
+findings that produced the last two probes. Front-end only — no Apps Script change, no redeploy.
+Prior banner (2026-08-11, second pass) — **Lift-off pill: the period on every tab, chevrons
 out, scroll-linked hand-off (§3.3, §3.4, §3.6, §3.7).** Governing principle, which settles the
 hairline, the sub-line and every future request to put a figure up there: **the masthead names
 the period, it never measures it.** The month now appears on **all three tabs**; the binary
@@ -509,7 +528,10 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
 - **FAB:** 56px sienna circle floating 12px above the pill, centered; `.bottom-bar` is a
   column stack anchored `bottom: calc(24px + env(safe-area-inset-bottom))`. Neutral
   elevation shadow (`0 6px 16px rgba(0,0,0,0.18)`); white icon; `body.modal-open-state`
-  rotate.
+  rotate. **Tap opens the capture sheet; a ~450ms hold opens the camera directly** (§3.8) —
+  so the FAB carries `user-select: none`, `-webkit-touch-callout: none` and
+  `touch-action: manipulation`, because a *held* button raises the iOS selection callout and
+  the double-tap-zoom delay, both of which land on top of the camera.
 - **⚠️ Derived numbers (re-derive ALL if the cluster moves — and the PILL'S HEIGHT is part
   of the cluster, which is what the 2026-08-10 target pass had to re-derive):** FAB center
   = **120px** + safe-area above the viewport bottom (24 bar + **56** pill + 12 gap + 28
@@ -1075,6 +1097,27 @@ below it carried its own.
   above the nav pill. **Container-transform entrance:** closed state `scale(0.08)` +
   full radius, `transform-origin` at the FAB center (see §3.3 derived numbers) — the FAB
   blooms into the sheet via `--motion-wobble`.
+- **FAB long-press → camera** (`wireFabGestures()` / `openCameraDirect()`, 2026-08-12): a
+  ~450ms hold on the FAB (`FAB_LONG_PRESS`, shorter than the pill's 500 — nothing is being
+  read, the finger is already heading for a shutter) clicks `#capture-camera-file` with the
+  sheet still closed. **Tap is untouched.** The photo returns through the ordinary
+  `handleCaptureFile` path, which parks it as an attachment and raises the sheet — *before*
+  the downscale, so the busy state is visible rather than the app looking idle for a beat.
+  **It saves a tap, not a step:** the note field and Send are where they always are, and
+  nothing is written without a confirm (§0). ⚠️ **The FAB's `onclick` is gone from the
+  markup** — an inline handler is registered at parse time and fires before any listener
+  added later could suppress it, the same reason the month pill opens its picker from a
+  listener (§3.4). ⚠️ **The trailing click is eaten in the click handler**
+  (`preventDefault` + `stopPropagation`), never out-raced with `setTimeout(…, 0)`: `click`
+  is its own task after `pointerup`, and a 0ms timer loses often enough to open the sheet on
+  top of the camera. ⚠️ **Cancelling the camera fires no `change` event**, so
+  `_fabCameraShortcut` survives to the user's next pick — the raise is guarded on
+  `#capture-overlay` being closed, or `openCaptureModal()` re-traps focus over a live trap
+  and clobbers the return chain. A drift past `DRAG_SLOP` (shared with the pill, measured
+  radially here) cancels the press; `contextmenu` is suppressed; the fire vibrates 12ms
+  unless `REDUCED_MOTION`. **Keyboard is unaffected** — Enter/Space fire a click with no
+  pointer sequence, so they get the tap behaviour, and the hold has no keyboard equivalent
+  by design (the in-sheet camera button is the accessible route).
 - Clip button → `#capture-gallery-file` (bare `accept="image/*"`: gallery/files,
   screenshots work); camera button → `#capture-camera-file` (`capture="environment"`).
   Both feed `handleCaptureFile`; photos canvas-downscale to ≤1280px JPEG q0.82 before
@@ -1314,6 +1357,12 @@ glass pill flies into the corner; the chevrons and the Trends archive shelf are 
 pill is a scroll readout on Logs. **Roadmap v3 decision 7 is reversed** (§6) and open item 14
 (three doors) is closed at two. Front-end only; **no Apps Script change, no redeploy needed.**
 See §3.3, §3.4, §3.6, §3.7.
+
+**FAB long-press → camera — DONE** (2026-08-12) — render-loop verified **104/104** across
+390/light, 900/dark and reduced motion, **with six negative controls run first**. Holding the
+FAB opens the camera directly; tapping it is unchanged. This ships the accelerator §6 had
+parked since the v2 roadmap. Front-end only; **no Apps Script change, no redeploy needed.**
+See §3.3 and §3.8.
 
 **Pending:** the remaining unscheduled candidate features (§6), plus the spec's own
 open questions, recorded under §6 "Recorded but undecided".
@@ -1615,6 +1664,25 @@ picker (its year affordance is a non-interactive divider). And **Commit 7 was ve
 — nothing has ever persisted `viewMonth`/`viewYear`, so the negative control that *adds*
 persistence is the only thing that makes that check mean anything.
 
+### FAB long-press → camera ✅ DONE (2026-08-12)
+
+Owner request, matching the accelerator parked in the candidate list since the v2 roadmap
+("long-press ~450ms opens the camera flow directly, skipping the capture sheet; tap
+unchanged"). Shipped behaviour is in §3.3 and §3.8. **No owner checklist — front-end only, no
+Apps Script change, no redeploy.**
+
+Decisions future phases must not re-open:
+
+1. **The shortcut skips the sheet on the way OUT, not on the way back.** The photo still
+   parks as an attachment in the sheet and still needs a confirm — the hold saves the middle
+   tap of a three-tap sequence, it does not become a second write path (§0).
+2. **The FAB owns its click in JS.** No inline `onclick` goes back on that button; a handler
+   that must decide whether a press counts has to own the click outright.
+3. **The hold is pointer-only, and that is not an a11y gap** — Enter/Space keep the tap
+   behaviour, and the in-sheet camera button is the route that was always there.
+4. **450ms, not the pill's 500.** The pill's hold interrupts reading; this one is already on
+   its way to a shutter.
+
 ### Design fix spec ✅ DONE (2026-08-10, second pass)
 
 Owner-supplied review of `main` @ 86054de (`ALFRED_FIX_SPEC.md`), shipped as three code
@@ -1714,8 +1782,10 @@ Each needs its own design/roadmap pass before building.
   **Update 2026-07-23:** the Weekly/Monthly toggle was **removed** (monthly-only) and the
   chip average switched to divide by elapsed days — see §3.7 and the §7 history entry.
 
-**Parked:** FAB long-press accelerator (long-press ~450ms opens the camera flow
-directly, skipping the capture sheet; tap unchanged — old v2 Phase 7, no full spec).
+- **FAB long-press accelerator.** ✅ **DONE 2026-08-12** — shipped as specified in the
+  parked one-liner (hold ~450ms → camera, tap unchanged); behaviour in §3.3 and §3.8.
+
+**Parked:** nothing.
 
 **Dropped (2026-07-19):** capture-bar correction handling ("actually make that RM20") —
 no longer wanted; capture-parse validation suite — considered resolved.
@@ -1754,6 +1824,37 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-12 — FAB long-press → camera (§3.3, §3.8):** the accelerator parked since the v2
+  roadmap. Tap the FAB is unchanged; a ~450ms hold opens the camera directly, and the photo
+  comes back through the ordinary capture path, which parks it as an attachment and then
+  raises the sheet the hold skipped. **It saves a tap, not a step** — the confirm is still
+  there, which is the whole reason this was safe to ship as a hidden accelerator rather than
+  a second write path. Four findings worth keeping. **(1) The FAB's inline `onclick` had to
+  go.** An attribute handler is registered at parse time and fires before any listener added
+  later could suppress it, so with it in place every long press opened the camera *and* the
+  sheet behind it — the same reason the month pill opens its picker from a listener, now the
+  second element in the app to hit it. **(2) The `setTimeout(…, 0)` bug is invisible to
+  synthetic mouse input.** Chromium dispatches `pointerup` and `click` in one task, so the
+  control that reintroduces the race fired *nothing* — the probe had to drive `pointerdown`,
+  `pointerup` and `click` as three separate evaluations with a real macrotask boundary
+  between the last two, which is what a finger delivers. Only then did the control fire.
+  **(3) Cancelling the camera fires no event at all**, so the shortcut flag outlives the
+  gesture and is still set the next time the user picks a photo by hand — with the sheet
+  already open. Without the "already open" guard that second photo re-enters
+  `openCaptureModal()` and re-arms the focus trap over a live one; the control for it also
+  fired nothing at first, because no probe had modelled a *cancelled* camera. It now checks
+  `modalReturnFocus` still points at the FAB. **(4) `setPointerCapture` throws on an inactive
+  pointer**, and the long-press timer is set on the next line — so an exception there would
+  silently delete the feature. Wrapped. Render-loop verified (§3.12; 390/light, 900/dark and
+  a reduced-motion pass, mocked GViz, local Chart.js, stubbed Apps Script, clock pinned to
+  2026-08-12 on an advancing offset): **104/104**, including a real JPEG driven through the
+  `change` event and downscaled, the 300ms/620ms threshold either side of 450, a drifting
+  finger falling back to the tap, Enter and Space keeping the tap behaviour, the in-sheet
+  camera and gallery buttons untouched, and `scrollWidth == clientWidth` throughout. **Six
+  negative controls run first** — restoring the inline `onclick` fired 14 checks, dropping
+  the sheet-raise fired 6, removing the drift cancel fired 2, removing `touch-action` fired
+  1, and the two that initially fired nothing produced the two probes above. Front-end only —
+  no Apps Script change, no redeploy.
 - **2026-08-11 (second pass) — Lift-off pill: the period on every tab, chevrons out (§3.3,
   §3.4, §3.6, §3.7):** the follow-on to the masthead PR shipped the same day. The month appears
   on **all three tabs**; the binary `.condensed` class becomes a **continuous scroll-linked
@@ -2449,6 +2550,17 @@ woven into §3.
   `preventDefault()` there. Same family: an inline `onclick` is registered at parse time, so no
   listener added later can suppress it — if a handler needs to decide whether a click counts, it
   has to own the click outright.
+- **Synthetic mouse input hides every pointerup-vs-click race.** Chromium's `mouse.up()`
+  dispatches `pointerup`, `mouseup` and `click` in a single task, so a `setTimeout(…, 0)`
+  scheduled in `pointerup` always beats the click in a harness and never does on a finger. A
+  control that reintroduces that bug fires nothing until the probe drives the three events as
+  separate evaluations with a real macrotask boundary between them. **If a defect is about
+  task ordering, the probe has to create the tasks.**
+- **A cancelled file picker fires nothing.** No `change`, no `cancel` worth relying on — so
+  any flag set before opening one outlives the gesture and is still set at the user's next,
+  unrelated pick. Read-and-clear the flag at the top of the handler, and guard whatever it
+  triggers on the state it assumes. The bug only appears two interactions later, which is
+  exactly why no probe had modelled it.
 - **"The topmost thing currently intersecting" is not a position readout.** It is asymmetric:
   scroll forward and the next item enters the band; scroll back and the item you are returning
   to has already left it, so nothing intersects and the readout latches on where you were. Use
