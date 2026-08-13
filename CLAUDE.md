@@ -499,7 +499,9 @@ therefore sets **`'wdth' 100` only** — never `'wght'`. ⚠️ **Never reintrod
 there**: it silently flattens the whole type ramp to regular while every stylesheet still
 *says* 700/800/900, and `getComputedStyle().fontWeight` keeps reporting the declared value, so
 nothing in the DOM reveals it. The only classes that legitimately set the axis are
-`.header-title`, `.hero-amount` and `.archive-net`, which do it deliberately and locally. The
+`.hero-amount` and `.archive-net`, which do it deliberately and locally. (This list read
+`.header-title, .hero-amount, .archive-net` until 2026-08-13 — `.header-title` went with the
+header on 2026-08-11 and the note was not updated.) The
 ramp after the rebalancing sits at **500–800**, with 650/750 used where a half-step reads
 better; the rule of thumb for anything new is one step below what a flattened rendering would
 have tempted you into (900 → 750/800, 800 → 700, 700 → 600).
@@ -536,8 +538,10 @@ a differently-coloured glyph — a cyan Transport chip with a red car. Both call
 (`categoryBreakdownHtml`, `txnRowHtml`) pass **`color:` as well as the background tint**, so a
 chip is exactly one hue. ⚠️ **The `CAT_ICONS` map now also holds an `"Income"` key** — it is
 not an expense category, and income rows look it up by name rather than falling through to
-`"Other"`. This retires the app's last emoji apart from the ⚠️ in the failed-load state (§6,
-not in scope).
+`"Other"`. This retires the app's last **rendered** emoji apart from the ⚠️ in the failed-load
+state (§6, not in scope). ⚠️ A `grep` for emoji is not clean even so: a `💰` survives in the
+comment above the `CAT_ICONS` `"Income"` key, explaining what it replaced, and `⚠️` appears in
+nineteen code comments. Nothing reaches the DOM but the failed-load glyph.
 
 **Motion tokens:** `--motion-wobble` (overshoot spring; hero/tile/chip pop-ins, FAB
 bloom, bar transitions), `--motion-snap` (taps), `--motion-wobble-nav` (nav-only, ≈20%
@@ -767,8 +771,7 @@ budget-pace card.**
   ink-black gradient in dark mode, monochrome off-white in light. **1.5px `--outline`
   border** (light) / `rgba(255,255,255,.22)` (dark) — deliberately heavier than the
   `--outline-variant` border every other card uses (2026-07-21), so the hero reads as
-  the page's focal point. Privacy blur toggle (`toggleHeroPrivacy()` → `.value-hidden`),
-  embedded 6-month net-trend mini bar chart (`heroChart`, current month sienna, others
+  the page's focal point. Embedded 6-month net-trend mini bar chart (`heroChart`, current month sienna, others
   green/red by sign; `minBarLength: 4` + `heroBaselinePlugin` faint zero line, gated on
   `canvas.id === 'hero-trend'`). Sub-copy "In the green" / "Watching the leak".
   **The running month is drawn as provisional** (2026-08-10): a `heroLiveMonth` flag
@@ -777,7 +780,12 @@ budget-pace card.**
   10th, nine days were otherwise being read against thirty-one-day bars on the same axis.
   (`activeMonth` is pinned to now at load per §3.4, so the flag is true in practice —
   it is still written as a derived flag, and the note must be built from it, not
-  unconditionally.)
+  unconditionally.) ⚠️ **There is no privacy blur toggle** — this bullet described one
+  (`toggleHeroPrivacy()` → `.value-hidden`) until 2026-08-13, and neither identifier has
+  existed in the file for as long as the history goes back. The only trace is `.hero-top`
+  still being `justify-content: space-between` with a single child, where the button sat.
+  Recorded rather than silently deleted, because the entry had been sending readers to
+  look for a control that isn't there.
 - **Tiles** (`#today-tiles`, a 2-col grid → **two headline tiles**): **`Income`** (month
   income) / **`Expenses`** — tinted surfaces (`--wash-income`/`--wash-expense`), `▲/▼ X%
   vs last month` chips with `.good`/`.bad` valence. ⚠️ **The income tile says `Income`, not
@@ -1022,7 +1030,7 @@ bottom margin until the 2026-08-10 swap, which only went unnoticed because the b
 below it carried its own.
 
 - **Insight strip** (`#trends-insight`, `.insight-card`, "What I noticed"):
-  - **Deterministic engine** (`buildAnalyticsInsight()` → rendered by
+  - **Deterministic engine** (`computeInsightNarrative()` → rendered by
     `renderTrendsInsight()`): six fact builders — `_insightPace` (MTD vs same-point last
     month; whole-month vs prior for past months), `_insightCategory` (3-month monotonic
     climb or ≥40% jump/drop vs recent average, ≥RM30 guard), `_insightRecurring`
