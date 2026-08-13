@@ -1,327 +1,39 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-13 — **Two device fixes for the FAB long-press (§3.3, §3.8).** Both
-reported from a real Android phone running the installed PWA, and **neither was reachable by the
-render loop that verified the feature the day before** — they are platform behaviours, not logic
-errors. **(1) The first long press after entering the app did nothing at all** — no camera, no
-sheet. The hold was committed by a single `setTimeout`, and that one callback has two ways to
-die on a cold start: it slips under main-thread load, and Android's own long-press (500ms,
-detected off the main thread) steals the pointer and cancels it — and **a cancelled touch
-dispatches no `click` either**, so the tap fallback never ran. `FAB_LONG_PRESS` had left only
-**50ms** of margin under that platform timeout, and the app's own startup work was enough to eat
-it. The press is now committed by **ELAPSED TIME**: `pointerup` and `pointercancel` each check
-the clock and fire if the finger was down long enough, `fire()` is idempotent because all three
-paths can be live in one gesture, the threshold is **350ms** (150ms of margin, not 50), `.fab`
-takes **`touch-action: none`** so a scroll can no longer steal the press, and
-`materializeRecurring()` moved to `requestIdleCallback` so it stops occupying exactly the window
-the timer needs. **(2) Cancelling the camera left the nav pill a blurred blob.** Returning from
-a camera intent, Chromium restores `.floating-nav`'s `backdrop-filter` layer from a **stale
-snapshot** and never re-rasterizes it — nothing on the page changes to invalidate it, because a
-**cancelled camera fires no event at all**. `repaintNavCluster()` drops the filter for one frame
-on `visibilitychange`/`pageshow` (and on the way out of `openCameraDirect`), forcing the layer to
-be rebuilt. ⚠️ **`FAB_LONG_PRESS`'s ceiling is a PLATFORM constraint, not an ergonomic one** —
-§6 decision 4 previously read "450ms, not the pill's 500" on comfort grounds; the real rule is
-that it must clear Android's `ViewConfiguration.getLongPressTimeout()` with margin. Do not raise
-it back. ⚠️ **`defer` on the Chart.js tag was specced and DELIBERATELY NOT SHIPPED** —
-`Chart.register()` is top-level in the inline script, which runs before any deferred script, so
-it would throw on load. Render-loop verified **141/141** across 390/light, 900/dark and reduced
-motion, **with seven negative controls run first**, two of which exposed probe bugs. ⚠️ **The
-pill repaint's real failure mode is NOT reproducible in a desktop harness** — the suite proves
-the wiring, the on-device check proves the fix. Front-end only — no Apps Script change, no
-redeploy.
-Prior banner (2026-08-12) — **FAB long-press → camera (§3.3, §3.8).** Tap the FAB is unchanged
-(it opens the capture sheet); **hold it ~450ms and the camera opens directly**, skipping the
-sheet. This is the accelerator §6 had parked since the v2 roadmap. A receipt photo was always
-the same three taps — FAB, camera button, shutter — and the middle one carries no decision.
-The photo comes back through the **ordinary `handleCaptureFile` path**, which parks it as an
-attachment and *then* raises the sheet, so the note field and Send sit exactly where they always
-do: **this saves a tap, not a step — nothing is written without a confirm.** ⚠️ **The FAB's
-`onclick` had to come OFF the markup**, same as the pill's picker: an inline handler is
-registered at parse time, so it fires before any listener added later could suppress it. ⚠️
-**The click after a fired long-press is EATEN in the click handler, never out-raced** — and the
-control proving it needs a **macrotask boundary between `pointerup` and `click`**, because
-synthetic mouse input dispatches the two in one task and hides the bug a real finger exposes.
-⚠️ **Cancelling the camera fires no `change` event at all**, so the shortcut flag survives into
-the user's next, unrelated pick — the sheet-raise is guarded on the overlay being closed, or it
-re-arms the focus trap over a live one. ⚠️ **`setPointerCapture` throws if the pointer is no
-longer active** and is wrapped, because the long-press timer is set on the line after it.
-Render-loop verified **104/104** across 390/light, 900/dark and reduced motion, **with six
-negative controls run first** — two of which fired nothing on the first attempt and were the
-findings that produced the last two probes. Front-end only — no Apps Script change, no redeploy.
-Prior banner (2026-08-11, second pass) — **Lift-off pill: the period on every tab, chevrons
-out, scroll-linked hand-off (§3.3, §3.4, §3.6, §3.7).** Governing principle, which settles the
-hairline, the sub-line and every future request to put a figure up there: **the masthead names
-the period, it never measures it.** The month now appears on **all three tabs**; the binary
-`.condensed` class is replaced by a **continuous scroll-linked `--p`**, and instead of the
-masthead shrinking in place, a **glass pill flies into the top-right corner** as the masthead
-fades. **Today reads the DATE** (`Monday` + a quieter `11 August`; pill `11 Aug`) and is
-**inert** — Today's period is a day, so the unit differs visibly from a control. **The chevrons
-are deleted**; stepping is a **swipe on the pill**, long-press returns to now. **The Trends
-archive shelf is deleted** — roadmap v3 decision 7 deliberately **reversed** (§6), closing open
-item 14's "three doors" at two. On Logs the pill is a **scroll readout**, not a selector: it
-relabels as you cross month headers, and **export follows it**. ⚠️ **`--p` is NOT off the main
-thread** — a scroll-driven animation of a *custom property* recalcs style every frame; the win
-is "no JS", not "no work", so keep the `var(--p)` consumer list to two elements. ⚠️ **The click
-after a committed swipe is EATEN, never out-raced** — the spec's `setTimeout(…, 0)` loses to the
-click task and opens the picker on every swipe. ⚠️ **The readout resolves GEOMETRICALLY against
-a line**, not from the observer's entry list: "topmost intersecting entry" is directionally
-asymmetric and latches on the month you just scrolled *out of*. ⚠️ **`LOGS_PARK` and `SPY_LINE`
-are a pair**; a jump the document can't deliver is **authoritative** rather than corrected.
-⚠️ **The swipe steps through `pickerMonths()`, not the calendar** — same gap-month correction
-§3.4 already records for the picker, so the two remaining doors agree about what a month is.
-⚠️ **`env(safe-area-inset-*)` has been inert app-wide all along** — there is no
-`viewport-fit=cover` on the viewport meta, so every one of them resolves to `0px` (§3.3).
-Render-loop verified **202/202** across four configs, **with nineteen negative controls run
-first**. Front-end only — no Apps Script change, no redeploy.
-Prior banner (2026-08-11) — **Header deleted; the month is the masthead (§3.3, §3.4).** The
-app header is **gone** — 77px of sticky chrome on every tab, holding one word of branding and
-a `display:none` div. On Trends and Logs the month is now the pane's **masthead** (editorial
-serif at 31px via a new `--font-display`, chevrons beside it, **condensing to ~50px on
-scroll** with the steppers hidden); tapping it opens a **ledger-list month picker** whose rows
-carry each month's spend and a proportional bar. **Today has no top chrome at all** — the hero
-already states the month. ⚠️ **The header was doing two invisible jobs**: supplying the
-status-bar inset in standalone PWA mode (now on `.container`, with `body.has-masthead`
-preventing a double application) and being the sticky offset `logsScrollToYm()` subtracts (now
-`stickyTopOffset()`). ⚠️ **The masthead is `sticky`, never `fixed`, and lives OUTSIDE
-`.container`** (the overflow trap, and the `overflow-x: clip` question). ⚠️ **The caret is
-load-bearing** — a 31px serif title has no affordance. ⚠️ **`pickerMonths()` lists months
-HOLDING DATA plus the current one**, not calendar months — a gap month's row scrolls nowhere
-on Logs; and the name isn't `monthTotals()`, which is already taken. ⚠️ **All three month
-doors — chevrons, picker, archive shelf — route through `applyViewMonth`**; the shelf used to
-assign `viewMonth` itself. **Supersedes roadmap v3 Phase B's header chip** but NOT its "one
-contextual selector" decision. Condensed padding is **3px, not the spec's 8px**, because
-`.month-btn` keeps its 44px floor. Render-loop verified **231/231**, **with fourteen negative
-controls run first** — one of which fired nothing and exposed that the `.condensed` reset is
-only reachable via a round trip through Today, and two of which exposed a harness bug that
-discarded a crashed section's already-passing checks. The **three doors onto month changing on
-Trends** are left unresolved deliberately (§6). Front-end only — no Apps Script change, no
-redeploy.
-Prior banner (2026-08-10, second pass) — **Design fix spec: type, contrast, targets, and a
-quieter Today (§3.2–§3.14).** Shipped as four commits from an owner-supplied review of
-`main` @ 86054de. **The headline is a real bug: `body` pinned
-`font-variation-settings: 'wght' 400`, and in a variable font that axis BEATS `font-weight`** —
-so ~35 classes across all three tabs had been rendering at regular whatever their CSS said.
-Only `.header-title`, `.hero-amount` and `.archive-net` (which set the axis themselves) and
-text inside a `<button>` (which escapes via the UA font reset) were ever correct. Unpinning it
-made the app render much heavier, so a second commit walks **39 classes** down a step (30 from
-the spec, 9 companions). ⚠️ **`getComputedStyle().fontWeight` CANNOT detect this** — it reports
-the declared value either way; only *measured rendered ink* can, and only with the real
-variable font loaded. Also: light-mode `--semantic-income`/`--semantic-expense` were tuned on
-dark surfaces and reused on white (2.9:1 / 4.1:1) → **#007A52 / #C62828**; heatmap day numbers
-went white on the two deepest sienna steps (**2.01:1**) → full-strength `--on-surface` on every
-cell; and five touch targets were under 44px. ⚠️ **The nav pill's 48→56px is part of the FAB
-cluster's derived geometry**, so all four dependent numbers were re-derived (§3.3): FAB centre
-112→**120**, body padding 164→**172**, toast 152→**160**, bottom-sheet padding 150→**158**; the
-bloom origin stays 38px because both terms moved 8px. Judgement changes: Today **says good news
-once** (hero keeps the verdict; `.tile-chip.good`, `.today-good` and the on-track pace strip go
-neutral — the alert states keep their red); the **`Budget` name collision is gone** (the tile,
-both type toggles and the ledger badge now read **`Income`**; the hero keeps `Budget left`);
-the hero's **running month is drawn provisional**; the heatmap **clips the future**; category
-icons are **monochrome line SVGs inheriting `currentColor`** (the app's last emoji); day columns
-sit in **visible slots**; an **empty week is one line**; **sienna is the only primary**. Two
-deliberate deviations from the spec are recorded in §7 — the heatmap clip is applied to the
-**render, not the `days` array** (the literal patch corrupts the chip total *and* renders zero
-cells on a closed month), and `.capture-manual` **replaces** its `.modal-actions` wrapper.
-Render-loop verified **178/178**, **with twelve negative controls run first** — five of which
-initially fired nothing and exposed a harness bug that had made every control a no-op.
-Front-end only — no Apps Script change, no redeploy.
-Prior banner (2026-08-10) — **Trends: donut and spending patterns swapped (§3.7).** The
-Trends order is now insight → tiles → archive card slot → **donut (Expenses by Category)**
-→ **spending patterns** → cumulative line → archive shelf. Markup move only: the
-`#category-card` and `#spending-patterns` blocks changed places in `#trends-view`; no
-render function, no chart config and no math were touched. One CSS line came with it —
-`#spending-patterns` had **no bottom margin**, which was invisible only because
-`#category-card`'s own 12px sat directly beneath it; after the swap the patterns card
-would have butted straight into the cumulative card, so it takes the same
-`margin-bottom: 12px` every other Trends block uses. Render-loop verified 135/135, **with
-two negative controls run first**. Front-end only — no Apps Script change, no redeploy.
-Prior banner (2026-08-09, second pass) — **Logs: current month by default,
-older months on demand (§3.6).** Logs no longer opens on the whole history. It opens on
-**one month** — the current one — and grows only when asked, from an
-`Earlier months — show June` tail at the foot of the ledger; at the end the tail becomes
-`Nothing logged before March.` The IntersectionObserver auto-append and `#logs-sentinel`
-are **deleted**. **This supersedes roadmap v3 decision 2 and Phase B step 3** (see §6), so
-don't reinstate the old behaviour from the roadmap. **Not a filter:** older months are
-**appended, never swapped in**, and once loaded a month stays loaded — a `dataStamp` bump,
-an optimistic write or a tab round-trip must not collapse the ledger; only a page reload
-resets it. ⚠️ **`logsMonthsShown` counts months HOLDING DATA, not calendar months back**
-(the brief said the latter): with a gap month, a calendar count makes the tail name an
-empty month and the tap reveals nothing. ⚠️ The append entrance is scoped to the revealed
-block via `_logsAppendedYm` and **lasts exactly one render**, so a later re-render replays
-nothing; neither `.settled` nor `.no-entrance` suppresses it. The chip still **jumps, never
-filters** — it loads what it needs, scrolls there, and stepping forward unloads nothing.
-**Export scope is unchanged** (the chip's month). Weeks still clip to their month.
-Render-loop verified 131/131, **with six negative controls run first**, on a fixture with a
-deliberate April gap. Front-end only — no Apps Script change, no redeploy.
-Prior banner (2026-08-09) — **Trends: tap a category to drill into its transactions (§3.7,
-§3.14).** The donut's breakdown rows are real `<button>`s: tapping one opens that
-category's transactions for the month the chip is on, **highest amount first**. A direct
-hit on an **arc** opens the same sheet (donut `onClick` → `getElementsAtEventForMode`,
-`intersect:true`, gated on `canvas.id === 'donut'`), but the **list row is the primary tap
-target** — full card width, ≥44px, a quiet `.cat-chev` — because the ring carries no text
-and a 0.1% category is a few degrees of arc. **Nothing about the ring's paint changed**
-(asserted pixel-identical against the pre-change file). **The sheet is the SAME one the
-Logs day column opens**, now generalized: `#day-overlay` → **`#drill-overlay`**, `.day-*`
-→ `.drill-*`, `dayModalIso` → **`drillState`** (`{kind:'day'|'category', …}`), with
-`drillContent()` resolving either kind to title/sub/total/rows and `openDaySheet(iso)` /
-`openCategorySheet(cat)` as the two wrappers. ⚠️ **Any future drill-in generalizes
-`drillContent()` — it does not build a third sheet.** ⚠️ The open-sheet re-render moved
-from `renderLogsLedger()` to the end of **`calculateAndRender()`**, because either view can
-now be the one behind the sheet. `txnsForCategory()` reuses `_expenseRowsFor()`, so the
-ring and its drill-in can't disagree about what's in a month. **The brief was written
-against the retired `pieLabelsPlugin` callouts** — the intent (a forgiving target for small
-slices) transferred to the DOM list, which is a better one. Render-loop verified 228/228,
-**with six negative controls run first**; three harness bugs surfaced by those controls are
-recorded in §7/§8. Front-end only — no Apps Script change, no redeploy.
-Prior banner (2026-08-08, second pass) — **Logs: day columns, accordion removed
-(§3.6).** Supersedes the day-segments pass shipped earlier today. **Logs is no longer an
-accordion.** A week is a **static row** — label, entry count, week spend total, and a
-**day-column chart** beneath it. There is no expand/collapse anywhere on the tab, no
-chevron, no inline week transaction list; `toggleWeek()`, `expandedWeeks`, `logsSeeded`,
-`weekBodyHtml()` and `bindTxnRowClicks()` are all **deleted**. **Locked decision, recorded
-so it isn't reintroduced by accident: seeing a whole week's transactions at once is
-GONE** — the day sheet is the sole drill-in. (A week-scoped sheet on the week total is a
-possible future, explicitly out of scope.) The horizontal per-day segments became
-**fixed-width vertical columns where HEIGHT encodes spend**: width must not shrink with
-spend, because the cell is the only route to a day's transactions. Columns are a seventh
-of the track wide, **capped at 64px** so a wide viewport can't turn a 48px-tall column
-into a slab, and **never grown** — a 2-day week's columns line up with a 7-day week's.
-Single-letter weekday labels (M T W T F S S) sit under each, `aria-hidden` so the figure
-isn't read twice. The whole cell (track + label, ≥44px tall) is the tap target; a
-zero-spend day keeps a 4px stub. **Weeks still CLIP TO THE MONTH they render under**
-(unchanged, still locked): `Jul 27 – 31` under July, `Aug 1 – 2` under August; short weeks
-are correct, not a bug. The **day drill-in sheet** (then `#day-overlay`, now the shared
-`#drill-overlay` — see the banner above) was unchanged from the
-earlier pass — ⚠️ it **closes before `openTxnModal()`** (`trapModalFocus` holds exactly one
-trap), and ⚠️ it is `.align-bottom` **plus `.sheet-rise`**, because `.align-bottom`'s
-`transform-origin` is FAB-anchored and a column mid-page isn't the FAB. **Heights are
-per-week scaled, so columns are not comparable across weeks** — cross-week magnitude lives
-in the week-total figure. Render-loop verified 185/185, **with five negative controls run
-first**.
-Prior banner (2026-08-04) — **Trends: segmented donut + category breakdown (§3.7).** The
-"Expenses by Category" pie is now a **segmented donut** (`cutout:'70%'`, `spacing:6`,
-`borderRadius:12`) with the month's expense total in the hole as an **HTML overlay**
-(`.donut-center`, a `.counter-val`), and a **ranked category list** below it — icon, name,
-`X% of total`, amount, and a share bar in the category's own colour, scaled to share of
-total. **Expenses only** (no remaining-budget segment) and **no `vs last month` chip** per
-row. `pieLabelsPlugin` and `variableRadiusPlugin` are **deleted** — nothing is drawn on that
-canvas but arcs, and `Chart.register()` now takes `heroBaselinePlugin` alone. ⚠️
-`variableRadius` scaled `outerRadius` only, so keeping it would have varied **ring thickness**
-per segment. ⚠️ The render **wipes `#donut-container.innerHTML`**, so the centre overlay is
-re-injected in that same statement. ⚠️ **A single category is a full circle with no ends** —
-`spacing` *and* `borderRadius` are both guarded to `0` there, or the ring shows a seam / a
-pinched beak at 12 o'clock. `.charts-row` is **gone** — the donut and cumulative
-cards are separate full-width blocks (`#category-card` / `#cumulative-card`). Render-loop
-verified 393/393. Two harness lessons that first shipped a false pass: a frozen `Date.now()`
-freezes **Chart.js's animator** (arcs stay at circumference 0 — blank ring, green
-assertions), and a chart's config being right is no evidence it **painted** — read pixels
-back, sampling a segment's mid-angle, since 12 o'clock is a seam once `spacing` is on.
-Prior banner (2026-08-03) — **Pace card: status strip (§3.5).** The budget-pace card's
-inline verdict line (`Overspending — off track by RM X`) is now a **status strip banding the
-card's bottom edge** (`.income-bar-status`): an info glyph and one plain-language sentence —
-`Your spending is outpacing the budget` / `Your spending is on track and within budget` —
-**with no ringgit figure** (the strip states the verdict; the bars carry the magnitude). The
-`over` boolean is unchanged (`forecast > income` ≡ `usedPct > monthPct`), so strip and Spent
-bar can't disagree. **Only overspending takes a solid fill** — on-track stays a quiet
-`--wash-income` tint, because an alert reads as an alert only if it isn't always on. New
-`--strip-over` token is **deeper than `--semantic-expense`** so white text clears 4.5:1
-(the semantic token clears ~4.0:1 and keeps its own job on figures/bars). Full-bleed via
-negative margins to `.card`'s padding edge — `.card` itself is untouched. **No strip in the
-no-budget state.** Render-loop verified 121/121. Prior banner (2026-08-02) — **Today: two
-tiles + a tap-to-open detail panel (§3.5).** The
-2×2 quadrant collapsed to **two headline tiles** (Budget · Expenses); `Average Daily` and
-`Forecast` moved into `#today-detail`, disclosed by tapping the **Expenses tile** (now a
-real `<button>`) — they're follow-up detail, and holding two of four tile slots overstated
-them. Their **`vs last mo.` chips are gone** (a percentage against a projection is noise),
-which retires the 2026-07-24 chip work and its `lastAvgDaily`/`avgChangePct`/`fcChangePct`
-math. The panel is the **last child of the tile grid** spanning both columns, so it inherits
-the grid gap; `:empty` collapses it when closed. ⚠️ **`animateCounters()` only sweeps at the
-end of `calculateAndRender()`** — markup injected from the click handler must be swept
-explicitly or the figures stay at `RM 0.00`. Overspend red now reads *inside* the panel, so
-**the at-a-glance warning is the pace bar's verdict line** (same `forecast > income`
-boolean — now the status strip above). Render-loop verified 78/78. Prior banner (same day) —
-**Phase G shipped (§3.13).**
-Recurring series are live in code:
-define rent, a subscription or a salary once and Alfred writes the entries itself. A series
-is a definition in a new **`Recurring` tab**; its occurrences are ordinary `Sheet1` rows
-written through the ordinary `add` action, so there is still exactly one row-writing path.
-Materialization runs **client-side, after first paint, never awaited**, so a slow or absent
-tab can't delay or break load. Idempotency is a **derived UID** per occurrence
-(`rc-<seriesId>-<YYYYMMDD>`) plus a duplicate guard in `handleAdd` — two devices can't
-double-write. **Nothing is ever written ahead of today** (every live figure divides by
-*elapsed* days); "what's coming" is an unwritten `Next …` preview. Monthly **clamps to the
-month's last day**. ⚠️ Two limits that look alike must stay separate — `RECURRENCE_MAX_ITER`
-(loop bound, must reach today) vs `RECURRING_MAX_PER_RUN` (write cap); conflating them was a
-real bug caught in build. **Apps Script is redeployed — the feature is live end to end.**
-Render-loop verified 50/50 (44 from the build, plus a 6-check run added in #53 covering the
-save-failure path). Prior banner (same day) — **Phase G
-designed (§6).** The "Recurring expenses" candidate
-was taken through its design pass and became a fully specified phase — **spec only, no code
-yet.** All three open questions are answered: generation runs **client-side on app open**
-(reusing `saveReviewAll()`'s batch writer and the optimistic-write stack — no time trigger,
-no new endpoint for row writes), rows are materialized **up to today and never ahead**, and
-series are **edited forward-only** with pause/delete from a sheet on the Logs page. Series
-definitions live in a new **`Recurring` tab** in the same Sheet; the feature covers **income
-as well as expenses** (a recurring salary populates the month's budget, since budget =
-logged income). Idempotency is a **derived UID** per occurrence (`rc-<seriesId>-<YYYYMMDD>`)
-plus a duplicate guard in `handleAdd`, so two devices can't double-write. The
-no-future-rows rule is load-bearing, not taste: every live figure divides by *elapsed* days
-(`avgDaily`, `forecast`, the pace bar, the patterns chip) and the grid dashes future cells,
-so a pre-written future row corrupts all of them. Prior banner (2026-07-24) — **Today
-quadrant chips (§3.5).** The `Average Daily` /
-`Forecast` tiles gained the same `▲/▼ X% vs last mo.` chip as `Budget`/`Expenses`, so all
-four quadrant tiles now carry the same three-line layout (label, value, trend chip).
-Last month's comparison figure treats last month as closed: `lastAvgDaily = lastMonth.exp
-÷ daysInLastMonth` (full month, matching the Trends closed-month tile), `lastForecast =
-lastMonth.exp` (a closed month's forecast and actual are identical). Lower reads as good
-news (`.good`/`.bad`) for both, same as the Expenses chip. Chip valence is independent of
-the value's own `.overspend` color flip — verified an overspend scenario shows a red value
-*and* a red "worse" chip simultaneously without conflict. Hand-computed the percentages
-against a mocked dataset (▼73%/▼72%) to confirm exact parity with the on-screen chips.
-Render-loop verified (390/900 × light/dark + reduced-motion, mocked GViz, stubbed
-Chart.js): chip math, overspend + chip coexistence, no horizontal overflow, Trends
-closed-month tiles untouched. Prior banner (same day) — **Today quadrant tile alignment
-(§3.5).** The `Average Daily`/`Forecast` tiles now share the same `--outline-variant`
-border and translucent-wash background treatment as `Budget`/`Expenses` (new
-`--wash-neutral` token, same opacity pattern as `--wash-income`/`--wash-expense`, just
-gray) — the 2026-07-21 `--outline` border bump was a workaround for `--outline-variant`
-being pixel-identical to the old flat `--surface-container` fill in dark mode; the wash
-tint sidesteps that collision instead of papering over it with a heavier border, so all
-four Today tiles read as one family. Same class (`.tile-block.neutral-block`) also covers
-Trends' closed-month tiles — verified those still show a visible border standalone
-(light+dark). Render-loop verified (390/900 × light/dark + reduced-motion, mocked GViz,
-stubbed Chart.js): quadrant border/background parity, overspend red still reads, Trends
-closed-month tiles unaffected, no horizontal overflow. Prior banner (2026-07-23) —
-**Today quadrant + Trends resequence (§3.5, §3.7).** Three
-UI refinements: (1) the `Average Daily` + `Forecast` tiles **moved from Trends to Today**,
-completing a **2×2 tile quadrant** below the hero (Budget · Expenses · Average Daily ·
-Forecast); Today owns them for the live month (overspend turns both semantic-red), while
-Trends keeps `Average Daily` + `Total Spent` **only for closed months** (hidden on the
-live month). (2) the "Spending patterns" card **dropped its Weekly/Monthly toggle
-(monthly-only)** and its chip **`Avg RM/day` now divides by elapsed (non-future) days** —
-matching the Today `Average Daily` tile exactly (was dividing by full days-in-month; the
-mismatch the owner flagged). (3) Trends **resequenced** to insight → spending patterns →
-pie (Expenses by Category) → cumulative spend → archive shelf. Render-loop verified
-(390/900 × light/dark + reduced-motion, mocked GViz, stubbed Chart.js): quadrant geometry,
-avg parity to the cent, monthly-only patterns, closed-month tiles reappear, DOM order, no
-horizontal overflow. Earlier same-day banner (2026-07-21) — **"Spending patterns" card:**
-the Trends capture heatmap was rebuilt tinting by **spend per day** (owner-confirmed
-reframe away from capture-count), keeping the sienna intensity ramp so semantic red stays
-reserved for expense figures (§3.2 rule amended), switched to **Monday-first**. Prior
-banner — **Today/Trends UI polish pass (PR #47):**
-the Today budget-pace card became a **two-bar, state-colour chart** (Spent vs Month rows,
-dotted "Today" line, Spent flips sienna→red on crossing — §3.5); hero + Trends
-`Average Daily`/`Forecast` tiles gained a heavier `--outline` border; the Trends overspend
-treatment dropped its glow; "Average Daily Spend" → "Average Daily"; `.header-actions`
-`min-height: 36px` evened the header height. Prior banner (2026-07-19): push
-digest retired (Phase F) — `firebase-messaging-sw.js`, the bell, the Firebase/FCM client
-+ Apps Script code, and the `push-subscribe`/`push-unsubscribe`/`run-digest-push`
-actions all deleted; `manifest.json` stays (the PWA install shell); the digest *math*
-lives on as the Today glance line (`computeTodayGlance`). Alfred is a two-pillar app:
-effortless capture + pull-based visual analytics. Earlier roadmap files were
-consolidated into §6 (2026-07-19); the phase narrative is compacted into §7 (history).
-Code comments in `index.html` still reference roadmap phase names; §6–§7 keep those
-names resolvable.*
+*Last updated: 2026-08-13 (third pass) — **The FAB long-press accelerator is REMOVED (§3.3,
+§3.8).** Owner call, on the only evidence that counts: **it was never once reliable on the
+device.** Three attempts — the build (104/104), a device-fix pass (141/141, merged as #66) and an
+arm-on-hold / launch-on-release pass (180/180, pushed and **never merged**) — and a real phone
+disagreed with the suite every time. The
+FAB is a **plain tap** again, with its inline `onclick="openCaptureModal()"` restored, and
+`wireFabGestures`, `openCameraDirect`, `FAB_LONG_PRESS` and `_fabCameraShortcut` are all deleted.
+**The camera is exactly where it always was: the camera button inside the capture sheet.** The
+diagnosis that stands is not "we picked the wrong number" but **the class of feature was wrong
+for this harness**: a press-and-hold on the app's primary control is decided by main-thread
+timing, an off-main-thread platform gesture, a file-chooser activation rule and a camera intent's
+own latency — **not one of which a desktop Playwright run can model**, so a green suite carried
+no information about the thing that kept failing. The unmerged third attempt is the clearest
+illustration: it *disproved its own leading hypothesis* with trusted-touch instrumentation, then
+shipped a fix built on the surviving one — guessing, with a passing test attached. ⚠️ **The cost was never one tap; it was the
+FAB.** A hold that silently does nothing sits on the control the whole app funnels through, and
+"press it again" is the user's correct response to it. An accelerator is not worth making the
+primary action feel unreliable. ⚠️ **`repaintNavCluster()` STAYS** — it is a different fix for a
+different bug, **confirmed working on the device**, and the stale nav-pill blur still happens
+returning from the in-sheet camera. Do not garbage-collect it along with the gesture.
+⚠️ **`materializeRecurring()` stays in `requestIdleCallback`** — its long-press justification is
+gone, but not blocking the main thread right after first paint is good on its own terms.
+Render-loop verified **84/84** across three configs, **with three negative controls run first**.
+Front-end only — no Apps Script change, no redeploy. **§6, §7 and §8 keep the prior entries**:
+the feature is removed from the app, not from the record, and the platform learnings it produced
+are the most transferable thing it left behind.
+Prior banners are deleted (2026-08-13). Eighteen of them had stacked up, each a
+paragraph-length retelling of a change that §7 already narrates at equal or greater
+length — 31KB of the file, or 13%, spent saying things twice. **The convention from here
+is one banner: the current change only.** When it is superseded, it moves to §7 rather
+than being pushed down into a queue. Two facts the old stack carried that live nowhere
+else: earlier roadmap files were consolidated into §6 (2026-07-19), and code comments in
+`index.html` still reference roadmap phase names — §6 and §7 keep those names
+resolvable.*
 
 ---
 
@@ -473,7 +185,9 @@ therefore sets **`'wdth' 100` only** — never `'wght'`. ⚠️ **Never reintrod
 there**: it silently flattens the whole type ramp to regular while every stylesheet still
 *says* 700/800/900, and `getComputedStyle().fontWeight` keeps reporting the declared value, so
 nothing in the DOM reveals it. The only classes that legitimately set the axis are
-`.header-title`, `.hero-amount` and `.archive-net`, which do it deliberately and locally. The
+`.hero-amount` and `.archive-net`, which do it deliberately and locally. (This list read
+`.header-title, .hero-amount, .archive-net` until 2026-08-13 — `.header-title` went with the
+header on 2026-08-11 and the note was not updated.) The
 ramp after the rebalancing sits at **500–800**, with 650/750 used where a half-step reads
 better; the rule of thumb for anything new is one step below what a flattened rendering would
 have tempted you into (900 → 750/800, 800 → 700, 700 → 600).
@@ -510,8 +224,10 @@ a differently-coloured glyph — a cyan Transport chip with a red car. Both call
 (`categoryBreakdownHtml`, `txnRowHtml`) pass **`color:` as well as the background tint**, so a
 chip is exactly one hue. ⚠️ **The `CAT_ICONS` map now also holds an `"Income"` key** — it is
 not an expense category, and income rows look it up by name rather than falling through to
-`"Other"`. This retires the app's last emoji apart from the ⚠️ in the failed-load state (§6,
-not in scope).
+`"Other"`. This retires the app's last **rendered** emoji apart from the ⚠️ in the failed-load
+state (§6, not in scope). ⚠️ A `grep` for emoji is not clean even so: a `💰` survives in the
+comment above the `CAT_ICONS` `"Income"` key, explaining what it replaced, and `⚠️` appears in
+nineteen code comments. Nothing reaches the DOM but the failed-load glyph.
 
 **Motion tokens:** `--motion-wobble` (overshoot spring; hero/tile/chip pop-ins, FAB
 bloom, bar transitions), `--motion-snap` (taps), `--motion-wobble-nav` (nav-only, ≈20%
@@ -557,15 +273,14 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
 - **FAB:** 56px sienna circle floating 12px above the pill, centered; `.bottom-bar` is a
   column stack anchored `bottom: calc(24px + env(safe-area-inset-bottom))`. Neutral
   elevation shadow (`0 6px 16px rgba(0,0,0,0.18)`); white icon; `body.modal-open-state`
-  rotate. **Tap opens the capture sheet; a ~350ms hold opens the camera directly** (§3.8) —
-  so the FAB carries `user-select: none`, `-webkit-touch-callout: none` and
-  **`touch-action: none`**, because a *held* button raises the iOS selection callout and
-  the double-tap-zoom delay, both of which land on top of the camera. ⚠️ **`none`, not
-  `manipulation`** (changed 2026-08-13): `manipulation` still permits *panning*, so a touch
-  starting on the FAB could begin a page scroll and the scroll cancelled the pointer before the
-  hold completed — the press then died silently. Nobody scrolls the page by dragging the one
-  floating action button, and with scrolling off this target a `pointercancel` here reliably
-  means the platform's own long-press took over, which is exactly when the gesture wants to fire.
+  rotate. **Tap opens the capture sheet — that is the FAB's whole behaviour** (§3.8). The
+  inline `onclick="openCaptureModal()"` is back on the markup, and there is **no gesture
+  handling on this button at all**: the long-press → camera accelerator was removed 2026-08-13
+  after three passes never made it reliable on a device (§6). ⚠️ **Do not re-add a press-and-hold
+  here without a way to verify it on hardware** — the render loop cannot see any of what decides
+  it, and the FAB is the control the entire app funnels through. The `user-select`,
+  `-webkit-touch-callout` and `touch-action` overrides went with the gesture; the button is back
+  to UA defaults.
 - **The nav pill repaints itself on resume** (`repaintNavCluster()`, 2026-08-13). ⚠️ This works
   around a **Chromium/Android compositing bug, not anything the app does wrong**: returning from
   a camera intent in a standalone PWA, `.floating-nav`'s `backdrop-filter` layer comes back
@@ -742,8 +457,7 @@ budget-pace card.**
   ink-black gradient in dark mode, monochrome off-white in light. **1.5px `--outline`
   border** (light) / `rgba(255,255,255,.22)` (dark) — deliberately heavier than the
   `--outline-variant` border every other card uses (2026-07-21), so the hero reads as
-  the page's focal point. Privacy blur toggle (`toggleHeroPrivacy()` → `.value-hidden`),
-  embedded 6-month net-trend mini bar chart (`heroChart`, current month sienna, others
+  the page's focal point. Embedded 6-month net-trend mini bar chart (`heroChart`, current month sienna, others
   green/red by sign; `minBarLength: 4` + `heroBaselinePlugin` faint zero line, gated on
   `canvas.id === 'hero-trend'`). Sub-copy "In the green" / "Watching the leak".
   **The running month is drawn as provisional** (2026-08-10): a `heroLiveMonth` flag
@@ -752,7 +466,12 @@ budget-pace card.**
   10th, nine days were otherwise being read against thirty-one-day bars on the same axis.
   (`activeMonth` is pinned to now at load per §3.4, so the flag is true in practice —
   it is still written as a derived flag, and the note must be built from it, not
-  unconditionally.)
+  unconditionally.) ⚠️ **There is no privacy blur toggle** — this bullet described one
+  (`toggleHeroPrivacy()` → `.value-hidden`) until 2026-08-13, and neither identifier has
+  existed in the file for as long as the history goes back. The only trace is `.hero-top`
+  still being `justify-content: space-between` with a single child, where the button sat.
+  Recorded rather than silently deleted, because the entry had been sending readers to
+  look for a control that isn't there.
 - **Tiles** (`#today-tiles`, a 2-col grid → **two headline tiles**): **`Income`** (month
   income) / **`Expenses`** — tinted surfaces (`--wash-income`/`--wash-expense`), `▲/▼ X%
   vs last month` chips with `.good`/`.bad` valence. ⚠️ **The income tile says `Income`, not
@@ -997,7 +716,7 @@ bottom margin until the 2026-08-10 swap, which only went unnoticed because the b
 below it carried its own.
 
 - **Insight strip** (`#trends-insight`, `.insight-card`, "What I noticed"):
-  - **Deterministic engine** (`buildAnalyticsInsight()` → rendered by
+  - **Deterministic engine** (`computeInsightNarrative()` → rendered by
     `renderTrendsInsight()`): six fact builders — `_insightPace` (MTD vs same-point last
     month; whole-month vs prior for past months), `_insightCategory` (3-month monotonic
     climb or ≥40% jump/drop vs recent average, ≥RM30 guard), `_insightRecurring`
@@ -1143,44 +862,17 @@ below it carried its own.
   above the nav pill. **Container-transform entrance:** closed state `scale(0.08)` +
   full radius, `transform-origin` at the FAB center (see §3.3 derived numbers) — the FAB
   blooms into the sheet via `--motion-wobble`.
-- **FAB long-press → camera** (`wireFabGestures()` / `openCameraDirect()`, 2026-08-12; the
-  gesture rebuilt 2026-08-13): a ~350ms hold on the FAB (`FAB_LONG_PRESS`) clicks
-  `#capture-camera-file` with the sheet still closed.
-  ⚠️ **The press is committed by ELAPSED TIME, not by a timer callback.** A lone
-  `setTimeout` is one point of failure with two ways to die, and both land on a cold start:
-  the callback slips under main-thread load (first render, three charts, the recurring
-  materializer), and the platform's own long-press — 500ms, detected off the main thread,
-  indifferent to how busy the page is — steals the pointer and cancels it. **A cancelled touch
-  dispatches no `click` either**, so the tap fallback does not run and the press produces
-  **nothing at all**, which is exactly what a real device reported. So `pointerdown` records
-  `performance.now()`, and `pointerup` *and* `pointercancel` each fire if the finger was down
-  long enough — `held()`. ⚠️ **`fire()` must stay idempotent**: all three paths can be live in
-  one gesture (a starved timer runs the moment the blocking task ends, right after `pointerup`
-  already fired), and without the guard the camera opens twice. ⚠️ **A drift is tracked as a
-  FLAG, not just a cleared timer** — the elapsed-time checks no longer depend on the timer being
-  alive to know the press is dead. ⚠️ **`FAB_LONG_PRESS`'s ceiling is a PLATFORM constraint:**
-  it must clear `ViewConfiguration.getLongPressTimeout()` (500ms) with real margin. 450 left 50ms
-  and the app's own startup work ate it; 350 leaves 150. **Do not raise it back toward 500.**
-  ⚠️ **`materializeRecurring()` runs in `requestIdleCallback`** for the same reason (§3.13) — it
-  fetches a second sheet and can post up to `RECURRING_MAX_PER_RUN` rows, occupying precisely the
-  window a first long press needs. **Tap is untouched.** The photo returns through the ordinary
-  `handleCaptureFile` path, which parks it as an attachment and raises the sheet — *before*
-  the downscale, so the busy state is visible rather than the app looking idle for a beat.
-  **It saves a tap, not a step:** the note field and Send are where they always are, and
-  nothing is written without a confirm (§0). ⚠️ **The FAB's `onclick` is gone from the
-  markup** — an inline handler is registered at parse time and fires before any listener
-  added later could suppress it, the same reason the month pill opens its picker from a
-  listener (§3.4). ⚠️ **The trailing click is eaten in the click handler**
-  (`preventDefault` + `stopPropagation`), never out-raced with `setTimeout(…, 0)`: `click`
-  is its own task after `pointerup`, and a 0ms timer loses often enough to open the sheet on
-  top of the camera. ⚠️ **Cancelling the camera fires no `change` event**, so
-  `_fabCameraShortcut` survives to the user's next pick — the raise is guarded on
-  `#capture-overlay` being closed, or `openCaptureModal()` re-traps focus over a live trap
-  and clobbers the return chain. A drift past `DRAG_SLOP` (shared with the pill, measured
-  radially here) cancels the press; `contextmenu` is suppressed; the fire vibrates 12ms
-  unless `REDUCED_MOTION`. **Keyboard is unaffected** — Enter/Space fire a click with no
-  pointer sequence, so they get the tap behaviour, and the hold has no keyboard equivalent
-  by design (the in-sheet camera button is the accessible route).
+- **There is no FAB long-press** (removed 2026-08-13). A ~350ms hold on the FAB opened the
+  camera directly between 2026-08-12 and 2026-08-13; it is gone, along with `wireFabGestures()`,
+  `openCameraDirect()`, `FAB_LONG_PRESS` and `_fabCameraShortcut`. **The camera is the camera
+  button in this sheet, and always was** — the accelerator only ever saved the middle tap of a
+  three-tap sequence. ⚠️ **It was removed for reliability, not for taste**, and the reasoning is
+  in §6 because it generalizes: the gesture's outcome is decided by main-thread timing, an
+  off-main-thread platform long-press, file-chooser activation rules and the camera intent's own
+  latency, and **the render loop can model none of them** — so three green suites (104/104,
+  141/141, 180/180) said nothing about the only environment where it was broken. A hold that
+  silently does nothing is bad anywhere; on the app's primary control it teaches the user to
+  press twice.
 - Clip button → `#capture-gallery-file` (bare `accept="image/*"`: gallery/files,
   screenshots work); camera button → `#capture-camera-file` (`capture="environment"`).
   Both feed `handleCaptureFile`; photos canvas-downscale to ≤1280px JPEG q0.82 before
@@ -1361,88 +1053,25 @@ rather than building a second one, and renamed the DOM to match (`.drill-head` /
 
 ## 4. Status
 
-**Everything in §3 is DONE, LIVE, and Playwright-verified.** Highlights with PRs:
-UX refresh + tile system (#6/#7), motion/physics passes (#11–#13), insights strip
-(#14–#18), no-keyboard-on-open (#20), PWA + capture + push Phase 0 (#22/#23), three-tab
-restructure (#33), Today composition (#34), the Today/Trends UI polish pass (#47), plus
-the Logs week index, Trends month navigation, optimistic writes, refinement Phases A–D,
-and Phase E (2026-07-18/19). Full history: §7.
+**Everything in §3 is DONE, LIVE, and Playwright-verified.** §3 is the current state; §6
+holds the decisions each change locked, §7 the narrative and the findings.
 
-**Phase F (push digest retirement) is DONE**, both in code (2026-07-19, Playwright-verified
-— no bell, no service worker registered, no Firebase requests, all core flows intact) and
-live: Apps Script redeployed, Firebase project deleted. Owner should still double-check the
-`sendDailyDigestPush` time trigger and the `FIREBASE_SA_JSON`/`FCM_PROJECT_ID` Script
-Properties are cleared — §6 checklist.
+**This section used to restate every shipped phase a third time** — a paragraph per change
+duplicating §6's roadmap entry and §7's history entry, down to the same verification
+counts. It is a pointer now. To ask "is X done?", read §3: if it is described there as
+current behaviour, it shipped and it was verified.
 
-**Phase G (recurring expenses) is DONE and LIVE** (2026-08-02) — render-loop verified
-50/50, and **Apps Script is redeployed**, so the `recurring` action and the `handleAdd`
-duplicate guard are both live. See §3.13. Follow-up #53 fixed the save-failure path: an
-Apps Script error (including the `unknown action` a stale deployment returns) had been
-reported as the generic offline copy, so the one failure mode that redeploy *was* the fix
-for gave no hint that redeploying was the fix. Errors now surface the server's own reason.
+**The only live items are owner steps, and they are Apps Script side:**
 
-**Logs day columns + day drill-in is DONE** (2026-08-08) — render-loop verified 185/185,
-with five negative controls run first. Logs has **no accordion**: static week rows, a
-fixed-width day-column chart, and the day sheet as the sole drill-in. Front-end only;
-**no Apps Script change, no redeploy needed.** See §3.6.
+- **Phase F** — two boxes still unticked in §6's checklist: delete the
+  `sendDailyDigestPush` time-driven trigger, and drop the `FIREBASE_SA_JSON` /
+  `FCM_PROJECT_ID` Script Properties. Both are harmless if left (the function they name no
+  longer exists), but the trigger fails silently in the execution log every night.
+- **Everything else is deployed.** Apps Script was last redeployed for Phase G, so the
+  `recurring` action and `handleAdd`'s duplicate guard are live. Every change since
+  2026-08-08 has been front-end only — **no Apps Script change, no redeploy.**
 
-**Trends category drill-down is DONE** (2026-08-09) — render-loop verified 228/228, with
-six negative controls run first. Tapping a category (list row, or the arc itself) opens the
-**same** sheet the Logs day column opens, now generalized as `#drill-overlay` (§3.14).
-Front-end only; **no Apps Script change, no redeploy needed.** See §3.7 and §3.14.
-
-**Logs month scope (option C) is DONE** (2026-08-09) — render-loop verified 131/131, with
-six negative controls run first. Logs opens on the **current month only** and grows from an
-"Earlier months" tail; loaded months persist for the session. **Supersedes roadmap v3
-decision 2 and Phase B step 3.** Front-end only; **no Apps Script change, no redeploy
-needed.** See §3.6.
-
-**Trends donut/patterns swap is DONE** (2026-08-10) — render-loop verified 135/135, with
-two negative controls run first. The category donut now sits above the spending-patterns
-grid, and `#spending-patterns` gained the 12px bottom margin the swap revealed it never
-had. Front-end only; **no Apps Script change, no redeploy needed.** See §3.7.
-
-**Design fix spec (type, contrast, targets, judgement pass) is DONE** (2026-08-10, second
-pass) — render-loop verified **178/178**, with **twelve negative controls run first**. Four
-commits: mechanical (weight axis unpinned, light-mode semantic colours, heatmap ink, touch
-targets + the re-derived FAB-cluster geometry), the 39-class weight rebalancing, the
-judgement changes, and a one-pixel `.logs-tail` fix the measurements surfaced. Front-end
-only; **no Apps Script change, no redeploy needed.** See §3.2, §3.3, §3.5–§3.9, §3.14.
-
-**Header removed, month becomes the masthead — DONE** (2026-08-11) — render-loop verified
-**231/231**, with **fourteen negative controls run first**. `.header` is deleted outright;
-on Trends and Logs the month is the pane's masthead, condensing to ~50px on scroll, with a
-ledger-list month picker behind it. Today has no top chrome. **Roadmap v3 Phase B's header
-chip is superseded** (the *one contextual selector* decision is not — see §3.4). Front-end
-only; **no Apps Script change, no redeploy needed.** See §3.3, §3.4.
-
-**Lift-off pill — DONE** (2026-08-11, second pass) — render-loop verified **202/202** across
-390/900 × light/dark plus a reduced-motion pass, **with nineteen negative controls run first**.
-The period is on all three tabs; `.condensed` is a continuous `--p`; the masthead fades while a
-glass pill flies into the corner; the chevrons and the Trends archive shelf are deleted; the
-pill is a scroll readout on Logs. **Roadmap v3 decision 7 is reversed** (§6) and open item 14
-(three doors) is closed at two. Front-end only; **no Apps Script change, no redeploy needed.**
-See §3.3, §3.4, §3.6, §3.7.
-
-**FAB long-press → camera — DONE** (2026-08-12) — render-loop verified **104/104** across
-390/light, 900/dark and reduced motion, **with six negative controls run first**. Holding the
-FAB opens the camera directly; tapping it is unchanged. This ships the accelerator §6 had
-parked since the v2 roadmap. Front-end only; **no Apps Script change, no redeploy needed.**
-See §3.3 and §3.8.
-
-**FAB long-press device fixes — DONE** (2026-08-13) — render-loop verified **141/141** across
-390/light, 900/dark and reduced motion, **with seven negative controls run first**. Two
-device-only defects in the accelerator shipped the day before: the first long press after
-entering the app did nothing (a lone `setTimeout` racing Android's 500ms long-press on a busy
-main thread), and cancelling the camera left the nav pill blurring a stale compositing snapshot.
-The press is now committed by elapsed time from three paths, the threshold is 350ms, `.fab` takes
-`touch-action: none`, `materializeRecurring()` moved to idle time, and `repaintNavCluster()`
-forces the pill's layer to rebuild on resume. Front-end only; **no Apps Script change, no
-redeploy needed.** ⚠️ **The pill repaint needs an on-device check** — the harness can prove the
-wiring, not the compositing bug. See §3.3, §3.8.
-
-**Pending:** the remaining unscheduled candidate features (§6), plus the spec's own
-open questions, recorded under §6 "Recorded but undecided".
+**Pending work:** the unscheduled candidate features and the open questions, both in §6.
 
 ---
 
@@ -1741,63 +1370,42 @@ picker (its year affordance is a non-interactive divider). And **Commit 7 was ve
 — nothing has ever persisted `viewMonth`/`viewYear`, so the negative control that *adds*
 persistence is the only thing that makes that check mean anything.
 
-### FAB long-press → camera ✅ DONE (2026-08-12)
+### FAB long-press — REMOVED ✅ DONE (2026-08-13, third pass)
 
-Owner request, matching the accelerator parked in the candidate list since the v2 roadmap
-("long-press ~450ms opens the camera flow directly, skipping the capture sheet; tap
-unchanged"). Shipped behaviour is in §3.3 and §3.8. **No owner checklist — front-end only, no
-Apps Script change, no redeploy.**
+Owner call: **the accelerator never worked reliably on the device**, across three passes. It is
+deleted. Shipped behaviour is in §3.3 and §3.8. **No owner checklist — front-end only, no Apps
+Script change, no redeploy.**
 
-Decisions future phases must not re-open:
-
-1. **The shortcut skips the sheet on the way OUT, not on the way back.** The photo still
-   parks as an attachment in the sheet and still needs a confirm — the hold saves the middle
-   tap of a three-tap sequence, it does not become a second write path (§0).
-2. **The FAB owns its click in JS.** No inline `onclick` goes back on that button; a handler
-   that must decide whether a press counts has to own the click outright.
-3. **The hold is pointer-only, and that is not an a11y gap** — Enter/Space keep the tap
-   behaviour, and the in-sheet camera button is the route that was always there.
-4. **The threshold's ceiling is a PLATFORM constraint, and it is 350ms.** *(Rewritten
-   2026-08-13 — this decision previously read "450ms, not the pill's 500" and justified itself
-   on comfort: the pill's hold interrupts reading, this one is already on its way to a shutter.
-   That reasoning still holds and is why the number is low, but it was never the binding
-   constraint.)* The hold must be **committed before Android's own long-press fires** —
-   `ViewConfiguration.getLongPressTimeout()`, 500ms by default, detected off the main thread. Lose
-   that race and the platform cancels the pointer; a cancelled touch dispatches no `click`, so the
-   press produces nothing at all. 450 left 50ms of margin, which the app's own startup work was
-   enough to eat. **Do not raise it back toward 500**, and do not commit the press on a timer
-   callback alone — see §3.8.
-
-### FAB long-press — device fixes ✅ DONE (2026-08-13)
-
-Two defects reported from a real Android phone running the installed PWA, against the
-accelerator shipped the day before. Shipped behaviour is in §3.3 and §3.8. **No owner checklist
-— front-end only, no Apps Script change, no redeploy.**
+**This supersedes the build (2026-08-12) and device-fix (2026-08-13) sections that used to sit
+below it; both are deleted, since this section states the outcome and §8 carries every finding
+they produced.** The feature is gone from the app, not from the record — §7 keeps the
+narrative.
 
 Decisions future phases must not re-open:
 
-1. **A gesture is never committed by one timer callback.** `pointerup` and `pointercancel` each
-   check elapsed time and commit if the threshold passed; `fire()` is idempotent because all
-   three paths can be live in one gesture. A single `setTimeout` is one point of failure, and on
-   this platform it has two independent ways to die.
-2. **`FAB_LONG_PRESS` must clear the platform's own long-press with margin** — see decision 4
-   above, rewritten.
-3. **`.fab` is `touch-action: none`.** `manipulation` permits panning, and a scroll starting on
-   the FAB cancels the press.
-4. **The nav-pill repaint stays.** It is a Chromium/Android workaround, and it looks like dead
-   code precisely because it fixes something no local test can see. Do not delete it as
-   unnecessary without reproducing on a device first.
+1. **The FAB is a tap. It has no gesture handling.** The inline `onclick` is back on the markup,
+   and no listener on that button decides whether a press "counts". If a future phase wants a
+   gesture there, that is a new design pass with a hardware verification plan, not a revival.
+2. **The camera lives in the capture sheet.** The accelerator saved the middle tap of three; it
+   is not worth the primary control being unreliable.
+3. **`repaintNavCluster()` stays.** It fixes a different bug — the stale `backdrop-filter` layer
+   on the nav pill after returning from a camera intent — it is **confirmed working on the
+   device**, and the in-sheet camera still triggers the condition. It looks like dead code
+   precisely because no local test can reproduce what it fixes.
+4. **`materializeRecurring()` stays in `requestIdleCallback`.** Its original justification was
+   the long-press timer, which is gone, but keeping the main thread free immediately after first
+   paint stands on its own.
 
-Two deltas from the plan as written, both deliberate:
-
-- **`defer` on the Chart.js tag was NOT shipped.** `Chart.register(heroBaselinePlugin)` is a
-  top-level statement in the inline script, which runs *before* any deferred script — adding
-  `defer` throws `ReferenceError: Chart is not defined` on load and breaks the app outright. The
-  plan's own guard said to skip it if ordering was fragile; it is not fragile, it is broken.
-- **A hold-progress affordance was considered and not built.** A press that registers nothing is
-  currently indistinguishable from one that does, which is worth solving — but it is a design
-  change to the app's most prominent control and belongs in its own pass, not folded into a bug
-  fix. Recorded here rather than dropped.
+**Why this is a removal and not a fourth attempt** — the part worth carrying forward. A
+press-and-hold that ends in a camera is decided by four things at once: main-thread load at the
+moment of the press, the platform's own long-press detector running off the main thread, the
+file-chooser's user-activation rules, and the camera intent's own launch latency. **A desktop
+Playwright run models none of them.** So the suites were not wrong — 104/104, 141/141 and 180/180
+each verified exactly what they could reach — they simply carried no information about the only
+environment where the feature was broken. When the verification loop is structurally blind to a
+feature's failure mode, each fix is a guess dressed as a result, and the honest move is to stop
+rather than iterate. ⚠️ **Generalize this before adding any other gesture**: ask what would have
+to be true for the render loop to see it fail.
 
 ### Design fix spec ✅ DONE (2026-08-10, second pass)
 
@@ -1898,8 +1506,9 @@ Each needs its own design/roadmap pass before building.
   **Update 2026-07-23:** the Weekly/Monthly toggle was **removed** (monthly-only) and the
   chip average switched to divide by elapsed days — see §3.7 and the §7 history entry.
 
-- **FAB long-press accelerator.** ✅ **DONE 2026-08-12** — shipped as specified in the
-  parked one-liner (hold ~450ms → camera, tap unchanged); behaviour in §3.3 and §3.8.
+- **FAB long-press accelerator.** ⛔ **TRIED AND REMOVED** — shipped 2026-08-12, fixed twice,
+  deleted 2026-08-13 because it was never reliable on a real device (§6). **Not parked, not
+  pending**: it is a closed question unless someone brings a way to verify a hold on hardware.
 
 **Parked:** nothing.
 
@@ -1929,9 +1538,11 @@ no longer wanted; capture-parse validation suite — considered resolved.
 - Any change to the category donut's chart config — cap radius, spacing, small-slice
   folding (explicitly excluded by the 2026-08-10 design review, and asserted
   pixel-identical in the render loop)
-- Raising `FAB_LONG_PRESS` back toward 500, restoring `touch-action: manipulation` on `.fab`,
-  committing the long press on a timer callback alone, or deleting `repaintNavCluster()` as dead
-  code (§3.3, §3.8 — all fixed deliberately 2026-08-13 against real-device defects)
+- Reinstating the FAB long-press → camera accelerator, or adding any other press-and-hold to the
+  FAB, without a hardware verification plan (§3.3, §3.8, §6 — removed 2026-08-13 after three
+  passes never made it reliable on a device)
+- Deleting `repaintNavCluster()` as dead code — it is a Chromium/Android workaround, confirmed
+  fixed on the device, and unreproducible in any local test (§3.3)
 - `defer` on the Chart.js tag — `Chart.register()` is top-level in the inline script, which runs
   first, so it throws on load (§6)
 - Any new backend endpoints, LLM calls, or paid services
@@ -1945,77 +1556,48 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
-- **2026-08-13 — Two device fixes for the FAB long-press (§3.3, §3.8):** the accelerator
-  shipped the day before was verified 104/104 and still had two defects, **both of which the
-  render loop was structurally unable to see** — a phone found them in a minute. That is the
-  entry's real content. **(1) The first long press after entering the app did nothing at all.**
-  The hold was committed by a single `setTimeout(450)`, and that callback has two independent
-  ways to die on a cold start: it slips under main-thread load, and Android's own long-press —
-  500ms, detected off the main thread, indifferent to how busy the page is — steals the pointer
-  and cancels it. **A cancelled touch dispatches no `click`**, so the tap fallback did not run
-  either and the press vanished. 450ms left **50ms** of margin against that platform timeout, and
-  the app's own startup work (first render, three Chart.js charts, `materializeRecurring()`
-  fetching a second sheet and posting rows sequentially) was enough to eat it — which is exactly
-  why it was reproducible on entry and not afterwards. The fix is not a smaller number: the press
-  is now committed by **elapsed time**, from the timer *or* `pointerup` *or* `pointercancel`,
-  whichever gets there first, with `fire()` idempotent because all three can be live in one
-  gesture. 350ms and `touch-action: none` widen the margin; idle-scheduling the materializer
-  stops the app competing with itself. **(2) Cancelling the camera left the nav pill a blurred
-  blob.** Returning from a camera intent in a standalone PWA, Chromium restores
-  `.floating-nav`'s `backdrop-filter` layer from a **stale snapshot** — it was blurring the red
-  pace strip that had been behind it at an earlier scroll position, with its own labels and
-  slider unpainted. Nothing invalidates the layer on the way back, because **a cancelled camera
-  fires no event at all** (the same fact §3.8 already recorded for `_fabCameraShortcut`, biting
-  a second time in a completely different place). `repaintNavCluster()` drops the filter for one
-  frame on `visibilitychange`/`pageshow`. **One thing specced and deliberately not shipped:**
-  `defer` on the Chart.js tag, because `Chart.register()` is top-level in the inline script,
-  which runs before any deferred script — it would throw on load. Render-loop verified (§3.12;
-  390/light, 900/dark and reduced motion, mocked GViz, Chart.js **from npm** — cdnjs is now
-  proxy-blocked to curl as well as to Chromium — stubbed Apps Script, clock pinned to 2026-08-13
-  on an advancing offset): **141/141**, including a real JPEG driven through the `change` event,
-  a 400ms hold that only passes at 350, and the starved-timer case reproduced **deterministically
-  by blocking the main thread between `pointerdown` and `pointerup`** rather than hoping for
-  jank. **Seven negative controls run first**, all firing, blast radii 21/12/6/6/3/6/6 across the
-  three configs. **Two probe bugs the controls and the baseline exposed**, both worth keeping:
-  a `let` at the top level of a classic script is a **global lexical binding, not a property of
-  `window`**, so `window._fabCameraShortcut` read `undefined` forever and the flag assertion was
-  vacuous; and the repaint probe re-`observe()`d without disconnecting, so every later mutation
-  was recorded once per call and the sequence read `[true,true,false,false]` against correct
-  code. A third finding is about the harness's *limits* rather than its bugs: the repaint's real
-  failure mode **cannot be reproduced on a desktop**, so those checks assert the wiring and the
-  class's effect only, and the fix itself rests on an on-device check — recorded as a known limit
-  rather than counted as proof. Front-end only — no Apps Script change, no redeploy.
-- **2026-08-12 — FAB long-press → camera (§3.3, §3.8):** the accelerator parked since the v2
-  roadmap. Tap the FAB is unchanged; a ~450ms hold opens the camera directly, and the photo
-  comes back through the ordinary capture path, which parks it as an attachment and then
-  raises the sheet the hold skipped. **It saves a tap, not a step** — the confirm is still
-  there, which is the whole reason this was safe to ship as a hidden accelerator rather than
-  a second write path. Four findings worth keeping. **(1) The FAB's inline `onclick` had to
-  go.** An attribute handler is registered at parse time and fires before any listener added
-  later could suppress it, so with it in place every long press opened the camera *and* the
-  sheet behind it — the same reason the month pill opens its picker from a listener, now the
-  second element in the app to hit it. **(2) The `setTimeout(…, 0)` bug is invisible to
-  synthetic mouse input.** Chromium dispatches `pointerup` and `click` in one task, so the
-  control that reintroduces the race fired *nothing* — the probe had to drive `pointerdown`,
-  `pointerup` and `click` as three separate evaluations with a real macrotask boundary
-  between the last two, which is what a finger delivers. Only then did the control fire.
-  **(3) Cancelling the camera fires no event at all**, so the shortcut flag outlives the
-  gesture and is still set the next time the user picks a photo by hand — with the sheet
-  already open. Without the "already open" guard that second photo re-enters
-  `openCaptureModal()` and re-arms the focus trap over a live one; the control for it also
-  fired nothing at first, because no probe had modelled a *cancelled* camera. It now checks
-  `modalReturnFocus` still points at the FAB. **(4) `setPointerCapture` throws on an inactive
-  pointer**, and the long-press timer is set on the next line — so an exception there would
-  silently delete the feature. Wrapped. Render-loop verified (§3.12; 390/light, 900/dark and
-  a reduced-motion pass, mocked GViz, local Chart.js, stubbed Apps Script, clock pinned to
-  2026-08-12 on an advancing offset): **104/104**, including a real JPEG driven through the
-  `change` event and downscaled, the 300ms/620ms threshold either side of 450, a drifting
-  finger falling back to the tap, Enter and Space keeping the tap behaviour, the in-sheet
-  camera and gallery buttons untouched, and `scrollWidth == clientWidth` throughout. **Six
-  negative controls run first** — restoring the inline `onclick` fired 14 checks, dropping
-  the sheet-raise fired 6, removing the drift cancel fired 2, removing `touch-action` fired
-  1, and the two that initially fired nothing produced the two probes above. Front-end only —
-  no Apps Script change, no redeploy.
+- **2026-08-12 → 2026-08-13 — The FAB long-press accelerator: built, fixed twice, removed
+  (§3.3, §3.8).** Three passes over two days, consolidated into one entry because the arc is
+  the point and the feature no longer exists. **The build (2026-08-12, 104/104, six negative
+  controls)** made a ~450ms hold on the FAB open the camera directly, with the photo returning
+  through the ordinary capture path so the confirm stayed — it saved a tap, not a step. Four
+  findings: the FAB's **inline `onclick` had to come off the markup**, because an attribute
+  handler is registered at parse time and fires before any listener added later could suppress
+  it; the **`setTimeout(…, 0)` race is invisible to synthetic mouse input**, since Chromium
+  dispatches `pointerup` and `click` in one task and only three separate evaluations with a real
+  macrotask boundary reproduce what a finger does; **cancelling the camera fires no event at
+  all**, so the shortcut flag survived into the user's next unrelated pick; and
+  **`setPointerCapture` throws on an inactive pointer**, one line before the timer was set.
+  **The device-fix pass (2026-08-13, 141/141, seven negative controls)** answered two defects a
+  real phone found in a minute, neither reachable by the harness. *The first long press after
+  entering the app did nothing at all* — a lone `setTimeout` has two independent ways to die on
+  a cold start (it slips under main-thread load, and Android's own 500ms long-press, detected
+  off the main thread, steals the pointer), and **a cancelled touch dispatches no `click`
+  either**, so the tap fallback never ran and the press produced nothing. 450ms had left 50ms of
+  margin under that platform timeout and the app's own startup work ate it, so the press moved
+  to **elapsed time checked at every end-of-gesture path**, `fire()` became idempotent, the
+  threshold dropped to 350ms, `.fab` took `touch-action: none`, and `materializeRecurring()`
+  moved to `requestIdleCallback`. *Cancelling the camera left the nav pill a blurred blob* —
+  Chromium restores `.floating-nav`'s `backdrop-filter` from a **stale snapshot** and nothing
+  invalidates it, because a cancelled camera fires no event; `repaintNavCluster()` drops the
+  filter for one frame. Two probe bugs surfaced: a **`let` at the top level of a classic script
+  is a global lexical binding, not a property of `window`**, so a flag assertion was vacuous;
+  and a watcher that re-`observe()`d without disconnecting recorded every mutation once per
+  call. `defer` on the Chart.js tag was specced and **deliberately not shipped** —
+  `Chart.register()` is top-level in the inline script, so it would throw on load.
+  **The removal (2026-08-13, 84/84, three negative controls)** is the owner's call, and the
+  finding worth keeping is about the loop rather than the gesture. An unmerged fourth attempt
+  (180/180) had *disproved its own leading hypothesis* with trusted-touch instrumentation and
+  then shipped on the surviving one. A press-and-hold ending in a camera is decided by
+  main-thread load at the instant of the press, an off-main-thread platform detector, the file
+  chooser's user-activation rules and the camera intent's own latency — **a desktop Playwright
+  run models none of them**, so three green suites against a defect that never moved carried no
+  information at all. And **the cost was never the one tap it saved: it was the FAB**, the
+  control the whole app funnels through, where a hold that silently does nothing teaches the
+  user to press twice. Two things were deliberately kept out of the removal —
+  `repaintNavCluster()`, which fixes a different bug and is **confirmed working on the device**,
+  and `materializeRecurring()`'s idle scheduling, which stands on its own merits. Front-end
+  only throughout — no Apps Script change, no redeploy.
 - **2026-08-11 (second pass) — Lift-off pill: the period on every tab, chevrons out (§3.3,
   §3.4, §3.6, §3.7):** the follow-on to the masthead PR shipped the same day. The month appears
   on **all three tabs**; the binary `.condensed` class becomes a **continuous scroll-linked
@@ -2488,48 +2070,19 @@ woven into §3.
   (`rc-<seriesId>-<YYYYMMDD>`) plus a `handleAdd` duplicate guard make generation
   idempotent across devices. **The only entry in this list that shipped no code** — recorded
   because the decisions are load-bearing for the build that follows.
-- **2026-07-24 — Today quadrant chips (§3.5):** `Average Daily` / `Forecast` gained a
-  `▲/▼ X% vs last mo.` chip, matching `Budget`/`Expenses` so all four quadrant tiles share
-  the same label/value/chip layout. Last month is treated as closed for the comparison:
-  `lastAvgDaily = lastMonth.exp ÷ daysInLastMonth` (full month, same formula as the Trends
-  closed-month `Average Daily` tile) and `lastForecast = lastMonth.exp` (a closed month's
-  forecast and actual spend are identical, so no separate formula was needed). Chip
-  valence (`.good`/`.bad`) follows the Expenses convention — lower reads as good news —
-  and is independent of the value's own `.overspend` red flip. Render-loop verified
-  (§3.12; 390/900 × light/dark + reduced-motion, mocked GViz, stubbed Chart.js):
-  hand-computed chip percentages matched on-screen exactly (▼73%/▼72% on a test dataset),
-  an overspend scenario showed a red value and a red chip together with no visual clash,
-  no horizontal overflow.
-- **2026-07-24 — Today quadrant tile alignment (§3.5):** the `Average Daily`/`Forecast`
-  tiles' styling now matches `Budget`/`Expenses` — added `--wash-neutral` (gray, same
-  0.04/0.06-opacity pattern as `--wash-income`/`--wash-expense`) and switched
-  `.tile-block.neutral-block` from a flat `--surface-container` fill + heavier `--outline`
-  border to that translucent wash + the standard `--outline-variant` border everyone else
-  uses. The heavier border (2026-07-21) was a fix for `--outline-variant` being
-  pixel-identical to the old flat fill in dark mode (`#2D2D2D` on `#2D2D2D` — invisible);
-  the translucent wash sidesteps the collision at its root instead, so the border can go
-  back to matching the rest of the quadrant. Render-loop verified (§3.12; 390/900 ×
-  light/dark + reduced-motion, mocked GViz, stubbed Chart.js): all four Today tiles share
-  one border weight in both themes, overspend red unaffected, Trends' closed-month tiles
-  (same class, standalone context) still read as distinct cards, no horizontal overflow.
-- **2026-07-23 — Today quadrant + Trends resequence (PR #49):** three UI refinements, all
-  render-loop verified (§3.12; 390/900 × light/dark + reduced-motion, mocked GViz, stubbed
-  Chart.js). (1) **Moved `Average Daily` + `Forecast` from Trends to Today** — Today's
-  `#today-tiles` now renders a **2×2 quadrant** (Budget · Expenses · Average Daily ·
-  Forecast) with distinct `today-avg`/`today-fc` data-keys and an `.overspend` colour flip
-  when `forecast > totalIncome`; CSS gained nth-child(3)/(4) entrance delays. Trends keeps
-  the tiles (`Average Daily` + `Total Spent`) **only for closed months**, hiding
-  `#trends-metrics` (empty + `display:none`) on the live month. (2) **Spending patterns**
-  (`renderSpendingPatterns`) — removed the Weekly/Monthly toggle (`patternPeriod`,
-  `setPatternPeriod`, `.sp-toggle` markup + CSS all deleted; `weekMondayIso` kept for
-  Logs), monthly-only; the chip average now divides by **elapsed (non-future) days**
-  (`elapsedDays = days.filter(d => !d.future).length`) instead of full `daysInMonth`, so
-  it **matches the Today `Average Daily` tile to the cent** — the mismatch the owner
-  flagged. (3) **Resequenced Trends** DOM to insight → metrics → archive → spending
-  patterns → charts-row (pie now before cumulative) → shelf. Verified: quadrant geometry
-  at both widths, avg parity (450/23 = RM 19.57 on both surfaces), closed-month tiles
-  reappear (June: RM 14.00 avg / RM 420 total), DOM order, `scrollWidth == clientWidth`
-  across tab flips.
+- **2026-07-23 → 2026-07-24 — The Today quadrant, and its chips (§3.5) — LARGELY REVERTED
+  2026-08-02.** Three entries compressed into one, because the work they describe is gone.
+  `Average Daily` + `Forecast` moved from Trends to Today to complete a 2×2 tile quadrant
+  (Trends keeping `Average Daily` + `Total Spent` for closed months only); the two new tiles
+  were then given `▲/▼ X% vs last mo.` chips to match the other two, and a `--wash-neutral`
+  token aligned their borders with the rest of the quadrant. **2026-08-02 collapsed the
+  quadrant to two headline tiles and deleted the chips** — a percentage against a projection is
+  noise — retiring `lastAvgDaily`/`avgChangePct`/`fcChangePct` with them. What survived is in
+  §3.5 and §3.7: the tiles live in Today's tap-to-open detail panel, Trends hides
+  `#trends-metrics` on the live month, and `--wash-neutral` is still the shared tile wash. One
+  fix from the same pass is load-bearing and did survive — the **spending-patterns chip divides
+  by elapsed days**, not `daysInMonth`, so it matches Today's `Average Daily` to the cent; the
+  Weekly/Monthly toggle was removed at the same time.
 - **2026-07-11 — UX refresh + motion/physics passes** (PRs #6, #7, #11–#13): hero card,
   tile system, pie rework, staggered entrances, no-replay renders, spring easing,
   shared-axis slide, mobile overflow/zoom bugfix.
@@ -2554,79 +2107,57 @@ woven into §3.
   removed, Trends live pace bar removed); D budget rename sweep (labels only).
 - **2026-07-19 — Backlog refresh + this consolidation:** candidate features refined
   (§6); roadmap files deleted, CLAUDE.md rewritten as the single reference.
-- **2026-07-19 — Phase E, expanded scope (Subscriptions + category merge):** added
-  `"Subscriptions"` (color `#6554C0`, icon 🔁) to `EXPENSE_CATEGORIES`/`CAT_COLORS`/
-  `CAT_ICONS` in both `index.html` and `apps-script/Code.gs`; merged `"Shopping"` and
-  `"Groceries"` into a single `"Shopping & Groceries"` category (color `#2684FF`, icon
-  🛍️) — both new colors are the freed-up hexes from the two retired categories, so the
-  seven-color palette stays exactly as six-checks-validated, no new hues introduced.
-  Added one `EXTRACT_PROMPT` example line steering recurring bills ("netflix RM17") to
-  Subscriptions over Entertainment/Bills & Utilities. Added a one-off
-  `migrateShoppingGroceriesCategory()` helper in `Code.gs` (same pattern as
-  `backfillUIDs()`) to relabel existing Sheet rows from `Shopping`/`Groceries` to
-  `Shopping & Groceries`. **Owner ran the migration and redeployed Apps Script
-  (Manage deployments → Edit → new version)** — live on both the parser and the
-  dropdown.
-- **2026-07-19 — Phase F (push digest retirement):** the third pillar is gone. Deleted
-  from `index.html`: the notification bell, `togglePush()`/`initPushUI()`/`setPushUIState`/
-  `loadMessaging`/`postPushAction`, the lazy Firebase SDK import, `FIREBASE_CONFIG`,
-  `FCM_VAPID_KEY`, the `localStorage('alfred_push_token')` handling, the `.push-btn` CSS,
-  and the `navigator.serviceWorker.register(...)` call. Deleted the
-  `firebase-messaging-sw.js` file (kept `manifest.json` — it now carries the whole PWA
-  install shell). Stripped `Code.gs` back to `add`/`edit`/`delete`/`parse`/`insights`:
-  removed the `push-subscribe`/`push-unsubscribe`/`run-digest-push` actions, the
-  `PushSubs` helpers, `sendDailyDigestPush`, `computeDigest`/`dailyAverage`/`readAllRows`/
-  `fmtMoney`, the FCM HTTP v1 code (`getFcmAccessToken`/`sendFcm`), and the digest-only
-  config consts (`PUSHSUBS_SHEET_NAME`, `DASHBOARD_URL`, `DIGEST_AVG_WINDOW_DAYS`). The
-  digest *math* survives as the Today glance line (`computeTodayGlance`). Verified with
-  the render loop (§3.12): 390/900px × light/dark, mocked GViz, local Chart.js — no bell,
-  zero service-worker registrations, no Firebase/FCM requests, hero/tiles/glance/pace all
-  render, budget-left math correct. Owner still to redeploy Apps Script + delete the
-  trigger/properties (§6 checklist).
-- **2026-07-21 — Today/Trends UI polish pass (PR #47):** four small visual refinements,
-  each render-loop verified (§3.12; 390/900px × light/dark, mocked GViz, local Chart.js).
-  (1) **Pace-bar redesign** — the Today budget-pace card moved from the single
-  continuous-pill "hybrid" (used+remaining segments) to a **two-bar, state-colour chart**:
-  a `Spent` row and a `Month` row (each `label | track | value%`), a shared dotted 2px
-  "Today" reference line crossing both, and the Spent fill **sienna until it crosses the
-  Month line, then semantic-expense red** (`over` = `forecast > income`, algebraically
-  `usedPct > monthPct`, so bar colour and verdict never disagree). `paceMarkerLeft(pct)`
-  offsets the shared marker/bubble to the track column (`calc(72px + (100% - 136px) *
-  pct)`). `paceBarMemory` now keys `{spent, month, marker}` (§3.5). (2) **Hero border** —
-  the "Budget left" card takes a heavier `1.5px --outline` border (light) /
-  `rgba(255,255,255,.22)` (dark) vs the standard `--outline-variant`, so it reads as the
-  page's focal point (§3.5). (3) **Trends tiles** — `Average Daily Spend` relabelled
-  `Average Daily`; `.tile-block.neutral-block` gained an `--outline` border (the base
-  `--outline-variant` was invisible against `--surface-container`); the overspend
-  treatment kept `color: var(--semantic-expense)` but **lost the `text-shadow` glow** —
-  plainer read (§3.7). (4) **Header height** — `.header-actions` `min-height: 36px`
-  matches the monthnav chip so the header is the same height on Today (chip absent) as on
-  Logs/Trends (§3.3). Squash-merged to `main` as `52527e1`.
-- **2026-07-21 — "Spending patterns" card (§6 candidate #3):** rebuilt the Trends capture
-  heatmap (`renderCaptureHeatmap` → `renderSpendingPatterns`, `#capture-heatmap` →
-  `#spending-patterns`). The cell metric changed from **capture-count to spend-per-day**
-  (owner-confirmed via up-front questions — the reframe departs from the old "cells for
-  habit" rule, so §3.2's visual-grammar rule was amended; **kept the sienna ramp**, not
-  the references' red, per §8 "steal patterns, not palettes", which keeps semantic red
-  free for expense figures). Ramp is now **self-scaling** (`ceil(spend/maxSpend×4)` over
-  the window's busiest non-future day). Added a card-local **Weekly/Monthly toggle**
-  (`setPatternPeriod`, reusing the modal `.type-toggle` slider; re-renders only this card
-  so it dodges the insight typewriter replay and the `renderedKey` skip), a summary
-  **chip** (`.sp-chip`: `Month Year • N days • ↗/↘ RM total • Avg RM/day`, trend vs the
-  prior week/month), and a `Less → More` **legend** (`.sp-legend`). Switched the grid to
-  **Monday-first** (was Sunday-first). Weekly = the current Mon–Sun week (single 7-cell
-  row, no date numbers, independent of the month chip); Monthly = the `viewMonth`
-  calendar. Reused existing helpers (`isoDateOf`/`weekMondayIso`, `_expenseRowsFor`/`_sum`/
-  `_shiftMonth`, `formatCurrency`). Verified with the render loop (§3.12): Monthly+Weekly
-  × light/dark × 390/900px + reduced-motion, zero page errors; hand-checked chip
-  totals/averages, ramp levels (max-spend day = `hm-l4`), Monday-first alignment
-  (`leadBlanks`), dashed future days, weekly 7-cell/no-number layout, and
-  `scrollWidth == clientWidth` across repeated toggle flips.
+- **2026-07-19 — Phase E (Subscriptions + category merge):** added `"Subscriptions"`
+  (`#6554C0`) to `EXPENSE_CATEGORIES`/`CAT_COLORS`/`CAT_ICONS` in **both** `index.html` and
+  `Code.gs`, and merged `"Shopping"` + `"Groceries"` into `"Shopping & Groceries"` (`#2684FF`).
+  Both hexes are the freed-up colours of the two retired categories, so the six-checks-validated
+  seven-colour palette is unchanged. One `EXTRACT_PROMPT` example steers recurring bills
+  ("netflix RM17") to Subscriptions. A one-off `migrateShoppingGroceriesCategory()` helper
+  (still in `Code.gs`, same pattern as `backfillUIDs()`) relabelled existing rows; **the owner
+  ran it and redeployed**, so parser and dropdown agree.
+- **2026-07-19 — Phase F (push digest retirement):** the third pillar is gone — bell, service
+  worker, Firebase/FCM client, `PushSubs` helpers, the three push actions and all digest code,
+  deleted from both files. `manifest.json` stays and now carries the whole PWA shell. The
+  digest *math* survives as the Today glance line (`computeTodayGlance`), so "one source of
+  truth, reusable across surfaces" outlived the surface it was built for. Current state in
+  §3.11; the two unticked owner steps are in §6's checklist. **The retirement was driven by
+  real-usage evidence, not cost** — that is the part worth keeping.
+- **2026-07-21 — Today/Trends polish (PR #47) and the "Spending patterns" card (§6 candidate
+  #3):** two entries from the same day, compressed. The **pace card** moved from a single
+  continuous pill to the **two-bar, state-colour design** that is still current (§3.5): a Spent
+  row and a Month row, a shared dotted "Today" reference line, and the Spent fill flipping
+  sienna → red only once it crosses that line — driven by the same `over` boolean as the
+  verdict, so bar and text can never disagree. The hero took its heavier 1.5px border to read
+  as the page's focal point. (The fourth item, a `min-height` evening out the header, died with
+  the header on 2026-08-11.) The **capture heatmap became "Spending patterns"**: retinted from
+  capture-count to **spend-per-day**, which is why §3.2's visual-grammar rule was amended —
+  **the sienna ramp was kept rather than the references' red**, so semantic red stays reserved
+  for expense figures (§8, "steal patterns, not palettes"). Ramp became self-scaling over the
+  window's busiest non-future day, and the grid went Monday-first. The Weekly/Monthly toggle
+  shipped here and was removed two days later; everything else is current in §3.7.
 
 ---
 
 ## 8. Key Learnings & Principles
 
+- **When the verification loop is structurally blind to a feature's failure mode, stop fixing and
+  start removing.** The FAB long-press was verified 104/104, then 141/141, then 180/180 (that
+  last pass never merged), and failed on a real phone every time — because its outcome is decided
+  by main-thread load, an off-main-thread platform gesture, file-chooser activation rules and a
+  camera intent's latency, and a desktop Playwright run models none of them. The suites were not
+  lying; they were mute. **Three green runs against a defect that never moves is itself a
+  result** — it says the loop cannot see the bug, so every further fix is a guess with a passing
+  test attached. Before building anything gesture-shaped, ask what would have to be true for the
+  harness to watch it fail; if there is no answer, that is the finding.
+- **An accelerator is never worth making the primary control feel unreliable.** The long press
+  saved the middle tap of three. It sat on the FAB — the single control the whole app funnels
+  through — and when it silently did nothing, the user's correct response was to press again.
+  Weigh a shortcut against the confidence cost on the thing it is attached to, not against the
+  taps it saves.
+- **Remove the feature, keep the findings.** The superseded passes stay in §6 and §7, and their
+  platform learnings stay here, because they are the most transferable thing the attempt
+  produced. Deleting the record along with the code is how the next session re-derives the same
+  bugs.
 - **A gesture committed by a single timer callback has a single point of failure — and on a
   phone it has two ways to fail at once.** The callback slips under main-thread load, *and* the
   platform's own long-press (500ms, detected off the main thread) steals the pointer and cancels
