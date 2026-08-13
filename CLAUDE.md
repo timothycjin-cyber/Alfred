@@ -1,6 +1,35 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-12 — **FAB long-press → camera (§3.3, §3.8).** Tap the FAB is unchanged
+*Last updated: 2026-08-13 — **Two device fixes for the FAB long-press (§3.3, §3.8).** Both
+reported from a real Android phone running the installed PWA, and **neither was reachable by the
+render loop that verified the feature the day before** — they are platform behaviours, not logic
+errors. **(1) The first long press after entering the app did nothing at all** — no camera, no
+sheet. The hold was committed by a single `setTimeout`, and that one callback has two ways to
+die on a cold start: it slips under main-thread load, and Android's own long-press (500ms,
+detected off the main thread) steals the pointer and cancels it — and **a cancelled touch
+dispatches no `click` either**, so the tap fallback never ran. `FAB_LONG_PRESS` had left only
+**50ms** of margin under that platform timeout, and the app's own startup work was enough to eat
+it. The press is now committed by **ELAPSED TIME**: `pointerup` and `pointercancel` each check
+the clock and fire if the finger was down long enough, `fire()` is idempotent because all three
+paths can be live in one gesture, the threshold is **350ms** (150ms of margin, not 50), `.fab`
+takes **`touch-action: none`** so a scroll can no longer steal the press, and
+`materializeRecurring()` moved to `requestIdleCallback` so it stops occupying exactly the window
+the timer needs. **(2) Cancelling the camera left the nav pill a blurred blob.** Returning from
+a camera intent, Chromium restores `.floating-nav`'s `backdrop-filter` layer from a **stale
+snapshot** and never re-rasterizes it — nothing on the page changes to invalidate it, because a
+**cancelled camera fires no event at all**. `repaintNavCluster()` drops the filter for one frame
+on `visibilitychange`/`pageshow` (and on the way out of `openCameraDirect`), forcing the layer to
+be rebuilt. ⚠️ **`FAB_LONG_PRESS`'s ceiling is a PLATFORM constraint, not an ergonomic one** —
+§6 decision 4 previously read "450ms, not the pill's 500" on comfort grounds; the real rule is
+that it must clear Android's `ViewConfiguration.getLongPressTimeout()` with margin. Do not raise
+it back. ⚠️ **`defer` on the Chart.js tag was specced and DELIBERATELY NOT SHIPPED** —
+`Chart.register()` is top-level in the inline script, which runs before any deferred script, so
+it would throw on load. Render-loop verified **141/141** across 390/light, 900/dark and reduced
+motion, **with seven negative controls run first**, two of which exposed probe bugs. ⚠️ **The
+pill repaint's real failure mode is NOT reproducible in a desktop harness** — the suite proves
+the wiring, the on-device check proves the fix. Front-end only — no Apps Script change, no
+redeploy.
+Prior banner (2026-08-12) — **FAB long-press → camera (§3.3, §3.8).** Tap the FAB is unchanged
 (it opens the capture sheet); **hold it ~450ms and the camera opens directly**, skipping the
 sheet. This is the accelerator §6 had parked since the v2 roadmap. A receipt photo was always
 the same three taps — FAB, camera button, shutter — and the middle one carries no decision.
@@ -528,10 +557,27 @@ landing tab. `VIEW_ORDER = ['today','logs','trends']`; panes `#today-view` /
 - **FAB:** 56px sienna circle floating 12px above the pill, centered; `.bottom-bar` is a
   column stack anchored `bottom: calc(24px + env(safe-area-inset-bottom))`. Neutral
   elevation shadow (`0 6px 16px rgba(0,0,0,0.18)`); white icon; `body.modal-open-state`
-  rotate. **Tap opens the capture sheet; a ~450ms hold opens the camera directly** (§3.8) —
+  rotate. **Tap opens the capture sheet; a ~350ms hold opens the camera directly** (§3.8) —
   so the FAB carries `user-select: none`, `-webkit-touch-callout: none` and
-  `touch-action: manipulation`, because a *held* button raises the iOS selection callout and
-  the double-tap-zoom delay, both of which land on top of the camera.
+  **`touch-action: none`**, because a *held* button raises the iOS selection callout and
+  the double-tap-zoom delay, both of which land on top of the camera. ⚠️ **`none`, not
+  `manipulation`** (changed 2026-08-13): `manipulation` still permits *panning*, so a touch
+  starting on the FAB could begin a page scroll and the scroll cancelled the pointer before the
+  hold completed — the press then died silently. Nobody scrolls the page by dragging the one
+  floating action button, and with scrolling off this target a `pointercancel` here reliably
+  means the platform's own long-press took over, which is exactly when the gesture wants to fire.
+- **The nav pill repaints itself on resume** (`repaintNavCluster()`, 2026-08-13). ⚠️ This works
+  around a **Chromium/Android compositing bug, not anything the app does wrong**: returning from
+  a camera intent in a standalone PWA, `.floating-nav`'s `backdrop-filter` layer comes back
+  holding a **stale snapshot** — blurring whatever was behind it before the app went away, with
+  its own labels and slider unpainted. Nothing invalidates the layer on the way back, because a
+  **cancelled camera fires no event at all**. `.floating-nav.repainting` drops the filter, a
+  forced style flush applies it, and two `requestAnimationFrame`s put it back. Wired to
+  `visibilitychange` (visible only) and `pageshow`, plus a call from `openCameraDirect()` so the
+  snapshot taken on the way *out* is fresh too. ⚠️ **Deliberately not `will-change`** —
+  permanently promoting the layer is as likely to entrench the stale snapshot as to fix it.
+  ⚠️ **Not reproducible in the render loop**; the suite asserts the wiring and the class's
+  effect, and the real symptom needs a device.
 - **⚠️ Derived numbers (re-derive ALL if the cluster moves — and the PILL'S HEIGHT is part
   of the cluster, which is what the 2026-08-10 target pass had to re-derive):** FAB center
   = **120px** + safe-area above the viewport bottom (24 bar + **56** pill + 12 gap + 28
@@ -1097,10 +1143,27 @@ below it carried its own.
   above the nav pill. **Container-transform entrance:** closed state `scale(0.08)` +
   full radius, `transform-origin` at the FAB center (see §3.3 derived numbers) — the FAB
   blooms into the sheet via `--motion-wobble`.
-- **FAB long-press → camera** (`wireFabGestures()` / `openCameraDirect()`, 2026-08-12): a
-  ~450ms hold on the FAB (`FAB_LONG_PRESS`, shorter than the pill's 500 — nothing is being
-  read, the finger is already heading for a shutter) clicks `#capture-camera-file` with the
-  sheet still closed. **Tap is untouched.** The photo returns through the ordinary
+- **FAB long-press → camera** (`wireFabGestures()` / `openCameraDirect()`, 2026-08-12; the
+  gesture rebuilt 2026-08-13): a ~350ms hold on the FAB (`FAB_LONG_PRESS`) clicks
+  `#capture-camera-file` with the sheet still closed.
+  ⚠️ **The press is committed by ELAPSED TIME, not by a timer callback.** A lone
+  `setTimeout` is one point of failure with two ways to die, and both land on a cold start:
+  the callback slips under main-thread load (first render, three charts, the recurring
+  materializer), and the platform's own long-press — 500ms, detected off the main thread,
+  indifferent to how busy the page is — steals the pointer and cancels it. **A cancelled touch
+  dispatches no `click` either**, so the tap fallback does not run and the press produces
+  **nothing at all**, which is exactly what a real device reported. So `pointerdown` records
+  `performance.now()`, and `pointerup` *and* `pointercancel` each fire if the finger was down
+  long enough — `held()`. ⚠️ **`fire()` must stay idempotent**: all three paths can be live in
+  one gesture (a starved timer runs the moment the blocking task ends, right after `pointerup`
+  already fired), and without the guard the camera opens twice. ⚠️ **A drift is tracked as a
+  FLAG, not just a cleared timer** — the elapsed-time checks no longer depend on the timer being
+  alive to know the press is dead. ⚠️ **`FAB_LONG_PRESS`'s ceiling is a PLATFORM constraint:**
+  it must clear `ViewConfiguration.getLongPressTimeout()` (500ms) with real margin. 450 left 50ms
+  and the app's own startup work ate it; 350 leaves 150. **Do not raise it back toward 500.**
+  ⚠️ **`materializeRecurring()` runs in `requestIdleCallback`** for the same reason (§3.13) — it
+  fetches a second sheet and can post up to `RECURRING_MAX_PER_RUN` rows, occupying precisely the
+  window a first long press needs. **Tap is untouched.** The photo returns through the ordinary
   `handleCaptureFile` path, which parks it as an attachment and raises the sheet — *before*
   the downscale, so the busy state is visible rather than the app looking idle for a beat.
   **It saves a tap, not a step:** the note field and Send are where they always are, and
@@ -1207,7 +1270,10 @@ A series is a **definition** in the `Recurring` tab (§1); its **occurrences** a
 `Sheet1` rows written through the ordinary `add` action. Generation is client-side.
 
 - **Materialization** (`materializeRecurring()`) is called from `init()` **after first
-  paint and never awaited** — a slow or absent `Recurring` tab can't delay or break load.
+  paint, in `requestIdleCallback` (3s timeout, `setTimeout` fallback), and never awaited**
+  — ⚠️ the idle scheduling is load-bearing beyond politeness: it fetches a second sheet and
+  can post up to `RECURRING_MAX_PER_RUN` rows sequentially, which occupied exactly the window
+  where a first FAB long press needs its timer to fire on schedule (§3.8) — a slow or absent `Recurring` tab can't delay or break load.
   It enumerates each active series for `activeUser` from `StartDate` up to **today**,
   skips UIDs already in `allRows`, pushes optimistic rows, then POSTs them sequentially
   (the `saveReviewAll()` shape), rolling failures back per row. Quiet toast on success:
@@ -1363,6 +1429,17 @@ See §3.3, §3.4, §3.6, §3.7.
 FAB opens the camera directly; tapping it is unchanged. This ships the accelerator §6 had
 parked since the v2 roadmap. Front-end only; **no Apps Script change, no redeploy needed.**
 See §3.3 and §3.8.
+
+**FAB long-press device fixes — DONE** (2026-08-13) — render-loop verified **141/141** across
+390/light, 900/dark and reduced motion, **with seven negative controls run first**. Two
+device-only defects in the accelerator shipped the day before: the first long press after
+entering the app did nothing (a lone `setTimeout` racing Android's 500ms long-press on a busy
+main thread), and cancelling the camera left the nav pill blurring a stale compositing snapshot.
+The press is now committed by elapsed time from three paths, the threshold is 350ms, `.fab` takes
+`touch-action: none`, `materializeRecurring()` moved to idle time, and `repaintNavCluster()`
+forces the pill's layer to rebuild on resume. Front-end only; **no Apps Script change, no
+redeploy needed.** ⚠️ **The pill repaint needs an on-device check** — the harness can prove the
+wiring, not the compositing bug. See §3.3, §3.8.
 
 **Pending:** the remaining unscheduled candidate features (§6), plus the spec's own
 open questions, recorded under §6 "Recorded but undecided".
@@ -1680,8 +1757,47 @@ Decisions future phases must not re-open:
    that must decide whether a press counts has to own the click outright.
 3. **The hold is pointer-only, and that is not an a11y gap** — Enter/Space keep the tap
    behaviour, and the in-sheet camera button is the route that was always there.
-4. **450ms, not the pill's 500.** The pill's hold interrupts reading; this one is already on
-   its way to a shutter.
+4. **The threshold's ceiling is a PLATFORM constraint, and it is 350ms.** *(Rewritten
+   2026-08-13 — this decision previously read "450ms, not the pill's 500" and justified itself
+   on comfort: the pill's hold interrupts reading, this one is already on its way to a shutter.
+   That reasoning still holds and is why the number is low, but it was never the binding
+   constraint.)* The hold must be **committed before Android's own long-press fires** —
+   `ViewConfiguration.getLongPressTimeout()`, 500ms by default, detected off the main thread. Lose
+   that race and the platform cancels the pointer; a cancelled touch dispatches no `click`, so the
+   press produces nothing at all. 450 left 50ms of margin, which the app's own startup work was
+   enough to eat. **Do not raise it back toward 500**, and do not commit the press on a timer
+   callback alone — see §3.8.
+
+### FAB long-press — device fixes ✅ DONE (2026-08-13)
+
+Two defects reported from a real Android phone running the installed PWA, against the
+accelerator shipped the day before. Shipped behaviour is in §3.3 and §3.8. **No owner checklist
+— front-end only, no Apps Script change, no redeploy.**
+
+Decisions future phases must not re-open:
+
+1. **A gesture is never committed by one timer callback.** `pointerup` and `pointercancel` each
+   check elapsed time and commit if the threshold passed; `fire()` is idempotent because all
+   three paths can be live in one gesture. A single `setTimeout` is one point of failure, and on
+   this platform it has two independent ways to die.
+2. **`FAB_LONG_PRESS` must clear the platform's own long-press with margin** — see decision 4
+   above, rewritten.
+3. **`.fab` is `touch-action: none`.** `manipulation` permits panning, and a scroll starting on
+   the FAB cancels the press.
+4. **The nav-pill repaint stays.** It is a Chromium/Android workaround, and it looks like dead
+   code precisely because it fixes something no local test can see. Do not delete it as
+   unnecessary without reproducing on a device first.
+
+Two deltas from the plan as written, both deliberate:
+
+- **`defer` on the Chart.js tag was NOT shipped.** `Chart.register(heroBaselinePlugin)` is a
+  top-level statement in the inline script, which runs *before* any deferred script — adding
+  `defer` throws `ReferenceError: Chart is not defined` on load and breaks the app outright. The
+  plan's own guard said to skip it if ordering was fragile; it is not fragile, it is broken.
+- **A hold-progress affordance was considered and not built.** A press that registers nothing is
+  currently indistinguishable from one that does, which is worth solving — but it is a design
+  change to the app's most prominent control and belongs in its own pass, not folded into a bug
+  fix. Recorded here rather than dropped.
 
 ### Design fix spec ✅ DONE (2026-08-10, second pass)
 
@@ -1813,6 +1929,11 @@ no longer wanted; capture-parse validation suite — considered resolved.
 - Any change to the category donut's chart config — cap radius, spacing, small-slice
   folding (explicitly excluded by the 2026-08-10 design review, and asserted
   pixel-identical in the render loop)
+- Raising `FAB_LONG_PRESS` back toward 500, restoring `touch-action: manipulation` on `.fab`,
+  committing the long press on a timer callback alone, or deleting `repaintNavCluster()` as dead
+  code (§3.3, §3.8 — all fixed deliberately 2026-08-13 against real-device defects)
+- `defer` on the Chart.js tag — `Chart.register()` is top-level in the inline script, which runs
+  first, so it throws on load (§6)
 - Any new backend endpoints, LLM calls, or paid services
 
 ---
@@ -1824,6 +1945,46 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-13 — Two device fixes for the FAB long-press (§3.3, §3.8):** the accelerator
+  shipped the day before was verified 104/104 and still had two defects, **both of which the
+  render loop was structurally unable to see** — a phone found them in a minute. That is the
+  entry's real content. **(1) The first long press after entering the app did nothing at all.**
+  The hold was committed by a single `setTimeout(450)`, and that callback has two independent
+  ways to die on a cold start: it slips under main-thread load, and Android's own long-press —
+  500ms, detected off the main thread, indifferent to how busy the page is — steals the pointer
+  and cancels it. **A cancelled touch dispatches no `click`**, so the tap fallback did not run
+  either and the press vanished. 450ms left **50ms** of margin against that platform timeout, and
+  the app's own startup work (first render, three Chart.js charts, `materializeRecurring()`
+  fetching a second sheet and posting rows sequentially) was enough to eat it — which is exactly
+  why it was reproducible on entry and not afterwards. The fix is not a smaller number: the press
+  is now committed by **elapsed time**, from the timer *or* `pointerup` *or* `pointercancel`,
+  whichever gets there first, with `fire()` idempotent because all three can be live in one
+  gesture. 350ms and `touch-action: none` widen the margin; idle-scheduling the materializer
+  stops the app competing with itself. **(2) Cancelling the camera left the nav pill a blurred
+  blob.** Returning from a camera intent in a standalone PWA, Chromium restores
+  `.floating-nav`'s `backdrop-filter` layer from a **stale snapshot** — it was blurring the red
+  pace strip that had been behind it at an earlier scroll position, with its own labels and
+  slider unpainted. Nothing invalidates the layer on the way back, because **a cancelled camera
+  fires no event at all** (the same fact §3.8 already recorded for `_fabCameraShortcut`, biting
+  a second time in a completely different place). `repaintNavCluster()` drops the filter for one
+  frame on `visibilitychange`/`pageshow`. **One thing specced and deliberately not shipped:**
+  `defer` on the Chart.js tag, because `Chart.register()` is top-level in the inline script,
+  which runs before any deferred script — it would throw on load. Render-loop verified (§3.12;
+  390/light, 900/dark and reduced motion, mocked GViz, Chart.js **from npm** — cdnjs is now
+  proxy-blocked to curl as well as to Chromium — stubbed Apps Script, clock pinned to 2026-08-13
+  on an advancing offset): **141/141**, including a real JPEG driven through the `change` event,
+  a 400ms hold that only passes at 350, and the starved-timer case reproduced **deterministically
+  by blocking the main thread between `pointerdown` and `pointerup`** rather than hoping for
+  jank. **Seven negative controls run first**, all firing, blast radii 21/12/6/6/3/6/6 across the
+  three configs. **Two probe bugs the controls and the baseline exposed**, both worth keeping:
+  a `let` at the top level of a classic script is a **global lexical binding, not a property of
+  `window`**, so `window._fabCameraShortcut` read `undefined` forever and the flag assertion was
+  vacuous; and the repaint probe re-`observe()`d without disconnecting, so every later mutation
+  was recorded once per call and the sequence read `[true,true,false,false]` against correct
+  code. A third finding is about the harness's *limits* rather than its bugs: the repaint's real
+  failure mode **cannot be reproduced on a desktop**, so those checks assert the wiring and the
+  class's effect only, and the fix itself rests on an on-device check — recorded as a known limit
+  rather than counted as proof. Front-end only — no Apps Script change, no redeploy.
 - **2026-08-12 — FAB long-press → camera (§3.3, §3.8):** the accelerator parked since the v2
   roadmap. Tap the FAB is unchanged; a ~450ms hold opens the camera directly, and the photo
   comes back through the ordinary capture path, which parks it as an attachment and then
@@ -2466,6 +2627,41 @@ woven into §3.
 
 ## 8. Key Learnings & Principles
 
+- **A gesture committed by a single timer callback has a single point of failure — and on a
+  phone it has two ways to fail at once.** The callback slips under main-thread load, *and* the
+  platform's own long-press (500ms, detected off the main thread) steals the pointer and cancels
+  it. Worse, **a cancelled touch sequence dispatches no `click`**, so the tap fallback does not
+  run either and the gesture produces *nothing at all* — the one outcome that gives the user no
+  information. Commit on **elapsed time** checked at every end-of-gesture path, and make the
+  commit idempotent, because more than one path can be live in the same gesture.
+- **A threshold that races the platform needs margin measured against the platform, not against
+  your other component.** `FAB_LONG_PRESS` was chosen as "shorter than the pill's 500ms" — a
+  reasonable-sounding rule that happened to leave 50ms against Android's 500ms long-press. The
+  binding constraint was never the app's own other gesture. When a number has to beat something,
+  write down *what* it has to beat, or the next person tunes it against the wrong thing.
+- **An app's own startup work is the load that breaks its startup-time interactions.** The
+  first-press bug reproduced only on entry, because that is when the first render, three charts
+  and the recurring materializer are all on the main thread. Anything explicitly documented as
+  "never awaited, must not delay first paint" should be in `requestIdleCallback`, not merely
+  un-awaited — un-awaited still runs *now*.
+- **A compositing layer that nothing invalidates never repaints.** Coming back from a camera
+  intent, the nav pill's `backdrop-filter` held a stale snapshot of what had been behind it —
+  and nothing on the page changed on the way back, because **a cancelled file picker fires no
+  event at all**. The same fact had already been recorded for a different bug in the same
+  feature; it bites wherever code assumes "returning from the picker" is observable. When the
+  browser will not invalidate a layer, ask it to: drop the filter for one frame and put it back.
+- **Some fixes are only falsifiable on the device.** The render loop can prove a repaint is
+  wired and that the class does what it claims, and it cannot reproduce an Android surface
+  restore at all. Say which of the two a green suite bought, and keep the device check in the
+  verification list — a probe that *cannot* fail is worth exactly as much as a control that
+  fires nothing.
+- **`let` at the top level of a classic script is a global lexical binding, not a property of
+  `window`.** `window.someLet` is `undefined` forever, so any probe reading module state that
+  way silently asserts nothing. Evaluate the bare identifier instead.
+- **Re-`observe()` without `disconnect()` multiplies every future record.** A watcher helper
+  called once per phase left N observers attached, so a two-step sequence read as
+  `[true,true,false,false]` against correct code. Any "reset the recorder" helper has to tear
+  down the previous one first.
 - **Array-return schema** is the unlock: one prompt change (always return a list)
   handles single/multi-entry/multi-day/split with one append loop — no separate code
   paths.
