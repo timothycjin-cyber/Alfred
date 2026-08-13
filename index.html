@@ -203,6 +203,20 @@
     height: 56px;
   }
   
+  /* ⚠️ The one frame that un-sticks a stale backdrop. Returning from a camera
+     intent in a standalone PWA, Android releases the WebView surface; on resume
+     Chromium restores this pill's compositing layer from a SNAPSHOT and never
+     re-rasterizes it, because nothing on the page changed to invalidate it — a
+     cancelled camera fires no event at all. The pill is then left blurring
+     whatever happened to be behind it before the app went away. Dropping
+     backdrop-filter for a frame forces the layer to be rebuilt; see
+     repaintNavCluster(). Deliberately NOT will-change: permanently promoting the
+     layer is as likely to entrench the stale snapshot as to fix it. */
+  .floating-nav.repainting {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
   @media (prefers-color-scheme: dark) {
     .floating-nav {
       background: rgba(30, 30, 30, 0.75);
@@ -264,11 +278,19 @@
     transition: transform var(--motion-snap);
     /* The FAB is held down, not just tapped (long-press → camera), and a held
        button raises the selection callout on iOS and the double-tap-zoom delay
-       everywhere. Neither belongs on top of a camera about to open. */
+       everywhere. Neither belongs on top of a camera about to open.
+
+       ⚠️ none, not manipulation. manipulation still permits PANNING, so a touch
+       that starts on the FAB can begin a page scroll, and the scroll cancels the
+       pointer before the hold completes — the press then dies silently. With
+       scrolling off this target, a pointercancel here reliably means the
+       platform's own long-press gesture took over, which is exactly when
+       wireFabGestures() wants to fire. Nobody scrolls the page by dragging the
+       one floating action button. */
     -webkit-touch-callout: none;
     user-select: none;
     -webkit-user-select: none;
-    touch-action: manipulation;
+    touch-action: none;
   }
   .fab svg {
     transition: transform var(--motion-wobble);
@@ -3891,8 +3913,13 @@ async function init() {
     switchView(currentView);
 
     // Fire-and-forget on purpose: recurring generation must never delay first
-    // paint, and a failure in it must never surface as a broken load.
-    materializeRecurring();
+    // paint, and a failure in it must never surface as a broken load. Idle time
+    // rather than inline, because it fetches a second sheet and can post up to
+    // RECURRING_MAX_PER_RUN rows sequentially — main-thread work occupying
+    // exactly the window where a first long-press on the FAB needs its timer to
+    // fire on schedule (see wireFabGestures).
+    if (window.requestIdleCallback) requestIdleCallback(() => materializeRecurring(), { timeout: 3000 });
+    else setTimeout(() => materializeRecurring(), 800);
   } catch(e) {
     console.error(e);
     document.getElementById('main-loader').innerHTML = `<div style="color:var(--semantic-expense); padding:15px; text-align:center;">⚠️ Failed to load data.</div>`;
@@ -5134,6 +5161,10 @@ async function saveTxn() {
 // the sheet itself (not the input) so the keyboard doesn't auto-pop — tap the
 // field to type, or go straight to the camera/gallery button.
 function openCaptureModal() {
+  // A cancelled camera fires no event at all, so _fabCameraShortcut can outlive
+  // its gesture. handleCaptureFile guards on the overlay already, but clearing
+  // the flag where the sheet opens beats relying on a downstream guard.
+  _fabCameraShortcut = false;
   document.body.classList.add('modal-open-state');
   const overlay = document.getElementById('capture-overlay');
   overlay.classList.add('open');
@@ -5163,45 +5194,75 @@ function openManualFromCapture() {
 // later could suppress it — the same reason the month pill opens its picker
 // from a listener rather than an attribute (§3.4). Only this handler knows
 // whether the press was long.
-const FAB_LONG_PRESS = 450;  // ms. Shorter than the pill's 500: nothing is
-                             // being read here, and the finger is already on
-                             // its way to a shutter button.
+// ms. The ceiling is a PLATFORM constraint, not an ergonomic one: Android's own
+// long-press fires at ViewConfiguration.getLongPressTimeout(), 500ms by default,
+// and it is detected off the main thread. Land too close under that and a busy
+// main thread loses the race — the platform steals the pointer and the press
+// dies with nothing shown. 450 left 50ms of margin, which the app's own startup
+// work was enough to eat. 350 leaves 150, and still reads as a hold rather than
+// a slow tap. Do not raise it back toward 500.
+const FAB_LONG_PRESS = 350;
 
 // True while a shortcut-opened camera is in flight, so the file handler knows
 // to raise the sheet this press deliberately skipped.
 let _fabCameraShortcut = false;
 
+// ⚠️ The press is committed by ELAPSED TIME, not by a timer callback. A single
+// setTimeout is one point of failure with two ways to fail, and both of them
+// land on a cold app start: the callback slips under main-thread load (the first
+// render, three charts, the recurring materializer), and the platform's own
+// long-press gesture — 500ms, detected off the main thread, indifferent to how
+// busy we are — steals the pointer and cancels it. A cancelled touch dispatches
+// no click either, so the tap fallback does not run and the press produces
+// NOTHING AT ALL. So pointerup and pointercancel each check the clock and fire
+// if the finger was down long enough, and fire() is idempotent because all three
+// paths can be live in the same gesture.
 function wireFabGestures() {
   const fab = document.getElementById('global-action-fab');
   if (!fab) return;
-  let x0 = null, y0 = null, fired = false, lpTimer = null;
+  let x0 = null, y0 = null, t0 = 0, fired = false, drifted = false, lpTimer = null;
 
   const cancelTimer = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
 
+  const fire = () => {
+    if (fired || drifted) return;      // first path in wins; a slip wins over all
+    fired = true;                      // suppress the click that follows
+    cancelTimer();
+    openCameraDirect();
+    if (navigator.vibrate && !REDUCED_MOTION) navigator.vibrate(12);
+  };
+
+  // The question every end-of-gesture path asks: was the finger down long
+  // enough, whatever the timer managed to do about it?
+  const held = () => x0 !== null && performance.now() - t0 >= FAB_LONG_PRESS;
+
   fab.addEventListener('pointerdown', e => {
-    x0 = e.clientX; y0 = e.clientY; fired = false;
+    x0 = e.clientX; y0 = e.clientY; t0 = performance.now();
+    fired = false; drifted = false;
     // Capture keeps a drifting finger's moves coming to us. It throws if the
     // pointer is no longer active, and the press must survive that — the timer
-    // below is the whole feature, and it is set after this line.
+    // below is set on the next line.
     try { fab.setPointerCapture(e.pointerId); } catch (_) {}
-    lpTimer = setTimeout(() => {
-      lpTimer = null;
-      fired = true;                    // suppress the click that follows
-      openCameraDirect();
-      if (navigator.vibrate && !REDUCED_MOTION) navigator.vibrate(12);
-    }, FAB_LONG_PRESS);
+    lpTimer = setTimeout(fire, FAB_LONG_PRESS);
   });
 
-  // A finger that drifts is a slip or a scroll, not a press. Same DRAG_SLOP
-  // the pill uses, measured radially since this target is round.
+  // A finger that drifts is a slip, not a press — and it stays dead, which is
+  // why this is a flag and not just a cleared timer. The elapsed-time checks
+  // below no longer depend on the timer being alive to know that.
   fab.addEventListener('pointermove', e => {
-    if (x0 === null || !lpTimer) return;
-    if (Math.hypot(e.clientX - x0, e.clientY - y0) > DRAG_SLOP) cancelTimer();
+    if (x0 === null || fired || drifted) return;
+    if (Math.hypot(e.clientX - x0, e.clientY - y0) > DRAG_SLOP) { drifted = true; cancelTimer(); }
   });
 
-  const end = () => { x0 = null; cancelTimer(); };
-  fab.addEventListener('pointerup', end);
-  fab.addEventListener('pointercancel', end);
+  // Lifted after the threshold with the timer starved: commit here instead.
+  // This runs before click, so eating the click below still works.
+  fab.addEventListener('pointerup', () => { if (held()) fire(); x0 = null; cancelTimer(); });
+
+  // The pointer being cancelled on this target is, since touch-action: none,
+  // very largely the platform's long-press gesture taking over — the very
+  // gesture we are trying to read. Honour it. No click follows a cancel, so
+  // nothing needs suppressing on this path.
+  fab.addEventListener('pointercancel', () => { if (held()) fire(); x0 = null; cancelTimer(); });
 
   // ⚠️ The click after a fired long press is EATEN here, never out-raced. The
   // obvious `setTimeout(() => fired = false, 0)` in pointerup is a real bug:
@@ -5225,7 +5286,32 @@ function wireFabGestures() {
 function openCameraDirect() {
   _fabCameraShortcut = true;
   document.getElementById('capture-camera-file').click();
+  // From here the app is about to be backgrounded by a camera intent, and the
+  // pill's layer is what comes back wrong — so refresh it on the way out as
+  // well as on the way in.
+  repaintNavCluster();
 }
+
+// ⚠️ A workaround for a Chromium/Android compositing bug, not for anything the
+// app does wrong — see the .floating-nav.repainting note in the stylesheet.
+// Returning from a camera intent in a standalone PWA, the nav pill comes back
+// blurring a stale snapshot of whatever was behind it, with its own labels and
+// slider unpainted. Nothing on the page changes on the way back (a cancelled
+// camera fires no event at all), so nothing invalidates the layer unless we ask.
+// Dropping backdrop-filter for a frame forces it to be rebuilt from live pixels.
+function repaintNavCluster() {
+  const nav = document.querySelector('.floating-nav');
+  if (!nav) return;
+  nav.classList.add('repainting');
+  void nav.offsetHeight;   // flush, or the class is added and removed unseen
+  // Two frames: one to paint without the filter, one to paint it back.
+  requestAnimationFrame(() => requestAnimationFrame(() => nav.classList.remove('repainting')));
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') repaintNavCluster();
+});
+window.addEventListener('pageshow', () => repaintNavCluster());
 
 let pendingSource = null;  // 'web' | 'web-image' while a capture confirm is open
 let reviewTxns = [];
