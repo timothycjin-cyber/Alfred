@@ -10,6 +10,11 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<!-- Pure core (dates, weeks, recurrence, reconcile merge, escaping). Must load
+     BEFORE the inline script below, which calls into it at module scope — so no
+     `defer` here, same reason the Chart.js tag can't have it. Also loaded
+     directly by node --test; see test/alfred-core.test.js. -->
+<script src="lib/alfred-core.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400..700&family=Roboto+Flex:opsz,wght,wdth@8..144,300..900,75..125&display=swap" rel="stylesheet">
@@ -1994,7 +1999,8 @@ const INSIGHTS_ENDPOINT = APPS_SCRIPT_URL;
 
 const INCOME_CATEGORIES = ["Salary", "Freelance", "Bonus", "Investment", "Side Income", "Reimbursement", "Other Income"];
 const EXPENSE_CATEGORIES = ["Food & Dining", "Transport", "Bills & Utilities", "Shopping & Groceries", "Subscriptions", "Entertainment", "Other"];
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+// MONTHS lives in lib/alfred-core.js (weekRangeLabel needs it) and is a global
+// by the time this script runs — one copy, so the two can't drift.
 const MONTHS_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const WEEKDAYS_MON = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];  // Mon=0 … Sun=6
 // Sun=0 … Sat=6, i.e. indexed by Date.getDay() — NOT interchangeable with
@@ -2116,20 +2122,11 @@ const CAT_ICONS = {
   "Income":              _svg('<path d="M12 5v10"/><path d="M8 11l4 4 4-4"/><path d="M4 18h16"/>')
 };
 
-function formatCurrency(num) {
-  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function hexToRgba(hex, alpha) {
-  const h = hex.replace('#', '');
-  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
-  const n = parseInt(full, 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-}
+// formatCurrency() and hexToRgba() moved to lib/alfred-core.js.
 
 function monthTotals(year, month) {
   const monthRows = allRows.filter(r => {
-    const d = new Date(r.Date);
+    const d = parseRowDate(r.Date);
     return d.getMonth() === month && d.getFullYear() === year && (activeUser ? r.User === activeUser : false);
   });
   const inc = monthRows.filter(r => r.Type === "Income").reduce((s, r) => s + r.Amount, 0);
@@ -2157,12 +2154,12 @@ function computeTodayGlance() {
 
   // Mean daily spend over the 30 days strictly before today, averaged only over
   // days that actually had spend (matches Code.gs dailyAverage exactly).
-  const refMs = new Date(todayIso + 'T00:00:00').getTime();
+  const refMs = parseRowDate(todayIso).getTime();
   const startMs = refMs - DIGEST_AVG_WINDOW_DAYS * 86400000;
   const perDay = {};
   userRows.forEach(r => {
     if (!r.Date || !r.Amount || !isExpense(r)) return;
-    const t = new Date(r.Date + 'T00:00:00').getTime();
+    const t = parseRowDate(r.Date).getTime();
     if (isNaN(t) || t < startMs || t >= refMs) return;
     perDay[r.Date] = (perDay[r.Date] || 0) + r.Amount;
   });
@@ -2336,53 +2333,8 @@ function renderLivePaceBar(totalIncome, totalExpense) {
 // because a row has exactly one month and exactly one Monday-week — which is
 // what lets the clipped start date serve as the bucket key.
 
-function isoDateOf(d) {
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-// The month-clipped week a date belongs to. Keyed on startIso by callers —
-// it identifies the week AND the month, which a bare Monday no longer can.
-function weekSpanFor(iso) {
-  const d = new Date(iso + 'T00:00:00');
-  const y = d.getFullYear(), m = d.getMonth();
-  // Mon=0 … Sun=6; a negative/overflowing day-of-month normalizes into the
-  // adjacent month on its own.
-  const monday = new Date(y, m, d.getDate() - ((d.getDay() + 6) % 7));
-  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
-  const first = new Date(y, m, 1);
-  const last = new Date(y, m + 1, 0);
-  return {
-    y, m,
-    startIso: isoDateOf(monday < first ? first : monday),
-    endIso: isoDateOf(sunday > last ? last : sunday)
-  };
-}
-
-function weekRangeLabel(w) {
-  const a = new Date(w.startIso + 'T00:00:00');
-  const b = new Date(w.endIso + 'T00:00:00');
-  return w.startIso === w.endIso
-    ? `${MONTHS[a.getMonth()]} ${a.getDate()}`
-    : `${MONTHS[a.getMonth()]} ${a.getDate()} – ${b.getDate()}`;
-}
-
-// One slot per day in the clipped span, carrying that day's expense total.
-// Income never enters a column — the chart is a spend chart, same as the week
-// total printed beside it.
-function weekDaySlots(w, rows) {
-  const spend = {};
-  rows.forEach(r => { if (r.Type !== 'Income') spend[r.Date] = (spend[r.Date] || 0) + r.Amount; });
-  const out = [];
-  const cur = new Date(w.startIso + 'T00:00:00');
-  const endMs = new Date(w.endIso + 'T00:00:00').getTime();
-  while (cur.getTime() <= endMs) {
-    const iso = isoDateOf(cur);
-    out.push({ iso, dow: (cur.getDay() + 6) % 7, date: cur.getDate(), spend: spend[iso] || 0 });
-    cur.setDate(cur.getDate() + 1);
-  }
-  return out;
-}
+// isoDateOf(), weekSpanFor(), weekRangeLabel() and weekDaySlots() moved to
+// lib/alfred-core.js — all four are pure date math and are table-tested there.
 
 function _weekSpend(wk) {
   return (_logsWeeks[wk] ? _logsWeeks[wk].rows : []).reduce((s, r) => s + (r.Type !== 'Income' ? r.Amount : 0), 0);
@@ -2428,7 +2380,7 @@ function renderLogsLedger() {
     _logsWeeks[span.startIso].rows.push(r);
   });
   Object.values(_logsWeeks).forEach(w => {
-    w.rows.sort((a, b) => new Date(b.Date) - new Date(a.Date));
+    w.rows.sort((a, b) => parseRowDate(b.Date) - parseRowDate(a.Date));
     w.days = weekDaySlots(w, w.rows);
   });
 
@@ -2530,15 +2482,15 @@ function txnRowHtml(r, i) {
   const isInc = r.Type === 'Income';
   const chipColor = isInc ? incomeColor : (CAT_COLORS[r.Category] || CAT_COLORS['Other']).hex;
   const icon = isInc ? CAT_ICONS['Income'] : (CAT_ICONS[r.Category] || CAT_ICONS['Other']);
-  const d = new Date(r.Date + 'T00:00:00');
+  const d = parseRowDate(r.Date);
   return `
-      <div class="txn-row" data-uid="${r.UID}" style="--d:${Math.min(i, 10) * 35}ms">
+      <div class="txn-row" data-uid="${escapeHtml(r.UID)}" style="--d:${Math.min(i, 10) * 35}ms">
         <div class="txn-left">
           <div class="txn-icon-chip" style="background:${hexToRgba(chipColor, 0.12)}; color:${chipColor}">${icon}</div>
           <div class="txn-details">
-            <div class="txn-desc">${r.Description}</div>
+            <div class="txn-desc">${escapeHtml(r.Description)}</div>
             <div class="txn-badge-container">
-              <span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Income' : r.Category.split(' ')[0]}</span>
+              <span class="badge ${isInc ? 'inc-badge' : 'exp-badge'}">${isInc ? 'Income' : escapeHtml(r.Category.split(' ')[0])}</span>
               <span class="txn-date">${MONTHS[d.getMonth()]} ${d.getDate()}</span>
               ${r.Source === 'recurring' ? '<span class="txn-auto">Auto</span>' : ''}
             </div>
@@ -2628,7 +2580,7 @@ function drillContent(state) {
       empty: 'No transactions in this category'
     };
   }
-  const d = new Date(state.iso + 'T00:00:00');
+  const d = parseRowDate(state.iso);
   const rows = dayRowsFor(state.iso);
   return {
     title: `${WEEKDAYS_MON[(d.getDay() + 6) % 7]} ${d.getDate()} ${MONTHS[d.getMonth()]}`,
@@ -2684,7 +2636,7 @@ function earliestDataMonth() {
   let best = null;
   allRows.forEach(r => {
     if (!(activeUser && r.User === activeUser) || !r.Date) return;
-    const d = new Date(r.Date);
+    const d = parseRowDate(r.Date);
     const key = d.getFullYear() * 12 + d.getMonth();
     if (best === null || key < best) best = key;
   });
@@ -3058,7 +3010,7 @@ function pickerMonths() {
   acc.set(curKey, { y: curY, m: curM, expense: 0, entries: 0 });
   allRows.forEach(r => {
     if (!(activeUser && r.User === activeUser) || !r.Date) return;
-    const d = new Date(r.Date);
+    const d = parseRowDate(r.Date);
     const key = d.getFullYear() * 12 + d.getMonth();
     // A future-dated row must not open a month past the chevrons' own clamp.
     if (key > curKey) return;
@@ -3192,7 +3144,7 @@ function archiveCardHtml({ net, expense, topCat, topAmt, daysLogged, daysInMonth
     else if (diff < 0) verdict = `<span class="arc-good">under pace · RM ${formatCurrency(Math.abs(diff))} kept</span>`;
     else verdict = `<span class="arc-bad">over pace · RM ${formatCurrency(diff)} past</span>`;
   }
-  const topStr = topCat ? `${topCat} · RM ${formatCurrency(topAmt)}` : '—';
+  const topStr = topCat ? `${escapeHtml(topCat)} · RM ${formatCurrency(topAmt)}` : '—';
   return `
     <div class="archive-card">
       <div class="archive-top">
@@ -3331,7 +3283,7 @@ function renderSpendingPatterns() {
   cellDays.forEach(d => {
     const cls = d.future ? 'hm-future' : `hm-l${levelOf(d.spend)}`;
     const delay = 60 + Math.min(idx++, 24) * 12;
-    const dd = new Date(d.iso + 'T00:00:00');
+    const dd = parseRowDate(d.iso);
     const tip = `${MONTHS[dd.getMonth()]} ${dd.getDate()} · RM ${formatCurrency(d.spend)}`;
     const num = d.dayNum !== null ? `<span class="hm-day">${d.dayNum}</span>` : '';
     cells += `<div class="hm-cell ${cls}" style="--d:${delay}ms" title="${tip}">${num}</div>`;
@@ -3368,7 +3320,7 @@ function _userExpenseRows() {
 }
 function _expenseRowsFor(year, month) {
   return _userExpenseRows().filter(r => {
-    const d = new Date(r.Date);
+    const d = parseRowDate(r.Date);
     return d.getMonth() === month && d.getFullYear() === year;
   });
 }
@@ -3384,7 +3336,7 @@ function _insightPace() {
   if (isCurrent) {
     const dEl = today.getDate();
     const mtd = _sum(_expenseRowsFor(viewYear, viewMonth));
-    const lastWin = _sum(_expenseRowsFor(lastM.year, lastM.month).filter(r => new Date(r.Date).getDate() <= dEl));
+    const lastWin = _sum(_expenseRowsFor(lastM.year, lastM.month).filter(r => parseRowDate(r.Date).getDate() <= dEl));
     if (mtd < 1 || lastWin < 1) return null;
     const pct = (mtd - lastWin) / lastWin;
     if (Math.abs(pct) < 0.12) return null;
@@ -3465,10 +3417,10 @@ function _insightWeekend() {
   const isCurrent = viewMonth === today.getMonth() && viewYear === today.getFullYear();
   const end = isCurrent ? today : new Date(viewYear, viewMonth + 1, 0);
   const start = new Date(end); start.setDate(end.getDate() - 55);
-  const rows = _userExpenseRows().filter(r => { const d = new Date(r.Date); return d >= start && d <= end; });
+  const rows = _userExpenseRows().filter(r => { const d = parseRowDate(r.Date); return d >= start && d <= end; });
   if (rows.length < 8) return null;
   let weSum = 0, wdSum = 0;
-  rows.forEach(r => { const g = new Date(r.Date).getDay(); (g === 0 || g === 6 ? (weSum += r.Amount) : (wdSum += r.Amount)); });
+  rows.forEach(r => { const g = parseRowDate(r.Date).getDay(); (g === 0 || g === 6 ? (weSum += r.Amount) : (wdSum += r.Amount)); });
   // 8 weeks ≈ 16 weekend days, 40 weekday days
   const weAvg = weSum / 16, wdAvg = wdSum / 40;
   if (weAvg < 1 || wdAvg < 1) return null;
@@ -3485,7 +3437,7 @@ function _insightStreak() {
   const today = new Date();
   const isCurrent = viewMonth === today.getMonth() && viewYear === today.getFullYear();
   const lastDay = isCurrent ? today.getDate() : new Date(viewYear, viewMonth + 1, 0).getDate();
-  const spendDays = new Set(_expenseRowsFor(viewYear, viewMonth).map(r => new Date(r.Date).getDate()));
+  const spendDays = new Set(_expenseRowsFor(viewYear, viewMonth).map(r => parseRowDate(r.Date).getDate()));
   if (!spendDays.size) return null;
   let best = 0, run = 0;
   for (let d = 1; d <= lastDay; d++) { if (spendDays.has(d)) run = 0; else { run++; best = Math.max(best, run); } }
@@ -3506,7 +3458,7 @@ function _insightRecurring() {
     if (r.Source === 'recurring') return;
     const key = (r.Description || '').trim().toLowerCase();
     if (!key || key === 'unlabeled') return;
-    const d = new Date(r.Date);
+    const d = parseRowDate(r.Date);
     (groups[key] = groups[key] || []).push({ ym: d.getFullYear() * 12 + d.getMonth(), amount: r.Amount, label: r.Description.trim() });
   });
   const recurring = [];
@@ -3726,10 +3678,7 @@ function closeExportModal() {
 
 // Wrap a field in quotes only when it contains a comma, quote or newline;
 // embedded quotes are doubled per RFC 4180 so descriptions never break a row.
-function csvEscape(val) {
-  const s = String(val ?? '');
-  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-}
+// csvEscape() moved to lib/alfred-core.js (it also defuses spreadsheet formulas).
 
 function exportCSV(scope) {
   const errEl = document.getElementById('export-error');
@@ -3739,11 +3688,11 @@ function exportCSV(scope) {
   let rows = allRows.filter(r => activeUser ? r.User === activeUser : false);
   if (scope === 'month') {
     rows = rows.filter(r => {
-      const d = new Date(r.Date);
+      const d = parseRowDate(r.Date);
       return d.getMonth() === viewMonth && d.getFullYear() === viewYear;
     });
   }
-  rows.sort((a, b) => new Date(a.Date) - new Date(b.Date));
+  rows.sort((a, b) => parseRowDate(a.Date) - parseRowDate(b.Date));
 
   if (!rows.length) {
     errEl.textContent = scope === 'month'
@@ -3848,13 +3797,8 @@ function animateCounters() {
 // is the fix. Shared by both tabs (Sheet1 and Recurring) so the correction
 // lives in exactly one place; the else branch strips the leading apostrophe
 // off text-formatted date cells.
-function gvizDateToIso(rawDate) {
-  if (typeof rawDate === 'string' && rawDate.includes('Date')) {
-    const dateParts = rawDate.replace("Date(", "").replace(")", "").split(",");
-    return `${dateParts[0]}-${String(Number(dateParts[1]) + 1).padStart(2, "0")}-${String(dateParts[2]).padStart(2, "0")}`;
-  }
-  return String(rawDate).replace(/^'/, "");
-}
+// gvizDateToIso() moved to lib/alfred-core.js — the month-0-index correction is
+// shared by both tabs' mappers.
 
 function mapGvizRows(json) {
   return json.table.rows
@@ -3926,17 +3870,7 @@ function clientUID() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-// Content signature for reconcile — the render-visible fields an edit can move.
-function rowSig(r) {
-  return [
-    r.Date,
-    Math.round(Number(r.Amount) * 100),
-    (r.Category || '').trim().toLowerCase(),
-    (r.Description || '').trim().toLowerCase(),
-    (r.Type || '').trim(),
-    (r.User || '').trim()
-  ].join('|');
-}
+// rowSig() moved to lib/alfred-core.js.
 
 function removeRowByUID(uid) {
   const i = allRows.findIndex(r => r.UID === uid);
@@ -3975,44 +3909,14 @@ async function reconcileFromServer() {
   try { serverRows = await fetchServerRows(); }
   catch (e) { return; } // keep optimistic state; try again after the next write
 
-  const merged = [];
-  const handledUIDs = new Set();
-  for (const sr of serverRows) {
-    if (pendingDeletes.has(sr.UID)) { handledUIDs.add(sr.UID); continue; } // deleted locally
-    const pw = pendingWrites.get(sr.UID);
-    if (pw) {
-      handledUIDs.add(sr.UID);
-      if (rowSig(sr) === rowSig(pw.row)) {   // server caught up to our write
-        merged.push(sr);
-        pendingWrites.delete(sr.UID);
-      } else {                                // server still stale — show ours, hide its stale copy
-        merged.push(pw.row);
-      }
-    } else {
-      merged.push(sr);
-    }
-  }
-  // Clear delete-pending the server has already dropped.
-  for (const uid of [...pendingDeletes]) {
-    if (!serverRows.some(r => r.UID === uid)) pendingDeletes.delete(uid);
-  }
-  // Optimistic rows with no matching server UID: either the server saved them
-  // under its own UID (backend not echoing ours) — detect by signature and drop
-  // the dup — or GViz simply hasn't surfaced them yet — keep showing them.
-  const sigCount = new Map();
-  for (const m of merged) { const s = rowSig(m); sigCount.set(s, (sigCount.get(s) || 0) + 1); }
-  for (const [uid, pw] of pendingWrites) {
-    if (handledUIDs.has(uid)) continue;
-    const s = rowSig(pw.row);
-    if ((sigCount.get(s) || 0) > 0) {         // already represented under another UID
-      sigCount.set(s, sigCount.get(s) - 1);
-      pendingWrites.delete(uid);
-    } else {
-      merged.push(pw.row);                     // GViz lag — retain optimistic row
-    }
-  }
+  // The merge itself is pure and lives in lib/alfred-core.js so it can be
+  // table-tested without a browser. It reports which pending entries it
+  // resolved rather than mutating the maps; clearing them is this function's job.
+  const { rows, resolvedWrites, resolvedDeletes } = mergeRows(serverRows, pendingWrites, pendingDeletes);
+  resolvedWrites.forEach(uid => pendingWrites.delete(uid));
+  resolvedDeletes.forEach(uid => pendingDeletes.delete(uid));
 
-  allRows = merged;
+  allRows = rows;
   applyLocalRender();
 }
 
@@ -4033,111 +3937,12 @@ const RECURRING_MAX_PER_RUN = 60; // belt-and-braces cap on a catch-up run
 // Occurrence UIDs are DERIVED, not random: the same occurrence computes to the
 // same UID on every device, which is what makes generation idempotent. The
 // backend refuses a UID it already holds (handleAdd's duplicate guard).
-function recurringUID(seriesId, iso) {
-  return `rc-${seriesId}-${iso.replace(/-/g, '')}`;
-}
-
-function daysInMonthOf(year, month) { return new Date(year, month + 1, 0).getDate(); }
-
-// Enumerate every occurrence from StartDate up to and including todayIso (or
-// EndDate, whichever lands first). Pure — no I/O, no clock read — so the
-// verification pass can drive it at any simulated "today".
 //
-// The guard here is a runaway-loop bound, NOT the write cap: enumeration has to
-// be able to walk all the way to today, or a daily series older than the write
-// cap would only ever re-propose its oldest occurrences (all already written)
-// and never reach the present. Writes are capped separately, in
-// materializeRecurring().
-const RECURRENCE_MAX_ITER = 4000;   // ~11 years of daily, cheap to walk
-
-function recurrenceDates(series, todayIso) {
-  const out = [];
-  const start = series.startDate;
-  if (!start || start > todayIso) return out;
-  const stop = (series.endDate && series.endDate < todayIso) ? series.endDate : todayIso;
-
-  const sd = new Date(start + 'T00:00:00');
-  if (isNaN(sd.getTime())) return out;
-
-  if (series.cadence === 'daily' || series.cadence === 'weekly') {
-    const step = series.cadence === 'daily' ? 1 : 7;
-    const d = new Date(sd.getTime());
-    for (let i = 0; i < RECURRENCE_MAX_ITER; i++) {
-      const iso = isoDateOf(d);
-      if (iso > stop) break;
-      out.push(iso);
-      d.setDate(d.getDate() + step);
-    }
-    return out;
-  }
-
-  // Monthly: hold the anchor day-of-month, clamped to each month's last day so
-  // a series anchored on the 31st still fires in November and February rather
-  // than skipping those months entirely.
-  const anchorDay = sd.getDate();
-  let y = sd.getFullYear();
-  let m = sd.getMonth();
-  for (let i = 0; i < RECURRENCE_MAX_ITER; i++) {
-    const day = Math.min(anchorDay, daysInMonthOf(y, m));
-    const iso = isoDateOf(new Date(y, m, day));
-    if (iso > stop) break;
-    if (iso >= start) out.push(iso);
-    m++;
-    if (m > 11) { m = 0; y++; }
-  }
-  return out;
-}
-
-function cadenceLabel(series) {
-  if (series.cadence === 'daily') return 'Every day';
-  if (series.cadence === 'weekly') {
-    const d = new Date(series.startDate + 'T00:00:00');
-    const wd = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
-    return `Weekly on ${wd}`;
-  }
-  const day = new Date(series.startDate + 'T00:00:00').getDate();
-  const suffix = (day % 10 === 1 && day !== 11) ? 'st'
-               : (day % 10 === 2 && day !== 12) ? 'nd'
-               : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
-  return `Monthly on the ${day}${suffix}`;
-}
-
-// The unwritten preview — what's coming, without polluting the ledger's math.
-// Computed analytically rather than by enumerating from the start date, so it
-// stays O(1) no matter how old the series is.
-function nextOccurrence(series, todayIso) {
-  if (!series.active || !series.startDate) return null;
-
-  const withinEnd = iso => !(series.endDate && iso > series.endDate) ? iso : null;
-  if (series.startDate > todayIso) return withinEnd(series.startDate);
-
-  const sd = new Date(series.startDate + 'T00:00:00');
-  const today = new Date(todayIso + 'T00:00:00');
-  if (isNaN(sd.getTime()) || isNaN(today.getTime())) return null;
-  let next;
-
-  if (series.cadence === 'daily') {
-    next = new Date(today.getTime());
-    next.setDate(next.getDate() + 1);
-  } else if (series.cadence === 'weekly') {
-    // round, not floor — absorbs any DST hour drift in the day count
-    const elapsed = Math.round((today - sd) / 86400000);
-    next = new Date(sd.getTime());
-    next.setDate(next.getDate() + (Math.floor(elapsed / 7) + 1) * 7);
-  } else {
-    const anchorDay = sd.getDate();
-    let y = today.getFullYear(), m = today.getMonth();
-    const thisMonth = new Date(y, m, Math.min(anchorDay, daysInMonthOf(y, m)));
-    if (isoDateOf(thisMonth) > todayIso) {
-      next = thisMonth;
-    } else {
-      m++;
-      if (m > 11) { m = 0; y++; }
-      next = new Date(y, m, Math.min(anchorDay, daysInMonthOf(y, m)));
-    }
-  }
-  return withinEnd(isoDateOf(next));
-}
+// recurringUID(), daysInMonthOf(), recurrenceDates(), cadenceLabel() and
+// nextOccurrence() moved to lib/alfred-core.js. They were already written pure
+// (todayIso is passed in, never read from the clock) specifically so they could
+// be driven at a simulated "today" — test/alfred-core.test.js now does that,
+// including a property test holding recurrenceDates and nextOccurrence in step.
 
 function mapRecurringRows(json) {
   return (json.table.rows || [])
@@ -4333,7 +4138,7 @@ function calculateAndRender() {
   viewEl.classList.toggle('no-entrance', !firstEntrance);
 
   const rows = allRows.filter(r => {
-    const d = new Date(r.Date);
+    const d = parseRowDate(r.Date);
     const isMonthMatch = d.getMonth() === activeMonth && d.getFullYear() === activeYear;
     
     // Strict Privacy Filter: Must have an activeUser in the URL, 
@@ -4473,7 +4278,7 @@ function calculateAndRender() {
     // so it filters its own row set instead of using the shared `rows`.
     const today = new Date();
     const vRows = allRows.filter(r => {
-      const d = new Date(r.Date);
+      const d = parseRowDate(r.Date);
       return d.getMonth() === viewMonth && d.getFullYear() === viewYear && (activeUser ? r.User === activeUser : false);
     });
     const vIncome = vRows.filter(r => r.Type === 'Income').reduce((s, r) => s + r.Amount, 0);
@@ -4535,7 +4340,7 @@ function calculateAndRender() {
       let pMo = viewMonth - 1, pYr = viewYear;
       if (pMo < 0) { pMo = 11; pYr -= 1; }
       const prevExpense = monthTotals(pYr, pMo).exp;
-      const daysLogged = new Set(vRows.map(r => new Date(r.Date).getDate())).size;
+      const daysLogged = new Set(vRows.map(r => parseRowDate(r.Date).getDate())).size;
       document.getElementById('income-bar-block').innerHTML = archiveCardHtml({
         net: vIncome - vExpense,
         expense: vExpense,
@@ -4636,7 +4441,7 @@ function calculateAndRender() {
 
     // Make sure we apply the STRICT user filter to last month's data as well
     const lastMonthExpenseRows = allRows.filter(r => {
-      const d = new Date(r.Date);
+      const d = parseRowDate(r.Date);
       const isTimeMatch = d.getMonth() === lastMo && d.getFullYear() === lastYr && r.Type !== "Income";
 
       const isUserMatch = activeUser ? (r.User === activeUser) : false;
@@ -4650,11 +4455,11 @@ function calculateAndRender() {
 
     for (let day = 1; day <= daysInMonth; day++) {
       if (!isCurrentMonth || day <= today.getDate()) {
-        currentSum += vExpenseRows.filter(r => new Date(r.Date).getDate() === day).reduce((s, r) => s + r.Amount, 0);
+        currentSum += vExpenseRows.filter(r => parseRowDate(r.Date).getDate() === day).reduce((s, r) => s + r.Amount, 0);
         currentMonthlyCumulativeData.push(currentSum);
       }
       if (day <= daysInLastMonth) {
-        lastSum += lastMonthExpenseRows.filter(r => new Date(r.Date).getDate() === day).reduce((s, r) => s + r.Amount, 0);
+        lastSum += lastMonthExpenseRows.filter(r => parseRowDate(r.Date).getDate() === day).reduce((s, r) => s + r.Amount, 0);
       }
       priorMonthlyCumulativeData.push(lastSum);
     }
@@ -4762,7 +4567,7 @@ function renderRecurringList() {
     const isInc = s.type === 'Income';
     const next = nextOccurrence(s, todayIso);
     const when = !s.active ? 'Paused'
-               : next ? `Next ${MONTHS[new Date(next + 'T00:00:00').getMonth()]} ${new Date(next + 'T00:00:00').getDate()}`
+               : next ? `Next ${MONTHS[parseRowDate(next).getMonth()]} ${parseRowDate(next).getDate()}`
                : 'Ended';
     return `
       <button type="button" class="export-choice${isInc ? ' recur-income' : ''}${s.active ? '' : ' recur-paused'}" onclick="openRecurringForm('${s.id}')">
@@ -4820,7 +4625,7 @@ function renderRecurHint() {
   const start = document.getElementById('recur-start').value;
   const el = document.getElementById('recur-hint');
   if (!start) { el.textContent = ''; return; }
-  const d = new Date(start + 'T00:00:00');
+  const d = parseRowDate(start);
   if (isNaN(d.getTime())) { el.textContent = ''; return; }
   const label = cadenceLabel({ cadence, startDate: start });
   const when = `${MONTHS[d.getMonth()]} ${d.getDate()}`;
@@ -5190,9 +4995,7 @@ let reviewTxns = [];
 let reviewSource = 'web';
 let captureBusy = false;
 
-function escapeHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
+// escapeHtml() moved to lib/alfred-core.js.
 
 function setCaptureNote(msg, isError) {
   const el = document.getElementById('capture-note');
