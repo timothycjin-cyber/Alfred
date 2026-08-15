@@ -1,0 +1,33 @@
+name: tests
+
+# Runs the committed core suite on every push to main and every pull request.
+#
+# There is nothing to install: the suite is `node --test` over lib/alfred-core.js
+# with zero dependencies, so this needs no package.json, no lockfile, no cache
+# and no secrets. A full run is a couple of seconds.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: core suite (4 timezones)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # test/run.sh owns the timezone list, deliberately. Spelling the timezones
+      # out again as a job matrix would give prettier per-TZ check names at the
+      # cost of a second copy of that list — and a CI matrix that drifts from
+      # run.sh is exactly the "two doors built from different lists" trap
+      # CLAUDE.md §8 warns about. One list; the log names the failing timezone.
+      - name: ./test/run.sh
+        run: ./test/run.sh

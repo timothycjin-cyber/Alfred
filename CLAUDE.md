@@ -943,6 +943,15 @@ test/run.sh           the same suite in four timezones
   because a UTC-midnight parse and a local-midnight one agree at UTC+8 and disagree west of it;
   reverting that fix fails **13 tests at `America/New_York` and zero at `Asia/Kuala_Lumpur`**.
   Anything that buckets a row by month or day has to be proved in both directions.
+- **CI runs it on every push to `main` and every PR** (`.github/workflows/tests.yml`, added
+  2026-08-15). Nothing to install — no `package.json`, no lockfile, no cache, no secrets — so the
+  job is checkout, `setup-node@22`, `./test/run.sh`. ⚠️ **The timezone list lives in `run.sh`
+  only.** A CI job matrix would print prettier per-TZ check names and would be a second copy of
+  that list; two doors built from different lists is the §8 trap. The log names the failing zone.
+- ⚠️ **`run.sh` is deliberately NOT fail-fast** — it runs all four and prints the full matrix,
+  because *which* zones fail is the diagnosis. **A split result (green at `Asia/Kuala_Lumpur`,
+  red west of UTC) is the signature of a date parse**; all four red is ordinary broken logic. The
+  script says so on a split, and stays quiet about it when everything failed.
 - ⚠️ **`node --test test` does not work** — the bare directory name resolves against the module
   loader and dies with `MODULE_NOT_FOUND` before running anything. `run.sh` globs `*.test.js`.
 - **`lib/alfred-core.js` loads twice, two ways.** A `<script src>` in `index.html` **before** the
@@ -1065,7 +1074,8 @@ counts. It is a pointer now. To ask "is X done?", read §3: if it is described t
 current behaviour, it shipped and it was verified.
 
 **Before committing, run `./test/run.sh`** (§3.12) — four timezones, ~1s, no install. It is the
-one check that now outlives the session that wrote it.
+one check that now outlives the session that wrote it, and **CI runs the same script on every PR**,
+so skipping it locally only means finding out later.
 
 **The only live items are owner steps, and they are Apps Script side:**
 
