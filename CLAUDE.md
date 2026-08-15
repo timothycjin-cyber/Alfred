@@ -1,16 +1,20 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-13 (third pass) — **The FAB long-press accelerator is REMOVED (§3.3,
-§3.8).** Owner call: it was never once reliable on the device across three passes. The FAB is a
-plain tap again, with its inline `onclick="openCaptureModal()"` restored. ⚠️ **`repaintNavCluster()`
-STAYS** — a different fix for a different bug, confirmed working on the device, still triggered by
-the in-sheet camera. ⚠️ **`materializeRecurring()` stays in `requestIdleCallback`** — its long-press
-justification is gone, but not blocking the main thread after first paint is good on its own terms.
-Full reasoning in §6 "FAB long-press — REMOVED" and §8; the narrative is in the `alfred-history`
-skill. **The convention is one banner: the current change only.** When it is superseded, it moves
-to the history skill rather than being pushed down into a queue. Two facts that live nowhere else:
-earlier roadmap files were consolidated into §6 (2026-07-19), and code comments in `index.html`
-still reference roadmap phase names — §6 and the history skill keep those names resolvable.*
+*Last updated: 2026-08-15 — **The app has committed tests for the first time (§3.12, §6).**
+`lib/alfred-core.js` now holds the pure core (dates, week clipping, recurrence, the reconcile
+merge, escaping) as a plain `<script src>` that `node --test` can also load; `test/` holds 36
+tests and `test/run.sh` runs them in four timezones. ⚠️ **`parseRowDate()` is THE way to turn a
+row's date into a `Date`** — the bare `new Date(iso)` parse it replaces in 24 places is UTC
+midnight read by local getters, so west of UTC rows filed under the previous month while
+rendering under the right one. Invisible at UTC+8, which is why it lived this long. Also fixed:
+`txnRowHtml()` interpolated `Description` unescaped (proved exploitable, then proved fixed), and
+`csvEscape()` now defuses spreadsheet formulas. **The throwaway render loop stays** — this adds a
+regression layer under it, it does not replace it. Full reasoning in §6 "Pure core + committed
+tests" and §8; the narrative is in the `alfred-history` skill. **The convention is one banner: the
+current change only.** When it is superseded, it moves to the history skill rather than being
+pushed down into a queue. Two facts that live nowhere else: earlier roadmap files were
+consolidated into §6 (2026-07-19), and code comments in `index.html` still reference roadmap phase
+names — §6 and the history skill keep those names resolvable.*
 ---
 
 ## 0. Overview & product model
@@ -52,7 +56,7 @@ project deleted, webhook removed — nothing of the old stack runs anywhere.
 
 | Index | Column | Notes |
 |---|---|---|
-| 0 | Date | Plain date in the cell; GViz reads it back as Date(YYYY,M,D) with **month 0-indexed** — dashboard JS adds +1 when formatting to YYYY-MM-DD. Known off-by-one bug source. |
+| 0 | Date | Plain date in the cell; GViz reads it back as Date(YYYY,M,D) with **month 0-indexed** — `gvizDateToIso()` adds +1 when formatting to YYYY-MM-DD. Known off-by-one bug source, at two levels: ⚠️ reading the ISO string back with `new Date(iso)` parses **UTC** midnight and every getter the app uses is **local**, so use **`parseRowDate()`** (§3.12) and never `new Date(row.Date)`. |
 | 1 | Amount (MYR) | Numeric |
 | 2 | Category | String |
 | 3 | Description | String |
@@ -917,10 +921,43 @@ reconciled rows format identically.
   — §6 Phase F checklist.) How push used to work — FCM HTTP v1, SA-JWT signing, handing
   the SDK our SW registration on a project-pages path — is preserved as a learning in §8.
 
-### 3.12 Verification loop
+### 3.12 Verification loop + the committed test layer
 
-The render loop is the `alfred-verification` skill: how to drive it, and the harness
-lessons that each cost a false pass. Read it before writing or trusting a suite.
+**Two layers, and they answer different questions.**
+
+- **The render loop** (the `alfred-verification` skill) is per-change verification: how to
+  drive it, and the harness lessons that each cost a false pass. Read it before writing or
+  trusting a suite. It is still written per pass and still thrown away — that is fine, it is
+  asking "did this change do what I meant?"
+- **`test/` is the regression layer** (added 2026-08-15), and it is committed. It asks the other
+  question — "is everything else still true?" — which is the one that only pays off when the
+  suite outlives the session that wrote it. Nothing did before this.
+
+```
+lib/alfred-core.js    pure core — no DOM, no fetch, no clock read
+test/alfred-core.test.js   36 tests, node --test, zero dependencies
+test/run.sh           the same suite in four timezones
+```
+
+- **Run it with `./test/run.sh`.** ⚠️ **One timezone is not a run.** The suite exists partly
+  because a UTC-midnight parse and a local-midnight one agree at UTC+8 and disagree west of it;
+  reverting that fix fails **13 tests at `America/New_York` and zero at `Asia/Kuala_Lumpur`**.
+  Anything that buckets a row by month or day has to be proved in both directions.
+- ⚠️ **`node --test test` does not work** — the bare directory name resolves against the module
+  loader and dies with `MODULE_NOT_FOUND` before running anything. `run.sh` globs `*.test.js`.
+- **`lib/alfred-core.js` loads twice, two ways.** A `<script src>` in `index.html` **before** the
+  inline block (⚠️ **no `defer`** — same reason the Chart.js tag can't have it), where a
+  UMD-lite wrapper `Object.assign`es the API onto `globalThis`; and `module.exports` under Node.
+  A side effect worth knowing: the core's functions ARE on `window`, unlike the inline script's
+  top-level `let`/`const`, so a probe can read them the obvious way.
+- **`MONTHS` lives in core now** and is deleted from the inline script — `weekRangeLabel()` needs
+  it, and one copy can't drift. `MONTHS_FULL`, `WEEKDAYS_MON` and `DAYS_FULL` stay inline.
+- **The rule for what belongs in core:** if it needs the DOM, the network or the wall clock, it
+  stays in `index.html`. "Today" is always passed in.
+- ⚠️ **Figure assertions in the render loop need `reducedMotion: 'reduce'`.** `animateCounters()`
+  counts up, so a read 600ms after load lands on an intermediate frame — the hero measured
+  `RM 1,859.70` on its way to `1,887.00`. Reduced motion makes counters write final values
+  immediately, via a real app path.
 
 ### 3.13 Recurring series (Phase G)
 
@@ -1026,6 +1063,9 @@ holds the decisions each change locked, §7 the narrative and the findings.
 duplicating §6's roadmap entry and §7's history entry, down to the same verification
 counts. It is a pointer now. To ask "is X done?", read §3: if it is described there as
 current behaviour, it shipped and it was verified.
+
+**Before committing, run `./test/run.sh`** (§3.12) — four timezones, ~1s, no install. It is the
+one check that now outlives the session that wrote it.
 
 **The only live items are owner steps, and they are Apps Script side:**
 
@@ -1203,6 +1243,42 @@ Decisions future phases must not re-open:
    the long-press timer, which is gone, but keeping the main thread free immediately after first
    paint stands on its own.
 
+### Pure core + committed tests ✅ DONE (2026-08-15)
+
+The first tests ever committed to this repo. Prompted by a coverage audit that found the app had
+excellent *verification* and zero *regression testing* — every suite ever written for it was run
+once and discarded, so nothing guarded a change made three sessions later.
+
+Shipped: `lib/alfred-core.js` (the pure core, extracted — no behaviour change), `test/` (36 tests,
+`node --test`, no dependencies), `test/run.sh` (four timezones), and fixes for three defects the
+audit found by reading. Verified with 36 tests × 4 timezones, 13 negative controls against
+deliberately broken copies (12 fired; the 13th is the deliberate proof that the date bug is
+invisible at UTC+8), and a 21-check browser pass at 390px.
+
+Decisions future phases must not re-open:
+
+1. **`parseRowDate()` is the only way to parse a row's date.** Not `new Date(iso)`, not
+   `new Date(iso + 'T00:00:00')` — one idiom, so the invariant is greppable. There are **zero**
+   `T00:00:00` literals left in `index.html`; keep it that way.
+2. **The pure core is a separate file, and pure means pure.** No DOM, no fetch, no clock. "Today"
+   is passed in. This is what makes the recurrence and reconcile logic testable at all, and it
+   was already half-true by design — `recurrenceDates()` had carried an injectable `todayIso`
+   since Phase G without anything ever driving it.
+3. **The committed suite does not replace the render loop.** It is a floor, not a ceiling — ~15
+   checks' worth of "does the app still boot and add up", plus the pure core. Per-change
+   verification is still the skill's throwaway loop.
+4. **Every renderer that interpolates sheet text into `innerHTML` escapes it.** `txnRowHtml()`
+   was the one that didn't; `archiveCardHtml()`'s top-category line was fixed with it. The drill
+   sheet's title and sub use `textContent` and are fine as they are.
+5. **`csvEscape()` guards formulas but exempts plain numbers.** A negative amount must stay
+   numeric or the export stops summing, which is the whole point of the file.
+
+**Not done, and deliberately out of scope for this pass** (from the audit's tiers 3 and 4):
+porting the Apps Script validation tests back from the retired bot's repo — `Code.gs`'s
+`validateTransactions()` is still the app's only extraction/validation implementation and still
+has no tests — and a committed render-loop smoke suite. The browser pass written for this change
+lives in the scratchpad, not the repo.
+
 ### Design fix spec ✅ DONE (2026-08-10, second pass)
 
 Decisions future phases must not re-open:
@@ -1318,7 +1394,12 @@ no longer wanted; capture-parse validation suite — considered resolved.
 - Deleting `repaintNavCluster()` as dead code — it is a Chromium/Android workaround, confirmed
   fixed on the device, and unreproducible in any local test (§3.3)
 - `defer` on the Chart.js tag — `Chart.register()` is top-level in the inline script, which runs
-  first, so it throws on load (§6)
+  first, so it throws on load (§6). ⚠️ **The same applies to the `lib/alfred-core.js` tag**, which
+  the inline script calls into at module scope
+- Parsing a row's date with `new Date(row.Date)` or `new Date(row.Date + 'T00:00:00')` — both are
+  superseded by `parseRowDate()`, and the first one is a live bug west of UTC (§1, §3.12, §6)
+- Interpolating sheet text into `innerHTML` without `escapeHtml()` (§3.6, §6 — `txnRowHtml()` was
+  proved exploitable before the 2026-08-15 fix)
 - Any new backend endpoints, LLM calls, or paid services
 
 ---
@@ -1333,6 +1414,31 @@ roadmap phase name referenced in an `index.html` comment.
 ---
 
 ## 8. Key Learnings & Principles
+
+- **Verification and regression testing are different jobs, and doing the first one well hides
+  that you are not doing the second.** Every suite this app ever had was rigorous, ran once, and
+  was deleted — 23 to 72 checks a phase, none of which could fail on any later change, because
+  none of them existed any more. The practice looked like testing from the inside. The question
+  that separates them: *would this catch a break introduced three sessions from now?* If the
+  answer is "the file is gone", the answer is no.
+
+- **A bug that is invisible in the author's own timezone will live forever.** `new Date(iso)`
+  parses UTC midnight; `getMonth()`/`getDate()` read local. East of UTC the two agree, so at
+  UTC+8 the app was correct by geography while 24 call sites were wrong by construction. West of
+  UTC the salary row dated the 1st files under the previous month and the budget reads zero —
+  same code, same data. Anything environmental (timezone, locale, DST) needs the *matrix*, not a
+  run; and a green suite in one environment is a statement about that environment.
+
+- **Reach for a property test when two implementations must agree.** `recurrenceDates()`
+  enumerates the schedule and `nextOccurrence()` computes it analytically in O(1), and nothing
+  held them in step — the kind of pair where examples pass and the disagreement hides on the
+  29th of a leap February. One property (*the analytic answer is the first enumerated date after
+  today*) over 1,000+ generated cases covers what a page of examples would not.
+
+- **Extracting for testability is a code move, not a rewrite — keep it that way.** The core came
+  out in one commit that changed no behaviour, so the render loop's only job was proving the app
+  still rendered identically. The moment an extraction also "improves" the logic, nothing can
+  tell you which half broke it.
 
 - **When the verification loop is structurally blind to a feature's failure mode, stop fixing and
   start removing.** The FAB long-press was verified 104/104, then 141/141, then 180/180 (that
