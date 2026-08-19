@@ -1,20 +1,24 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-15 — **The app has committed tests for the first time (§3.12, §6).**
-`lib/alfred-core.js` now holds the pure core (dates, week clipping, recurrence, the reconcile
-merge, escaping) as a plain `<script src>` that `node --test` can also load; `test/` holds 36
-tests and `test/run.sh` runs them in four timezones. ⚠️ **`parseRowDate()` is THE way to turn a
-row's date into a `Date`** — the bare `new Date(iso)` parse it replaces in 24 places is UTC
-midnight read by local getters, so west of UTC rows filed under the previous month while
-rendering under the right one. Invisible at UTC+8, which is why it lived this long. Also fixed:
-`txnRowHtml()` interpolated `Description` unescaped (proved exploitable, then proved fixed), and
-`csvEscape()` now defuses spreadsheet formulas. **The throwaway render loop stays** — this adds a
-regression layer under it, it does not replace it. Full reasoning in §6 "Pure core + committed
-tests" and §8; the narrative is in the `alfred-history` skill. **The convention is one banner: the
-current change only.** When it is superseded, it moves to the history skill rather than being
-pushed down into a queue. Two facts that live nowhere else: earlier roadmap files were
-consolidated into §6 (2026-07-19), and code comments in `index.html` still reference roadmap phase
-names — §6 and the history skill keep those names resolvable.*
+*Last updated: 2026-08-19 — **The Logs toolbar is gone; its two icons live in the masthead's
+right slot (§3.4, §3.6).** `.logs-toolbar` was a 44px band of chrome directly under a 31px
+serif title, pushing the ledger down for two controls the masthead already had empty space
+for — `#masthead` has been `justify-content: space-between` with a single child all along.
+`#masthead-actions` is Logs-only: `renderMasthead()` sets `hidden` on every other tab, which
+is what keeps them out of the tab order too. ⚠️ **Moving anything into the top-right corner
+surfaced a latent trap: the lift-off pill lives there, and `mh-pill-hit` does NOT protect it
+on a document too short to scroll** — a scroll timeline with no scrollport is *inactive*, so
+its keyframes do not apply and the pill's resting `pointer-events` is whatever the base rule
+says. That base is now `none` (§3.4, §8), so the gate fails closed; with `auto` a
+two-entry month carried an invisible 114px button across the corner that ate every tap.
+Found by Playwright refusing to click the new icons, not by eye. Verified 45/45 at 390/900,
+light and dark, both motion modes, with six negative controls; `./test/run.sh` still 36×4.
+Front-end only — **no Apps Script change, no redeploy.** Reasoning in §6 "Logs actions move
+into the masthead"; the narrative is in the `alfred-history` skill. **The convention is one
+banner: the current change only.** When it is superseded, it moves to the history skill rather
+than being pushed down into a queue. Two facts that live nowhere else: earlier roadmap files
+were consolidated into §6 (2026-07-19), and code comments in `index.html` still reference
+roadmap phase names — §6 and the history skill keep those names resolvable.*
 ---
 
 ## 0. Overview & product model
@@ -332,6 +336,25 @@ definition, not by argument.
   `body.has-masthead` is what stops `.container` applying the status-bar inset a second time, so
   the two must stay in step.
 
+**The right slot** (`#masthead-actions`, 2026-08-19) holds the **Logs** actions — the recurring
+glyph and the export icon, moved out of the deleted `.logs-toolbar` (§3.6). `#masthead` was
+already `justify-content: space-between` with a single child, so the slot cost nothing to open.
+
+- **Logs-only, via `hidden`.** `renderMasthead()` sets `mhActions.hidden = currentView !== 'logs'`.
+  ⚠️ `.masthead-actions[hidden] { display: none }` is **load-bearing** — the base rule's
+  `display: flex` beats the UA sheet's `[hidden]`, the same trap `.pill[hidden]` already carries.
+  `hidden` rather than `opacity`/`visibility` because it is also what keeps them out of the tab
+  order on Today and Trends.
+- ⚠️ **`align-self: center`, against the flex container's `align-items: baseline`.** An icon
+  button has no baseline of its own, so baseline alignment drops a 44px circle below the serif
+  and **changes the masthead's height** — which moves the title and re-derives `--pill-travel`.
+  Both are asserted against the pre-change build; both fire if the line is removed.
+- **Tools, not figures.** This does not touch the governing principle above: the masthead still
+  names the period and never measures it. A repeat glyph and a download glyph state nothing about
+  the month; a *figure* up here is still out of scope (§6).
+- ⚠️ **They share the corner with the pill**, which is what forced the pill's hit-testing to be
+  made to fail closed — see its `pointer-events` note below.
+
 **The lift-off.** `--p` is a registered `@property` number, 0 at the top of a pane and 1 once the
 hand-off is complete, driven by a **scroll-driven animation on `body`** (`animation-range: 0
 86px`) with a `CSS.supports`-gated rAF fallback that attaches only where `animation-timeline` is
@@ -366,9 +389,16 @@ hysteresis: a threshold can only snap, and a hand-off has to be watchable.
   route to anything: the masthead button above it is 44px+ and opens the same picker. **Do not
   make the pill the only tappable representation.**
 - ⚠️ **`pointer-events` is gated by discrete keyframes on the pill's own scroll timeline**
-  (`mh-pill-hit`, flipping at 40%). At `--p: 0` the pill is transparent but still in the hit path,
-  so a tap in the corner would land on a button nobody can see. It **must** live on the pill — the
-  element that receives the events — not in `body`'s animation list. `#masthead` carries the
+  (`mh-pill-hit`, flipping at 40%), **over a resting `none` in `.pill`** (fixed 2026-08-19). At
+  `--p: 0` the pill is transparent, so a tap in the corner has to land on whatever is underneath.
+  The gate **must** live on the pill — the element that receives the events — not in `body`'s
+  animation list. ⚠️ **The resting value is the load-bearing half.** An animation beats a normal
+  declaration, so the keyframes still win whenever the timeline is *running* — but a scroll
+  timeline on a document too short to scroll is **inactive**, and an inactive timeline's keyframes
+  do not apply at all. With `pointer-events: auto` in `.pill` (as it was), a month with a couple
+  of entries left a fully transparent 114px button parked across the top-right corner, eating
+  every tap that landed on it. Latent while nothing else was up there; live the moment the right
+  slot arrived. **Never put that base value back to `auto`.** `#masthead` carries the
   mirror (`mh-fade-out` at 74%, where `calc(1 - --p * 1.35)` reaches zero) because a `static`
   element that has faded to nothing is still hit-testable where it overlaps the viewport.
 - **`tabindex="-1"` permanently.** The pill is a pointer-only duplicate of a control that is
@@ -663,10 +693,14 @@ scope" below). The header month chip never filters here; it jumps.
   and `#export-month-label` still names that month in the modal — but on Logs that month is now
   wherever you have scrolled to, so scrolling into July and exporting exports **July**. This is
   intended and asserted; it is the same rule as before applied to a `viewMonth` that now moves.
-- **Toolbar:** slim right-aligned `.logs-toolbar` icon row atop `#logs-view`, now **two
-  `.icon-btn`s** (`gap: 8px`): a repeat glyph opening the recurring sheet (§3.13) and the
-  export icon. The press-scale rule lives on `.icon-btn:active` (was `.export-btn:active`)
-  so both get feedback.
+- **Toolbar — GONE; the two icons are in the masthead** (2026-08-19). `.logs-toolbar` was a
+  slim right-aligned `.icon-btn` row atop `#logs-view`; it is deleted, markup and CSS, and the
+  recurring glyph (§3.13) and the export icon now sit in `#masthead-actions` (§3.4). Nothing
+  about the buttons themselves changed — same 44px `.icon-btn`, same `.icon-btn:active` press
+  scale, same handlers, same order — so export still follows the scroll readout exactly as the
+  bullet above says. `#logs-view` now starts with `#logs-ledger`. It was 44px of chrome sitting
+  directly beneath a 31px serif title, holding two controls the masthead had an empty right slot
+  for.
 - **Export:** `openExportModal`/`exportCSV` scope + filename + error copy read
   **`viewMonth`/`viewYear`** — exporting exports the chip's month.
 - Rows written by a recurring series carry a quiet `.txn-auto` **"Auto"** marker beside the
@@ -1085,7 +1119,8 @@ so skipping it locally only means finding out later.
   longer exists), but the trigger fails silently in the execution log every night.
 - **Everything else is deployed.** Apps Script was last redeployed for Phase G, so the
   `recurring` action and `handleAdd`'s duplicate guard are live. Every change since
-  2026-08-08 has been front-end only — **no Apps Script change, no redeploy.**
+  2026-08-08 has been front-end only — **no Apps Script change, no redeploy**, and that
+  includes the 2026-08-19 masthead-actions move.
 
 **Pending work:** the unscheduled candidate features and the open questions, both in §6.
 
@@ -1289,6 +1324,36 @@ porting the Apps Script validation tests back from the retired bot's repo — `C
 has no tests — and a committed render-loop smoke suite. The browser pass written for this change
 lives in the scratchpad, not the repo.
 
+### Logs actions move into the masthead ✅ DONE (2026-08-19)
+
+The `.logs-toolbar` row is deleted and its two icon buttons live in `#masthead-actions`, the
+masthead's right slot (§3.4, §3.6). Front-end only — no Apps Script change, no redeploy.
+Verified 45/45 at 390px and 900px, light and dark, in both motion modes, with six negative
+controls; `./test/run.sh` unchanged at 36 × 4 timezones.
+
+**It does not reopen "the masthead names the period, it never measures it."** That rule is about
+*figures*. A repeat glyph and a download glyph state nothing about the month, so they are inside
+it; "budget left" in the corner is still out of scope (§6, out-of-scope list).
+
+Decisions future phases must not re-open:
+
+1. **The Logs toolbar is not coming back.** Two controls do not earn a 44px band of chrome under
+   a 31px title when the masthead has an empty right slot. Anything that wants a third Logs-level
+   control goes in the slot or finds another home.
+2. **The slot is Logs-only, and it is hidden with `hidden`.** Not `opacity`, not `visibility` —
+   the tab order is the reason. Today and Trends have nothing in the corner.
+3. **The pill's resting `pointer-events` is `none`.** `mh-pill-hit` turns it *on*; it does not
+   turn it off. The gate has to fail closed, because a scroll timeline is inactive on an
+   unscrollable document and the keyframes then do not apply at all (§3.4, §8).
+4. **The masthead's height, the title's position and `--pill-travel` are unchanged**, asserted
+   against the pre-change build. Anything added to the slot has to hold that — which in practice
+   means `align-self: center` and a control no taller than the 44px `.month-btn` floor.
+
+**A finding about the loop, not the change:** the bug in decision 3 was found because Playwright
+*refused to click* the new icons — the harness reported an interception, which is a stronger
+signal than any assertion the suite contained. A click that cannot be performed is a result; do
+not route around it with `{ force: true }`.
+
 ### Design fix spec ✅ DONE (2026-08-10, second pass)
 
 Decisions future phases must not re-open:
@@ -1410,6 +1475,11 @@ no longer wanted; capture-parse validation suite — considered resolved.
   superseded by `parseRowDate()`, and the first one is a live bug west of UTC (§1, §3.12, §6)
 - Interpolating sheet text into `innerHTML` without `escapeHtml()` (§3.6, §6 — `txnRowHtml()` was
   proved exploitable before the 2026-08-15 fix)
+- Reinstating the Logs toolbar row, or putting a *figure* in the masthead's right slot (§3.4,
+  §3.6 — the row was deleted 2026-08-19; the slot takes tools, and the masthead still never
+  measures the period)
+- Setting `.pill { pointer-events: auto }` — the resting value must stay `none` so the gate fails
+  closed on an unscrollable document (§3.4, §8)
 - Any new backend endpoints, LLM calls, or paid services
 
 ---
@@ -1549,6 +1619,23 @@ roadmap phase name referenced in an `index.html` comment.
   Neither is visible in the markup, and neither fails loudly — one runs content under the
   status bar only in an installed PWA, the other lands every month jump 77px off. Before
   deleting a layout element, grep for what *measures* it, not just what styles it.
+
+- **A scroll timeline on an unscrollable document is INACTIVE, and an inactive timeline's
+  keyframes do not apply at all.** So any property an animation is gating falls back to whatever
+  the base rule says — which makes the base rule, not the keyframes, the value that has to be
+  safe. The pill gated `pointer-events` to `none` at rest via `mh-pill-hit` and declared `auto`
+  in `.pill`; on a two-entry month there is nothing to scroll, the keyframes never ran, and an
+  invisible 114px button sat across the top-right corner eating taps. Write the gate so the
+  un-animated state is the *closed* one: an animation beats a normal declaration, so turning
+  something **on** in keyframes still works, while turning it **off** in keyframes only works
+  while the timeline happens to be live.
+
+- **A tool that refuses to perform an action has told you something an assertion could not.**
+  Playwright would not click the relocated icons — it reported another element intercepting
+  pointer events, and that report *was* the bug. The suite had no probe for it, and would not
+  have grown one, because "is this button clickable" is not a question you think to ask about a
+  button you can see. Read a harness's refusal as a finding before reaching for `{ force: true }`
+  or a coordinate click.
 
 - **A scroll-driven animation of a custom property is not off the main thread.** Only
   `transform`, `opacity`, `filter` and `backdrop-filter` get the compositor. Animating a
