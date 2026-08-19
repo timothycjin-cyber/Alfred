@@ -368,7 +368,15 @@
     position: absolute;
     top: calc(12px + env(safe-area-inset-top, 0px));
     right: 16px;
-    pointer-events: auto;
+    /* ⚠️ none is the RESTING value, and mh-pill-hit below turns it on — not
+       the other way round. An animation overrides a normal declaration, so the
+       keyframes still win once the timeline is running; but when the document
+       is too short to scroll the timeline is INACTIVE and the keyframes do not
+       apply at all, leaving whatever this rule says. With `auto` here, a page
+       with a couple of entries carried a fully transparent 114px button across
+       the top-right corner that ate every tap landing on it. Harmless while
+       nothing was up there; it is where the Logs actions live now. */
+    pointer-events: none;
     display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
     height: 38px; padding: 0 8px 0 15px;
     border-radius: var(--shape-full);
@@ -409,10 +417,11 @@
   #month-pill.inert { cursor: default; padding-right: 15px; }
   #month-pill.inert .pill-cx { display: none; }
 
-  /* Hit-testing while invisible. At --p 0 the pill is transparent but still in
-     the hit path, so a tap at the top-right corner would land on a button
-     nobody can see instead of the card underneath. pointer-events animates
-     discretely, so one keyframe pair on the same scroll timeline gates it.
+  /* Hit-testing while invisible. At --p 0 the pill is transparent, so a tap at
+     the top-right corner must land on whatever is underneath rather than on a
+     button nobody can see. pointer-events animates discretely, so one keyframe
+     pair on the same scroll timeline gates it — over a resting `none`, so an
+     unscrollable page (inactive timeline, no keyframes) fails closed.
      ⚠️ This has to live on the pill — the element that receives the events —
      not in body's animation list. The rAF fallback sets the property directly. */
   @keyframes mh-pill-hit {
@@ -481,6 +490,15 @@
     will-change: transform, opacity;
   }
   #masthead[hidden] { display: none; }
+
+  /* The masthead's right slot — justify-content: space-between was already
+     holding it open for a single child. align-self: center, not the flex
+     container's `baseline`: an icon has no baseline of its own, so baseline
+     alignment sits a 44px circle on the serif's, dropping it below the bar.
+     Both buttons are .icon-btn (44px), the same height as .month-btn's floor,
+     so the masthead's height is unchanged. */
+  .masthead-actions { display: flex; gap: 8px; align-self: center; flex: none; }
+  .masthead-actions[hidden] { display: none; }
 
   .month-btn {
     display: inline-flex; align-items: baseline; gap: 8px;
@@ -1122,9 +1140,10 @@
     font-weight: 700;
   }
 
-  /* Logs toolbar — slim right-aligned row above the ledger; holds the export
-     trigger since it moved out of the header (Phase B). */
-  .logs-toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 2px; }
+  /* The Logs toolbar is GONE (2026-08-19). Its two icon buttons moved into the
+     masthead's right slot — see .masthead-actions. The row it lived in was a
+     44px band of chrome directly under a 31px title, pushing the ledger down
+     for two controls that the masthead already had empty space for. */
 
   /* Logs week index — Mon–Sun week rows under month headers, current month
      first and older months appended on demand from the tail below. Bars for
@@ -1662,6 +1681,25 @@
     <span class="month-txt"></span>
     <span class="caret" aria-hidden="true">▾</span>
   </button>
+  <!-- The Logs actions, in the masthead's right slot since 2026-08-19. They are
+       Logs-only — renderMasthead() unhides them on that tab and hides them on
+       Today and Trends, so the slot is empty everywhere else and the month
+       still sits alone. Tools, not figures: the governing principle is that the
+       masthead never MEASURES the period, and a repeat glyph states nothing
+       about it. -->
+  <div id="masthead-actions" class="masthead-actions" hidden>
+    <button class="icon-btn" onclick="openRecurringModal()" aria-label="Recurring entries">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+        <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+      </svg>
+    </button>
+    <button class="icon-btn export-btn" onclick="openExportModal()" aria-label="Export transactions">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    </button>
+  </div>
 </div>
 
 <div class="bottom-bar">
@@ -1696,19 +1734,6 @@
   </div>
 
   <div id="logs-view" class="view-section">
-    <div class="logs-toolbar">
-      <button class="icon-btn" onclick="openRecurringModal()" aria-label="Recurring entries">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-          <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-        </svg>
-      </button>
-      <button class="icon-btn export-btn" onclick="openExportModal()" aria-label="Export transactions">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-      </button>
-    </div>
     <div id="logs-ledger"></div>
   </div>
 
@@ -2941,6 +2966,11 @@ function renderMasthead() {
   if (!show) return;
 
   const isToday = currentView === 'today';
+  // The Logs actions ride in the masthead's right slot, and only on Logs —
+  // [hidden] keeps them out of the tab order everywhere else, which a
+  // visibility/opacity hide would not.
+  const mhActions = document.getElementById('masthead-actions');
+  if (mhActions) mhActions.hidden = currentView !== 'logs';
   const mhTxt = el.querySelector('.month-txt');
   const mhBtn = document.getElementById('masthead-month');
   const pillLbl = document.getElementById('month-pill-label');

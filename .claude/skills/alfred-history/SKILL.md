@@ -227,6 +227,49 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-19 — The Logs toolbar moves into the masthead (§3.4, §3.6, §6).** A layout change
+  that turned into a hit-testing one. `.logs-toolbar` was a 44px right-aligned `.icon-btn` row
+  sitting directly under the 31px serif masthead — two controls' worth of chrome pushing the
+  ledger down, when `#masthead` had been `justify-content: space-between` with a single child
+  since the header was deleted. The buttons moved into `#masthead-actions` unchanged (same size,
+  same handlers, same order), Logs-only via `hidden` so they stay out of the tab order elsewhere,
+  and `align-self: center` because the flex container aligns on `baseline` and an icon has no
+  baseline — without it the masthead's height changes, which moves the title and re-derives
+  `--pill-travel`. Both are asserted against the pre-change build.
+
+  **The finding is the pill.** The top-right corner already had an occupant: the lift-off pill,
+  transparent at `--p: 0` and kept out of the hit path by `mh-pill-hit`'s discrete keyframes. That
+  gate turned out to be **conditional on the document being scrollable** — a scroll timeline with
+  no scrollport is *inactive*, its keyframes do not apply, and `pointer-events` falls back to
+  `.pill`'s own `auto`. On a month with a couple of entries an invisible 114px button had been
+  parked across the corner for as long as the pill has existed, eating every tap on it; harmless
+  only because nothing was up there. The fix is one word — the base rule is `none` and the
+  keyframes turn it **on** — and the general form is in §8: write a gate so the un-animated state
+  is the closed one.
+
+  **How it surfaced is worth more than the fix.** No assertion caught it. Playwright *refused to
+  click* the relocated icons and named the intercepting element, and that refusal was the bug
+  report. "Is this visible button clickable" is not a question anyone writes a probe for. Verified
+  45/45 at 390/900, light and dark, both motion modes, six negative controls — all six fired, and
+  two of them (`align-self`, and putting `pointer-events: auto` back) fired on checks other than
+  the ones predicted, which is the usual sign that a probe is weaker than its name suggests. One
+  harness note for the next pass: the export-scope check has to run at a viewport short enough for
+  the target month's header to reach `SPY_LINE`; at 390×844 this fixture bottoms out first and
+  tests the documented clamp instead — identical on the pre-change build, so not a regression.
+
+- **2026-08-15 — Pure core + the first committed tests (§3.12, §6).** Superseded banner, kept
+  because it is where the repo's regression layer starts. `lib/alfred-core.js` holds the pure core
+  (dates, week clipping, recurrence, the reconcile merge, escaping) as a plain `<script src>` that
+  `node --test` also loads; `test/` holds 36 tests and `test/run.sh` runs them in four timezones,
+  with CI running the same script on every push and PR. ⚠️ **`parseRowDate()` is THE way to turn a
+  row's date into a `Date`** — the bare `new Date(iso)` it replaced in 24 places parses UTC
+  midnight and is read by local getters, so west of UTC rows filed under the previous month while
+  rendering under the right one. Invisible at UTC+8, which is why it survived so long. Two more
+  defects found by reading: `txnRowHtml()` interpolated `Description` unescaped (proved
+  exploitable, then proved fixed), and `csvEscape()` now defuses spreadsheet formulas while
+  exempting plain numbers. **The throwaway render loop stays** — this is a floor under it, not a
+  replacement.
+
 - **2026-08-12 → 2026-08-13 — The FAB long-press accelerator: built, fixed twice, removed
   (§3.3, §3.8).** Three passes over two days, consolidated into one entry because the arc is
   the point and the feature no longer exists. **The build (2026-08-12, 104/104, six negative
