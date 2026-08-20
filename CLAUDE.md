@@ -1,20 +1,17 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-19 — **The Logs toolbar is gone; its two icons live in the masthead's
-right slot (§3.4, §3.6).** `.logs-toolbar` was a 44px band of chrome directly under a 31px
-serif title, pushing the ledger down for two controls the masthead already had empty space
-for — `#masthead` has been `justify-content: space-between` with a single child all along.
-`#masthead-actions` is Logs-only: `renderMasthead()` sets `hidden` on every other tab, which
-is what keeps them out of the tab order too. ⚠️ **Moving anything into the top-right corner
-surfaced a latent trap: the lift-off pill lives there, and `mh-pill-hit` does NOT protect it
-on a document too short to scroll** — a scroll timeline with no scrollport is *inactive*, so
-its keyframes do not apply and the pill's resting `pointer-events` is whatever the base rule
-says. That base is now `none` (§3.4, §8), so the gate fails closed; with `auto` a
-two-entry month carried an invisible 114px button across the corner that ate every tap.
-Found by Playwright refusing to click the new icons, not by eye. Verified 45/45 at 390/900,
-light and dark, both motion modes, with six negative controls; `./test/run.sh` still 36×4.
-Front-end only — **no Apps Script change, no redeploy.** Reasoning in §6 "Logs actions move
-into the masthead"; the narrative is in the `alfred-history` skill. **The convention is one
+*Last updated: 2026-08-20 — **Browser-level checks now have a committed harness
+(`test/browser/`, §3.12), not just the throwaway render loop.** Mocks the sheet, stubs
+Chart.js, pins the clock — the plumbing that used to get rebuilt from scratch each
+session — plus a 26-check smoke suite covering boot, layout overflow, and the pill
+hit-testing bug from the 2026-08-19 change (kept as a permanent regression test). Runs
+in CI on every push/PR via a new `browser-tests.yml`, separate from the zero-install
+`tests.yml`. ⚠️ **`page.emulateMedia()`, not the `reducedMotion` context option** — the
+option didn't reliably reach `matchMedia()` before the app's script ran on this Chromium
+build; `helpers/app.js` calls `emulateMedia()` explicitly before `goto()` instead (§8).
+`@playwright/test` is pinned to an exact version, not a range, so CI always fetches the
+browser this suite was verified against. Reasoning in §6 "Committed browser smoke suite";
+the 2026-08-19 banner moved to the `alfred-history` skill. **The convention is one
 banner: the current change only.** When it is superseded, it moves to the history skill rather
 than being pushed down into a queue. Two facts that live nowhere else: earlier roadmap files
 were consolidated into §6 (2026-07-19), and code comments in `index.html` still reference
@@ -955,23 +952,53 @@ reconciled rows format identically.
   — §6 Phase F checklist.) How push used to work — FCM HTTP v1, SA-JWT signing, handing
   the SDK our SW registration on a project-pages path — is preserved as a learning in §8.
 
-### 3.12 Verification loop + the committed test layer
+### 3.12 Verification loop + the committed test layers
 
-**Two layers, and they answer different questions.**
+**Three layers, and they answer different questions.**
 
 - **The render loop** (the `alfred-verification` skill) is per-change verification: how to
   drive it, and the harness lessons that each cost a false pass. Read it before writing or
   trusting a suite. It is still written per pass and still thrown away — that is fine, it is
   asking "did this change do what I meant?"
-- **`test/` is the regression layer** (added 2026-08-15), and it is committed. It asks the other
-  question — "is everything else still true?" — which is the one that only pays off when the
-  suite outlives the session that wrote it. Nothing did before this.
+- **`test/` is the pure-logic regression layer** (added 2026-08-15), and it is committed. It
+  asks "is the logic still true?" — dates, week clipping, recurrence, the reconcile merge.
+- **`test/browser/` is the browser-level regression layer** (added 2026-08-20), also
+  committed. It asks "does the app still boot, render, and let you open the things you should
+  be able to open?" — the DOM/interaction floor `test/` can't cover because it never touches a
+  browser. The render loop is still where change-specific assertions get written; this is
+  what a new pass can build ON rather than rebuilding the harness underneath them.
 
 ```
-lib/alfred-core.js    pure core — no DOM, no fetch, no clock read
+lib/alfred-core.js         pure core — no DOM, no fetch, no clock read
 test/alfred-core.test.js   36 tests, node --test, zero dependencies
-test/run.sh           the same suite in four timezones
+test/run.sh                the same suite in four timezones
+
+test/browser/helpers/app.js       openApp() — mocks the sheet, stubs Chart.js, pins the
+                                   clock, waits for boot. The reusable half.
+test/browser/fixtures/            the GViz mock (deliberate month gap) and the Chart.js stub
+test/browser/smoke.spec.js        26 checks, 2 projects (390 light-reduced / 900 dark-motion)
 ```
+
+- **The harness is the reusable part; the assertions aren't.** `openApp()` is what used to get
+  rewritten from scratch each session (mocking the sheet, stubbing the CDN-blocked Chart.js,
+  pinning the clock without freezing Chart.js's own animator). A future change only has to add
+  the specific check, not rebuild the plumbing under it — same relationship `lib/alfred-core.js`
+  has to `index.html`.
+- **CI runs it on every push/PR** (`.github/workflows/browser-tests.yml`), separately from the
+  zero-install `tests.yml` — this one genuinely needs `npm ci` and a downloaded browser, and
+  keeping the jobs apart means a browser-tooling failure can't be mistaken for a core-logic one.
+  `@playwright/test` is pinned to an **exact** version in `test/browser/package.json`, not a
+  range, so CI always fetches the same browser this suite was last verified against.
+- ⚠️ **`page.emulateMedia()`, not the `reducedMotion` context/project option.** The option didn't
+  reliably reach `matchMedia()` before the app's own script ran, on the Chromium build this was
+  built against — `openApp()` reads the active project's intended `reducedMotion`/`colorScheme`
+  and applies both via `emulateMedia()` before `goto()`, which does work reliably. Matters because
+  the app reads `matchMedia('(prefers-reduced-motion: reduce)')` **once**, into a `REDUCED_MOTION`
+  const, at script-parse time (§3.2) — a call made after navigation is too late for that flag even
+  though the CSS media query itself updates live. See §8.
+- **`smoke.spec.js`'s masthead-corner checks are a permanent regression test for the
+  2026-08-19 pointer-events bug** (§3.4, §6) — proved to actually fail against the pre-fix CSS
+  before being trusted, per the alfred-verification skill's own rule for a new probe.
 
 - **Run it with `./test/run.sh`.** ⚠️ **One timezone is not a run.** The suite exists partly
   because a UTC-midnight parse and a local-midnight one agree at UTC+8 and disagree west of it;
@@ -1120,7 +1147,9 @@ so skipping it locally only means finding out later.
 - **Everything else is deployed.** Apps Script was last redeployed for Phase G, so the
   `recurring` action and `handleAdd`'s duplicate guard are live. Every change since
   2026-08-08 has been front-end only — **no Apps Script change, no redeploy**, and that
-  includes the 2026-08-19 masthead-actions move.
+  includes the 2026-08-19 masthead-actions move and the 2026-08-20 test harness addition.
+- **CI is now two jobs.** `tests.yml` (zero-install, pure logic) and `browser-tests.yml`
+  (`npm ci` + a downloaded Chromium, `test/browser/`) both run on every push and PR (§3.12).
 
 **Pending work:** the unscheduled candidate features and the open questions, both in §6.
 
@@ -1323,6 +1352,26 @@ porting the Apps Script validation tests back from the retired bot's repo — `C
 `validateTransactions()` is still the app's only extraction/validation implementation and still
 has no tests — and a committed render-loop smoke suite. The browser pass written for this change
 lives in the scratchpad, not the repo.
+
+### Committed browser smoke suite ✅ DONE (2026-08-20)
+
+`test/browser/` — a committed Playwright suite, alongside the existing pure-logic `test/`. The
+render loop (alfred-verification skill) was being rebuilt from scratch every session it was
+needed: mocking the sheet, stubbing the CDN-blocked Chart.js, pinning the clock. That plumbing
+is now `helpers/app.js`, reusable; a 26-check `smoke.spec.js` sits on top of it and runs in CI
+(`browser-tests.yml`) on every push/PR. Shipped state is in §3.12.
+
+Decisions future phases must not re-open:
+
+1. **The render loop still exists and still gets written per change.** This is a floor under
+   it, matching `test/`'s relationship to the render loop's logic checks — not a replacement.
+2. **`openApp()` is the one place harness plumbing lives.** A new browser check adds an
+   assertion, not a new mock/routing/date-pinning setup.
+3. **`page.emulateMedia()`, called before `goto()`, not the `reducedMotion` context option** —
+   found not to reliably reach the app's script-parse-time `REDUCED_MOTION` const otherwise
+   (§3.12, §8).
+4. **`@playwright/test` is pinned exact in `test/browser/package.json`.** A floating range
+   would let CI fetch a different browser than the one this suite was verified against.
 
 ### Logs actions move into the masthead ✅ DONE (2026-08-19)
 
@@ -1629,6 +1678,17 @@ roadmap phase name referenced in an `index.html` comment.
   un-animated state is the *closed* one: an animation beats a normal declaration, so turning
   something **on** in keyframes still works, while turning it **off** in keyframes only works
   while the timeline happens to be live.
+
+- **A context-level emulation option and the runtime call that does the same thing are not
+  guaranteed interchangeable.** Playwright's `reducedMotion` context/project option and
+  `page.emulateMedia({ reducedMotion })` are documented as equivalent; on the Chromium build
+  `test/browser/` was built against, only the runtime call reliably reached `matchMedia()`
+  before the page's own script ran. Harmless for a check that only reads *computed CSS* (media
+  queries re-evaluate live regardless of when emulation lands), and silently wrong for one that
+  reads a JS flag captured **once** from `matchMedia()` at script-parse time — which is exactly
+  what this app's `REDUCED_MOTION` const is (§3.2). Found by building a regression test for a
+  real bug and watching it pass against the still-broken code (§3.12) — the harness lesson under
+  the harness lesson: a new probe has to be proven to fail before it's trusted to pass.
 
 - **A tool that refuses to perform an action has told you something an assertion could not.**
   Playwright would not click the relocated icons — it reported another element intercepting
