@@ -1,0 +1,49 @@
+name: browser tests
+
+# Runs the committed Playwright smoke suite (test/browser/) on every push to
+# main and every pull request. Separate from tests.yml deliberately: that job
+# is zero-install by design (CLAUDE.md's own rule for it), and this one
+# genuinely needs npm plus a downloaded browser, so keeping them apart means
+# a browser-tooling failure here can never be mistaken for the core suite
+# breaking, or vice versa.
+#
+# @playwright/test is pinned to an EXACT version (not a caret range) in
+# test/browser/package.json specifically so the browser `playwright install`
+# fetches here is the same one this suite was last verified against — a
+# floating range would silently drift the two apart.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: browser smoke suite
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: test/browser
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: test/browser/package-lock.json
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: test/browser/playwright-report/
+          retention-days: 14

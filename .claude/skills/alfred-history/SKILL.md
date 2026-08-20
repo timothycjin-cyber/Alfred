@@ -227,6 +227,29 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-08-20 — Committed browser smoke suite (§3.12, §6).** Prompted by a user asking why a
+  small change (the icons-into-masthead move, above) took as long and cost as much as it did.
+  The honest answer: most of the cost wasn't the code change, it was rebuilding a disposable
+  Playwright harness from zero to verify it — mocking the sheet, stubbing Chart.js, pinning the
+  clock — the exact plumbing `test/`'s pure-logic layer had already stopped needing to rebuild
+  for logic checks two months earlier. `test/browser/` applies the same fix one layer up:
+  `helpers/app.js` is that plumbing, committed and reusable; `smoke.spec.js` is a 26-check
+  baseline (boot, layout overflow, core interactions, and a permanent regression test for the
+  2026-08-19 pill pointer-events bug) on top of it, running in CI via a new `browser-tests.yml`
+  kept separate from the zero-install `tests.yml`.
+
+  One harness bug surfaced while proving the regression test would actually catch what it was
+  named for: written straight, it **passed against the still-broken pointer-events CSS** — the
+  Playwright project's `reducedMotion` context option wasn't reliably reaching `matchMedia()`
+  before the app's own script ran, so the app's `REDUCED_MOTION` const (read once, at
+  script-parse time) never flipped, and the pill's `transform: none` rule — the thing that
+  actually puts it in the corner at rest — never applied either. Switching to an explicit
+  `page.emulateMedia()` call before `goto()` fixed it; the regression test then failed
+  correctly against the reverted CSS and passed against the fix, both confirmed before trusting
+  either result. Filed in §8 as its own lesson: a documented-equivalent runtime API is not
+  automatically interchangeable with a context option on every browser build, and a new probe
+  earns trust by being caught failing first, not by passing on the first try.
+
 - **2026-08-19 — The Logs toolbar moves into the masthead (§3.4, §3.6, §6).** A layout change
   that turned into a hit-testing one. `.logs-toolbar` was a 44px right-aligned `.icon-btn` row
   sitting directly under the 31px serif masthead — two controls' worth of chrome pushing the
