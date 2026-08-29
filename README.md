@@ -2,7 +2,7 @@
 
 **Project Alfred** — a personal budget tracker web app. Log expenses in natural language or by snapping a receipt, track them against the month's budget, and see where the money goes.
 
-🔗 **Live:** https://timothycjin-cyber.github.io/alfred-dashboard/
+🔗 **Live:** https://timothycjin-cyber.github.io/Alfred/
 
 ---
 

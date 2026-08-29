@@ -93,7 +93,7 @@ are dead after Phase F.)
 
 ## 3. Dashboard (`index.html`) — current state
 
-**Live:** https://timothycjin-cyber.github.io/alfred-dashboard/ — constants are in the inline `<script>`.
+**Live:** https://timothycjin-cyber.github.io/Alfred/ — constants are in the inline `<script>`. **⚠️ This URL tracks the repo name.** Renaming the GitHub repo changes the GitHub Pages path (`github.io/<repo-name>/`), and Pages does **not** redirect the old path (unlike `github.com/<owner>/<repo>`, which does) — every previously bookmarked/shared `?user=` link and home-screen PWA install 404s the moment the repo is renamed. Repo was renamed `alfred-dashboard` → `Alfred` 2026-08-29; re-share links and reinstall the PWA from the new URL.
 
 ### 3.1 User filtering (strict, deliberate)
 
