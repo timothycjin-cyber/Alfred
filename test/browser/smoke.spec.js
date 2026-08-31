@@ -167,7 +167,7 @@ test.describe('median daily', () => {
 });
 
 test.describe('spend distribution', () => {
-  test('the curve renders below the patterns grid, marking typical and average', async ({ page }) => {
+  test('the curve renders below the patterns grid, marking median and mean', async ({ page }) => {
     await openApp(page, { view: 'trends', fixture: 'skewed' });
     const card = page.locator('#spend-distribution');
     await expect(card.locator('.dist-svg')).toBeVisible();
@@ -176,16 +176,23 @@ test.describe('spend distribution', () => {
 
     const labels = card.locator('.dist-ref-lbl');
     await expect(labels).toHaveCount(2);
-    await expect(labels.first()).toContainText('Typical day');
+    await expect(labels.first()).toContainText('Median');
     await expect(labels.first()).toContainText('RM 19.00');
-    await expect(labels.nth(1)).toContainText('Average');
+    await expect(labels.nth(1)).toContainText('Mean');
     await expect(labels.nth(1)).toContainText('RM 74.17');   // 890 / 12 spending days
 
-    // No statistics jargon anywhere on the card — that is the whole point of
-    // the change, and "P90" is the term it replaced.
+    // The lines carry their real names, and the sentence below teaches them.
+    // "P90" stays banned: a percentile is the one term the copy cannot explain
+    // in passing, and it is the term this pair replaced.
     await expect(card).not.toContainText('P90');
     await expect(card).not.toContainText('percentile');
-    await expect(card).not.toContainText('median');
+
+    // The note EXPLAINS the lines; it does not re-quote them. The labels
+    // already carry the figures, and repeating them made it a caption.
+    const note = card.locator('.dist-note');
+    await expect(note).toContainText('median line');
+    await expect(note).toContainText('mean line');
+    expect(await note.textContent()).not.toMatch(/RM|\d/);
 
     // On this fixture the two lines land 14.2% apart, inside the 18% collision
     // rule, so the stacking path is exercised here rather than left untested.
