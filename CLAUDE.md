@@ -13,8 +13,8 @@ in the history skill and the rule belongs here.*
 **normal spend and big spend are now modelled separately** — one median, one buffer, never one
 blended average. The math is pure core (`computeSpendForecast`), and the Today tile and the pace
 bar read the SAME call, so they cannot disagree. **Follow-up pass the same day:** Today's detail
-figures are always open and the glance line is gone; the distribution card marks **typical day vs
-average** instead of median vs P90 (a percentile explains nothing to a non-statistician); and the
+figures are always open and the glance line is gone; the distribution card marks **median vs
+mean** instead of median vs P90 (a percentile explains nothing to a non-statistician); and the
 insight strip now covers **one observation per chart** rather than the top three of six. Previous
 banner (the committed Playwright harness, §3.12) is in the history skill. **One banner: the current change only**; superseded ones move to the history
 skill, not into a queue. Two facts that live nowhere else: earlier roadmap files were folded
@@ -346,12 +346,13 @@ closes on the 1.5rem section break.
 - **Spending patterns** (`renderSpendingPatterns`, `#spending-patterns`): the `viewMonth` calendar as a cell grid tinted by **spend per day** on the sienna `hm-l0..l4` ramp. **Monday-first**, date numbers on each cell, **monthly-only** (the Weekly/Monthly toggle was removed). Self-scaling: `level = ceil(spend / maxSpend × 4)` over the busiest non-future day (`hm-l0` = zero, `hm-future` = dashed). A `.sp-chip` reads `Month Year • N days • ↗/↘ RM total`, with the average on **its own line** (`.sp-avg`) — as a fourth clause it wrapped at 390px. **N = `elapsedDays`** and **avg = total ÷ elapsedDays**, so the live month divides by days-so-far and a closed month by the full month. ⚠️ **This stays a MEAN and no longer matches the Today tile** (which reports a median, §3.5a) — it is the month's total spread over its days, printed beside that total, and the old to-the-cent parity claim is retired. Arrow valence follows spend delta (up = red, down = green), omitted with no prior data. `.sp-legend` shows the ramp. Expense rows only, active-user-filtered.
   - **Day numbers use `--on-surface` on every step.** They used to flip to `#F5F5F2` on `hm-l3`/`hm-l4` at **2.01:1**; the deleted rule is not to come back.
   - **The live month CLIPS THE FUTURE** (on the 10th, 22 of 31 cells were dashed placeholders). ⚠️ **The clip applies to the RENDER, not to `days`**: `const cellDays = isCur ? days.filter(d => !d.future) : days;`. Mutating `days` in place breaks two things — a future-dated expense vanishes from the chip's total while Today's tile still counts it, **and on a closed month `clipped` IS `days`, so `days.length = 0` renders ZERO cells.**
-- **Spend distribution** (`renderSpendDistribution`, `#spend-distribution`, between the patterns grid and `#cumulative-card`): the month's spending-day amounts as a **smoothed filled area curve**, with dashed **Typical day** (the median) and **Average** reference lines. It exists to make the skew legible — it is the visual explanation for why the Today tile reports a median (§3.5a), **not a standalone analytic**.
+- **Spend distribution** (`renderSpendDistribution`, `#spend-distribution`, between the patterns grid and `#cumulative-card`): the month's spending-day amounts as a **smoothed filled area curve**, with dashed **Median** and **Mean** reference lines, each carrying its figure. It exists to make the skew legible — it is the visual explanation for why the Today tile reports a median (§3.5a), **not a standalone analytic**.
   - ⚠️ **A distribution, so the Y axis is a DAY COUNT, not money.** That is exactly why there are no bars: the *length = money* rule (§3.2) is honoured by not using the mark it governs (D9). The Y axis is unlabelled; sienna reads as intensity, and nothing on this card is ever semantic red.
   - ⚠️ **NOT a bell curve.** The asymmetry IS the finding — never fit or force a symmetric distribution.
   - ⚠️ **The second line is the AVERAGE, not P90** (changed 2026-08-31, superseding the source spec's §6). A percentile explains nothing to a reader who doesn't already know what one is; *typical day vs average day* **is** the skew, in words. **P90 still does its real work** inside `spendProfile`/`computeSpendForecast` (D3/D4 untouched) — it is simply not drawn, and the word appears nowhere on the card.
-  - ⚠️ **`spendDayMean`, not `meanDaily`.** The card's average divides by **spending** days, matching the median beside it; the Today tile's `Average Daily` divides by calendar days. Two different figures — `distNote()` says in words which one this is. Multiplying `spendDayMean` by calendar days is the D8 trap.
-  - **`distNote(dist, bigDayCount)` writes the closing sentence** from the same values the lines are drawn from, so copy and picture cannot disagree. **No statistics vocabulary** — "typical", "average", "bigger days". When the average is within 15% of the median there is no skew to narrate and the sentence says so instead.
+  - ⚠️ **`spendDayMean`, not `meanDaily`.** The card's average divides by **spending** days, matching the median beside it; the Today tile's `Average Daily` divides by calendar days. Two different figures — `DIST_NOTE`'s "across those days" is what says which one this is, and is load-bearing for that reason. Multiplying `spendDayMean` by calendar days is the D8 trap.
+  - **The lines carry their real names; `DIST_NOTE` teaches them.** ⚠️ It is a **static string** — do not interpolate `dist` back into it. The labels already carry the figures, and re-quoting them turned the sentence into a caption instead of an explanation. Being static is also why there is no "the two are close" branch any more: *"usually higher"* is already hedged correctly for a flat month.
+  - **`P90` and `percentile` stay off the card** (2026-08-31, second pass). Those are not interchangeable with `Median`/`Mean`: a percentile is the one term the sentence cannot explain in passing, whereas median and mean each take half a clause.
   - ⚠️ **The live month is CLIPPED at today**, same as `todayForecast()`. The card explains that tile's median, so it must be drawn from the same days or it marks a median the tile does not print. `distributionBuckets()` also takes the median **over days at or below P90** (D3) for the same reason.
   - **Inline SVG, no Chart.js** — 14 bucket points is a trivial path, the labels stay real DOM (§8), and it needs no fourth chart and no new id-gated canvas plugin.
   - ⚠️ **The curve RISES (`distRise`); it is never drawn with `stroke-dasharray`.** Under `preserveAspectRatio="none"` with `vector-effect: non-scaling-stroke`, Chrome lays the dash pattern along the **device-space** path while `stroke-dasharray` stays in user units — the two disagree by the viewBox scale and a "solid" line renders as chunks with gaps. `pathLength` does **not** reconcile them.
@@ -629,7 +630,7 @@ statistics, and Today must stop hiding its own figures:
 
 6. **The detail figures are always open.** No disclosure on the Expenses tile, and the tile is not a button.
 7. **The Today glance line is gone**, and with it the last of the Phase F digest math (§0).
-8. **The card marks typical day vs AVERAGE, not median vs P90** — superseding the source spec's §6. D3/D4 are untouched; P90 is still the forecast's threshold, just never drawn or named. **No statistics vocabulary anywhere on that card.**
+8. **The card marks MEDIAN vs MEAN, not median vs P90** — superseding the source spec's §6. D3/D4 are untouched; P90 is still the forecast's threshold, just never drawn or named. *(Corrected the same day: the first attempt renamed the lines to "Typical day"/"Average" to keep statistics vocabulary off the card entirely. **Name the lines properly and explain them underneath** — a euphemism teaches the reader nothing, and the sentence has room to teach two words. `P90` stays off.)*
 9. **The card's average is `spendDayMean`** (÷ spending days), not `meanDaily` (÷ calendar days). Two different figures; the copy says which.
 10. **The insight strip covers one chart per line, in chart order** — coverage, not top-3 ranking. Novelty rotation is narrowed to tie-breaking only, deliberately.
 
@@ -685,7 +686,8 @@ validation suite.
 - Recalibrating the overspend threshold to restore the old trigger rate, or blending the median and the big-day buffer back into one average (§3.5a)
 - Surfacing the buffer as its own figure — the forecast is one number (D6)
 - Drawing the distribution curve with `stroke-dasharray`, or turning it into bars (§3.7)
-- Putting "P90", "percentile", "median" or any other statistics term back on the distribution card or in its insight line (§3.7)
+- Putting "P90" or "percentile" back on the distribution card or in its insight line — `Median` and `Mean` are the labels and are correct (§3.7)
+- Putting figures back into `DIST_NOTE`, or making it data-driven again (§3.7)
 - Restoring the Today glance line, the Expenses-tile disclosure, or `todayDetailOpen` (§3.5)
 - Letting the insight strip's novelty rotation drop a chart's line again — it orders, it does not filter (§3.7)
 - Reinstating the FAB long-press → camera accelerator, or any press-and-hold on the FAB, without a hardware verification plan (§3.3, §3.8)
@@ -738,6 +740,7 @@ phase name referenced in an `index.html` comment.
 
 **Design & interaction**
 
+- **A term the reader can look up, paired with a sentence that explains it, beats a euphemism that teaches nothing.** Renaming the distribution card's lines to "Typical day" and "Average" dodged the jargon and left the reader with two vague words and no way to learn the real ones. `Median`/`Mean` plus one sentence saying how to read them is both more precise and more teachable. The judgement call is per-term, not blanket: `P90` still goes, because a percentile can't be explained in half a clause.
 - **A label nudged off its own reference line labels the wrong value.** Clamping a label's position to keep it on the card silently moves it away from the mark it names. Change which END of the label is pinned instead — the anchor moves, the position doesn't.
 - **If everything is reassuring, nothing is an alert.** Reserve semantic colour and solid fills for what has gone wrong; state the ordinary case in words.
 - **Emoji are a third colour system** — an emoji glyph in a tinted chip carries the OS font's palette alongside the app's ink and the category's hue. Inline SVG inheriting `currentColor` makes the chip one hue and themeable for free.

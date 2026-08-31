@@ -3262,8 +3262,8 @@ function categoryBreakdownHtml(catData, total) {
 // ── Spend distribution curve ────────────────────────────────────────────────
 // Why the Today tile stopped saying "average": most days cluster low and two or
 // three sit far out, so the mean sat between two behaviours and described
-// neither. This card shows that shape, with the typical day and the average
-// marked — it is the explanation for the tile, not a standalone analytic.
+// neither. This card shows that shape, with the median and the mean marked — it
+// is the explanation for the tile, not a standalone analytic.
 //
 // ⚠️ NOT a bell curve. The asymmetry IS the finding; nothing here fits or
 // forces a symmetric distribution.
@@ -3293,23 +3293,18 @@ function distSmoothPath(pts) {
   return d;
 }
 
-// The card's closing sentence. Deliberately says "typical" and "average"
-// rather than "median" and "P90" — the card exists to explain the Today tile to
-// someone who does not read statistics, and a term they have to look up defeats
-// that. Built from the same `dist` the lines are drawn from, so the sentence can
-// never disagree with the picture.
+// The card's closing sentence: how to READ the two lines, with no figures in it.
+// The labels already carry the numbers; repeating them here made the sentence a
+// caption instead of an explanation.
 //
-// When the two figures are close there is no skew to narrate, and claiming one
-// would be a finding the data does not support.
-function distNote(dist, big) {
-  const typical = 'RM ' + formatCurrency(dist.median);
-  const avg = 'RM ' + formatCurrency(dist.spendDayMean);
-  if (!(dist.spendDayMean > dist.median * 1.15)) {
-    return `Your spending days sit fairly evenly around <b>${typical}</b>, so the average lands in much the same place.`;
-  }
-  const tail = big === 1 ? 'One bigger day pulls' : `${big} bigger days pull`;
-  return `On a typical day you spend about <b>${typical}</b>. ${tail} the average up to <b>${avg}</b> — those are budgeted for separately, which is why the figure on Today is the typical one.`;
-}
+// ⚠️ Static on purpose — do not interpolate `dist` back into it. It also means
+// there is no "the two are close" branch any more: "usually higher" is already
+// hedged correctly for a flat month.
+//
+// "across those days" is load-bearing: the mean drawn here divides by SPENDING
+// days, while Today's "Average Daily" divides by calendar days. Without that
+// clause the two read as the same figure.
+const DIST_NOTE = 'The median line is your typical spending day. The mean line is the average across those days — usually higher, because a few days with big purchases pull it up.';
 
 function renderSpendDistribution() {
   const el = document.getElementById('spend-distribution');
@@ -3351,10 +3346,10 @@ function renderSpendDistribution() {
   const line = distSmoothPath(pts);
   const fill = `${line}L${DIST_VIEW_W},${DIST_VIEW_H}L0,${DIST_VIEW_H}Z`;
 
-  // Median vs AVERAGE, not median vs P90. A percentile says nothing to a reader
-  // who doesn't already know what one is; "your typical day against your
-  // average day" IS the skew, stated in words anyone can read. P90 still does
-  // its real work inside the forecast (D3/D4) — it just isn't drawn.
+  // Median vs MEAN, not median vs P90. A percentile says nothing to a reader who
+  // doesn't already know what one is, where the median/mean gap IS the skew —
+  // and DIST_NOTE below teaches those two words rather than dodging them. P90
+  // still does its real work inside the forecast (D3/D4); it just isn't drawn.
   //
   // ⚠️ dist.spendDayMean divides by SPENDING days, matching the median beside
   // it. The Today tile's "Average Daily" divides by calendar days; the two are
@@ -3364,7 +3359,7 @@ function renderSpendDistribution() {
   const refLine = pct => `<line class="dist-ref" x1="${pct.toFixed(2)}" y1="0" x2="${pct.toFixed(2)}" y2="${DIST_VIEW_H}"/>`;
 
   // The two labels can sit on top of each other when the month has no real
-  // tail. Drop the average to a second row rather than overlapping; keep the
+  // tail. Drop the mean to a second row rather than overlapping; keep the
   // label itself off the card's edges while its LINE stays at the true value.
   const stacked = Math.abs(medPct - avgPct) < 18;
   // Which end of the label is pinned, so it stays on the card without leaving
@@ -3377,17 +3372,17 @@ function renderSpendDistribution() {
   el.innerHTML = `<div class="card spending-card">${head}
     <div class="sp-chip"><b>${escapeHtml(chipLabel)}</b><span class="sp-sep">•</span><b>${prof.spendDays.length}</b> spending days</div>
     <div class="dist-plot" style="padding-top:${stacked ? 74 : 40}px">
-      ${lbl(medPct, 'Typical day', dist.median, 'row1')}
-      ${lbl(avgPct, 'Average', dist.spendDayMean, stacked ? 'row2' : 'row1')}
+      ${lbl(medPct, 'Median', dist.median, 'row1')}
+      ${lbl(avgPct, 'Mean', dist.spendDayMean, stacked ? 'row2' : 'row1')}
       <svg class="dist-svg" viewBox="0 0 ${DIST_VIEW_W} ${DIST_VIEW_H}" preserveAspectRatio="none"
-           role="img" aria-label="Distribution of daily spend for ${escapeHtml(chipLabel)}. Typical day RM ${formatCurrency(dist.median)}, average across spending days RM ${formatCurrency(dist.spendDayMean)}.">
+           role="img" aria-label="Distribution of daily spend for ${escapeHtml(chipLabel)}. Median RM ${formatCurrency(dist.median)}, mean RM ${formatCurrency(dist.spendDayMean)}.">
         <path class="dist-fill" d="${fill}"/>
         <path class="dist-line" d="${line}"/>
         ${refLine(medPct)}${refLine(avgPct)}
       </svg>
     </div>
     <div class="dist-axis"><span>RM ${formatCurrency(dist.min)}</span><span>RM ${formatCurrency(dist.max)}</span></div>
-    <p class="dist-note">${distNote(dist, prof.bigDays.length)}</p>
+    <p class="dist-note">${DIST_NOTE}</p>
   </div>`;
 }
 
