@@ -33,7 +33,13 @@ var SHEET_NAME = 'Sheet1';
 var RECURRING_SHEET_NAME = 'Recurring';
 
 var OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
-var OPENAI_MODEL = 'gpt-4o-mini';
+var OPENAI_MODEL = 'gpt-5.6-luna';
+// gpt-5.6 is a reasoning model. Reasoning tokens are billed against the output
+// budget, so at the default effort ('medium') the 160-token insights call would
+// spend its whole allowance thinking and return empty content. 'none' makes it
+// behave like the 4o-mini it replaces: no reasoning spend, no added latency
+// against the capture flow's 25s client timeout.
+var OPENAI_REASONING_EFFORT = 'none';
 
 var EXPENSE_CATEGORIES = ['Food & Dining', 'Transport', 'Bills & Utilities', 'Shopping & Groceries',
                           'Subscriptions', 'Entertainment', 'Other'];
@@ -364,7 +370,10 @@ function isAllowedUser(user) {
 
 // ── OpenAI ───────────────────────────────────────────────────────────────────
 
-function callOpenAI(messages, maxTokens, temperature) {
+// No temperature: the gpt-5.x request schema dropped the sampling knobs
+// (temperature/top_p/penalties), and sending one is a 400. The extract call's
+// old 0.1 is approximated by the prompt's hard schema plus validateTransactions().
+function callOpenAI(messages, maxTokens) {
   var apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY');
   if (!apiKey) throw new Error('OPENAI_API_KEY not set in Script Properties');
   var resp = UrlFetchApp.fetch(OPENAI_URL, {
@@ -374,13 +383,17 @@ function callOpenAI(messages, maxTokens, temperature) {
     payload: JSON.stringify({
       model: OPENAI_MODEL,
       messages: messages,
-      max_tokens: maxTokens || 800,
-      temperature: (temperature === undefined) ? 0.1 : temperature
+      // max_tokens is rejected by gpt-5.x — the parameter is max_completion_tokens.
+      max_completion_tokens: maxTokens || 800,
+      reasoning_effort: OPENAI_REASONING_EFFORT
     }),
     muteHttpExceptions: true
   });
   if (resp.getResponseCode() !== 200) {
-    throw new Error('OpenAI ' + resp.getResponseCode());
+    // Carry a slice of the body: a parameter rejection is a 400 whose message
+    // names the offending field, and a bare status code hides that.
+    throw new Error('OpenAI ' + resp.getResponseCode() + ' ' +
+                    String(resp.getContentText()).slice(0, 200));
   }
   return JSON.parse(resp.getContentText()).choices[0].message.content.trim();
 }
@@ -507,7 +520,7 @@ function handleInsights(data) {
   var context = { month: data.month || '', observations: data.facts };
   var narrative = callOpenAI(
     [{ role: 'user', content: INSIGHTS_PROMPT + '\n\nFacts (JSON):\n' + JSON.stringify(context) }],
-    160, 0.6
+    160
   );
   return { narrative: narrative };
 }
