@@ -69,6 +69,7 @@
     --shape-lg: 20px;
     --shape-xl: 28px;
     --shape-full: 999px;
+    --dist-wash: rgba(194, 84, 45, 0.18);
     --motion-wobble: 420ms cubic-bezier(0.34, 1.85, 0.4, 0.85);
     /* Nav-only wobble ≈ 20% shorter — the tab slider + text pop should feel
        snappier than content entrances. Same spring curve, scaled duration. */
@@ -117,6 +118,9 @@
       --wash-income: rgba(46, 204, 113, 0.06);
       --wash-expense: rgba(255, 77, 77, 0.06);
       --wash-neutral: rgba(248, 249, 250, 0.06);
+      /* Sienna at 0.18 all but vanishes on #121212 — a fill that has to read on
+         two grounds needs two values. */
+      --dist-wash: rgba(194, 84, 45, 0.30);
       --wash-hero: rgba(248, 249, 250, 0.04);
       --strip-over: #C0392F;
       --tail-dash: rgba(255, 255, 255, 0.14);
@@ -740,6 +744,10 @@
      the panel now. The at-a-glance warning is the pace bar's verdict line,
      which is driven by the same forecast > income comparison. */
   .detail-item .tile-val.overspend { color: var(--semantic-expense); }
+  /* Nothing logged this month. An em dash, deliberately NOT a .counter-val —
+     animating two RM 0.00 figures would read as a measurement of zero rather
+     than an absence of one. */
+  .detail-item .tile-val-none { color: var(--on-surface-variant); }
   .no-entrance .detail-panel { animation: none; }
 
   .txn-icon-chip {
@@ -761,6 +769,7 @@
      it supplying its own. With the two swapped it needs the same 12px every other
      Trends block uses, or the patterns card butts into the cumulative one. */
   #spending-patterns { margin-bottom: 12px; }
+  #spend-distribution { margin-bottom: 12px; }
   #cumulative-card { margin-bottom: 1.5rem; }
 
   /* Donut over list on a phone; donut beside list once there's width to spend.
@@ -979,6 +988,62 @@
   .sp-chip .sp-arrow.down { color: var(--semantic-income); }
 
   /* Less → More gradient legend surfacing the hm ramp (reuses hm-l0..l4). */
+  /* ── Spend distribution curve ──────────────────────────────────────────────
+     A DISTRIBUTION, not a ledger figure: the Y axis is a count of days, not
+     money. That is why there are no bars — the "length = money" rule is kept by
+     not using the mark it governs, rather than by excusing one (D9).
+     Sienna reads as intensity here, same as the patterns ramp; nothing on this
+     card is ever semantic red. */
+  .dist-plot { position: relative; padding-top: 40px; }
+  /* ⚠️ The curve rises; it is NOT drawn with stroke-dasharray. Under a
+     non-uniform viewBox (preserveAspectRatio="none") with non-scaling-stroke,
+     Chrome lays the dash pattern out along the DEVICE-space path while
+     stroke-dasharray stays in user units — the two disagree by the viewBox
+     scale, and the "solid" line renders as chunks with gaps. pathLength does
+     not reconcile them. Scale and opacity have no such coupling. */
+  .dist-svg {
+    display: block; width: 100%; height: 132px; overflow: visible;
+    transform-origin: 50% 100%;
+    animation: distRise var(--motion-wobble) backwards;
+  }
+  .dist-fill { fill: var(--dist-wash); }
+  .dist-line {
+    fill: none; stroke: var(--sienna); stroke-width: 2;
+    stroke-linejoin: round; stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .dist-ref {
+    stroke: var(--on-surface-variant); stroke-width: 1.5; stroke-dasharray: 3 3;
+    vector-effect: non-scaling-stroke; opacity: 0.6;
+  }
+  .no-entrance .dist-svg, .no-entrance .dist-ref-lbl,
+  .settled .dist-svg, .settled .dist-ref-lbl { animation: none; }
+  @keyframes distRise { from { opacity: 0; transform: scaleY(0.15); } to { opacity: 1; transform: scaleY(1); } }
+  @keyframes distFade { from { opacity: 0; } to { opacity: 1; } }
+  /* Reference labels are real DOM, not SVG or canvas text — UI font, theme
+     tokens, and immune to the non-uniform viewBox scale under the curve. */
+  /* Anchored to its own dashed line, never nudged away from it — a label that
+     drifts off its line reads as labelling the wrong value. Near the card's
+     edges it changes which END is pinned instead of moving. */
+  .dist-ref-lbl {
+    position: absolute; white-space: nowrap;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase;
+    color: var(--on-surface-variant); line-height: 1.35;
+    animation: distFade var(--motion-wobble) backwards;
+  }
+  .dist-ref-lbl.anchor-mid   { transform: translateX(-50%);  text-align: center; }
+  .dist-ref-lbl.anchor-start { transform: translateX(0);     text-align: left; }
+  .dist-ref-lbl.anchor-end   { transform: translateX(-100%); text-align: right; }
+  .dist-ref-lbl b { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--on-surface); }
+  .dist-ref-lbl.row1 { top: 0; }
+  .dist-ref-lbl.row2 { top: 36px; }   /* clears a two-line row1 label */
+  .dist-axis {
+    display: flex; justify-content: space-between; margin-top: 8px;
+    font-size: 10px; color: var(--on-surface-variant);
+  }
+  .dist-note { margin: 12px 0 0; font-size: 11px; line-height: 1.5; color: var(--on-surface-variant); }
+  .dist-empty { font-size: 12px; line-height: 1.5; color: var(--on-surface-variant); }
+
   .sp-legend { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; font-size: 10px; font-weight: 700; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.3px; }
   .sp-swatches { display: flex; gap: 4px; }
   .sp-swatch { width: 13px; height: 13px; border-radius: 3px; }
@@ -1753,6 +1818,7 @@
       </div>
     </div>
     <div id="spending-patterns"></div>
+    <div id="spend-distribution"></div>
     <div class="card" id="cumulative-card">
       <div class="card-title">Cumulative Spend</div>
       <div id="cumulative-line-container" style="position:relative; width:100%; height:200px">
@@ -2218,28 +2284,80 @@ function todayGlanceHtml() {
 // module state for the drill-in sheet).
 let todayDetailOpen = false;
 
+// THE forecast for the current month, and the only place the app computes one.
+// The detail panel and the pace bar's overspend flip both read it, so they can
+// never disagree about whether the month is overspending.
+//
+// Memoised on dataStamp, like pickerMonths() — it rescans four months of rows
+// and the panel is rebuilt from a click handler, not just from a render.
+//
+// ⚠️ `elapsed` is CLIPPED at today (dailyTotals' upToDay). A future-dated row
+// would otherwise add a day the month has not reached, deflating the median and
+// the spend-day rate together. Same reason the pace bar and the patterns chip
+// divide by elapsed days (CLAUDE.md §3.13).
+let _forecastCache = null;
+let _forecastStamp = -1;
+function todayForecast() {
+  if (_forecastCache && _forecastStamp === dataStamp) return _forecastCache;
+
+  const daysInMonth = daysInMonthOf(activeYear, activeMonth);
+  const dayOfMonth = Math.min(new Date().getDate(), daysInMonth);
+  const elapsed = dailyTotals(_expenseRowsFor(activeYear, activeMonth),
+                              activeYear, activeMonth, dayOfMonth);
+
+  // Trailing three months, pooled into one window (D5). historyMonths counts
+  // the months that actually HOLD rows — a gap month means too little history,
+  // and the buffer is then omitted entirely rather than averaged over a hole.
+  const history = [];
+  let historyMonths = 0;
+  for (let back = 1; back <= 3; back++) {
+    const p = _shiftMonth(activeYear, activeMonth, -back);
+    const rows = _expenseRowsFor(p.year, p.month);
+    if (!rows.length) continue;
+    historyMonths++;
+    dailyTotals(rows, p.year, p.month).forEach(v => history.push(v));
+  }
+
+  _forecastCache = computeSpendForecast({ elapsed, history, historyMonths, daysInMonth, dayOfMonth });
+  _forecastStamp = dataStamp;
+  return _forecastCache;
+}
+
 // Self-contained like computeTodayGlance/todayGlanceHtml, so the click handler
-// can rebuild the panel without re-entering calculateAndRender. Same math as
-// the pace bar: avg daily = MTD spend ÷ days elapsed, forecast = avg × days in
-// month. Forecast overshooting the month's budget turns both figures
-// semantic-red — the same forecast > income comparison that drives the pace
-// bar's verdict line, which is what carries the warning at a glance.
+// can rebuild the panel without re-entering calculateAndRender.
+//
+// The first figure's LABEL is part of the data: "Median Daily" from day 8, and
+// "Average Daily" on days 1–7 or under three spending days, where a median has
+// too few samples to mean anything (D7). Forecast overshooting the month's
+// budget turns both figures semantic-red — the same comparison that drives the
+// pace bar's verdict line, off the same number.
 function todayDetailHtml() {
-  const { inc, exp } = monthTotals(activeYear, activeMonth);
-  const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
-  const daysElapsed = new Date().getDate();
-  const avgDaily = daysElapsed > 0 ? exp / daysElapsed : 0;
-  const forecast = avgDaily * daysInMonth;
-  const overspend = inc > 0 && forecast > inc;
+  const { inc } = monthTotals(activeYear, activeMonth);
+  const f = todayForecast();
+
+  if (f.mode === 'empty') {
+    return `<div class="detail-panel">
+      <div class="detail-item">
+        <div class="tile-label">${f.label}</div>
+        <div class="tile-val tile-val-none">&mdash;</div>
+      </div>
+      <div class="detail-item">
+        <div class="tile-label">Forecast</div>
+        <div class="tile-val tile-val-none">&mdash;</div>
+      </div>
+    </div>`;
+  }
+
+  const overspend = inc > 0 && f.forecast > inc;
   const valCls = `tile-val counter-val${overspend ? ' overspend' : ''}`;
   return `<div class="detail-panel">
     <div class="detail-item">
-      <div class="tile-label">Average Daily</div>
-      <div class="${valCls}" data-val="${avgDaily}" data-key="today-avg" data-prefix="RM ">RM 0.00</div>
+      <div class="tile-label">${f.label}</div>
+      <div class="${valCls}" data-val="${f.daily}" data-key="today-avg" data-prefix="RM ">RM 0.00</div>
     </div>
     <div class="detail-item">
       <div class="tile-label">Forecast</div>
-      <div class="${valCls}" data-val="${forecast}" data-key="today-fc" data-prefix="~RM ">~RM 0.00</div>
+      <div class="${valCls}" data-val="${f.forecast}" data-key="today-fc" data-prefix="~RM ">~RM 0.00</div>
     </div>
   </div>`;
 }
@@ -2291,12 +2409,12 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   const monthPct = Math.min(100, (today.getDate() / daysInMonth) * 100);
   const usedPct = Math.min(100, (totalExpense / totalIncome) * 100);
 
-  const avgDaily = totalExpense / today.getDate();
-  const forecast = avgDaily * daysInMonth;
-  // Equivalent to usedPct > monthPct (same forecast-vs-income comparison,
-  // scaled) — so the Spent bar's over-pace red and the status strip always
-  // agree on whether today's spend has crossed the Month line.
-  const over = forecast > totalIncome;
+  // The SAME forecast the detail panel prints (todayForecast, memoised), so the
+  // Spent bar's over-pace red, the status strip and the two figures under the
+  // Expenses tile can never disagree. Since that forecast models big days as a
+  // separate buffer instead of a mean smeared across the month, this fires less
+  // often than it used to — that is the correction, not a threshold to retune.
+  const over = todayForecast().forecast > totalIncome;
 
   // Mount the bars at their previous state (or 0 on first render), then set
   // the real values a frame later so the width / left transitions actually
@@ -3241,6 +3359,112 @@ function categoryBreakdownHtml(catData, total) {
   }).join('');
 }
 
+// ── Spend distribution curve ────────────────────────────────────────────────
+// Why the Today tile stopped saying "average": most days cluster low and two or
+// three sit far out, so the mean sat between two behaviours and described
+// neither. This card shows that shape, with the median and P90 marked — it is
+// the explanation for the tile, not a standalone analytic.
+//
+// ⚠️ NOT a bell curve. The asymmetry IS the finding; nothing here fits or
+// forces a symmetric distribution.
+//
+// Scope is viewMonth/viewYear via _expenseRowsFor — the same rows the donut and
+// the patterns grid read, so the three cards on this tab can never disagree.
+
+const DIST_VIEW_W = 100;   // viewBox units; the SVG stretches to the card width
+const DIST_VIEW_H = 40;
+const DIST_TOP_PAD = 4;    // headroom so the tallest bucket isn't clipped
+
+// Catmull-Rom through the points, emitted as cubic Béziers. Smoothing only —
+// it interpolates the buckets, it does not model them.
+function distSmoothPath(pts) {
+  if (!pts.length) return '';
+  if (pts.length === 1) return `M${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
+  const at = i => pts[Math.max(0, Math.min(pts.length - 1, i))];
+  // Overshoot below the baseline would draw the curve through the fill's floor.
+  const clampY = y => Math.max(DIST_TOP_PAD, Math.min(DIST_VIEW_H, y));
+  let d = `M${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = clampY(p1.y + (p2.y - p0.y) / 6);
+    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = clampY(p2.y - (p3.y - p1.y) / 6);
+    d += `C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
+  }
+  return d;
+}
+
+function renderSpendDistribution() {
+  const el = document.getElementById('spend-distribution');
+  if (!el) return;
+
+  // ⚠️ The live month is CLIPPED at today, exactly as todayForecast() clips it.
+  // This card exists to explain the Today tile's median, so it has to be drawn
+  // from the same days — an unclipped month would mark a median the tile does
+  // not print. A closed month has no future days and is untouched.
+  const now = new Date();
+  const isCur = (viewMonth === now.getMonth() && viewYear === now.getFullYear());
+  const upTo = isCur ? now.getDate() : null;
+  const prof = spendProfile(dailyTotals(_expenseRowsFor(viewYear, viewMonth), viewYear, viewMonth, upTo));
+  const chipLabel = `${MONTHS[viewMonth]} ${viewYear}`;
+  const head = `<div class="sp-head"><div class="sp-title">Spend distribution</div></div>`;
+
+  // Under three spending days there is no shape to show. A line of copy, no
+  // axes, no partial curve — half a curve would read as a finding.
+  if (prof.spendDays.length < 3) {
+    el.innerHTML = `<div class="card spending-card">${head}
+      <div class="dist-empty">Not enough spending days in ${escapeHtml(chipLabel)} to show a shape yet.</div>
+    </div>`;
+    return;
+  }
+
+  const dist = distributionBuckets(prof.spendDays, 14);
+  const span = dist.max - dist.min;
+  // Amount → viewBox x. A zero span is already collapsed to one bucket upstream;
+  // pin it mid-plot rather than dividing by nothing.
+  const xOf = v => span > 0 ? ((v - dist.min) / span) * DIST_VIEW_W : DIST_VIEW_W / 2;
+  const maxCount = Math.max(...dist.buckets.map(b => b.count));
+  const yOf = c => DIST_VIEW_H - (maxCount > 0 ? (c / maxCount) * (DIST_VIEW_H - DIST_TOP_PAD) : 0);
+
+  // Anchored to the baseline at both ends, so the area closes as a distribution
+  // rather than a cropped slab.
+  const pts = [{ x: 0, y: DIST_VIEW_H }]
+    .concat(dist.buckets.map(b => ({ x: xOf((b.x0 + b.x1) / 2), y: yOf(b.count) })))
+    .concat([{ x: DIST_VIEW_W, y: DIST_VIEW_H }]);
+  const line = distSmoothPath(pts);
+  const fill = `${line}L${DIST_VIEW_W},${DIST_VIEW_H}L0,${DIST_VIEW_H}Z`;
+
+  const medPct = Math.max(0, Math.min(100, xOf(dist.median)));
+  const p90Pct = Math.max(0, Math.min(100, xOf(dist.p90)));
+  const refLine = pct => `<line class="dist-ref" x1="${pct.toFixed(2)}" y1="0" x2="${pct.toFixed(2)}" y2="${DIST_VIEW_H}"/>`;
+
+  // The two labels can sit on top of each other when the month has no real
+  // tail. Drop P90 to a second row rather than letting them overlap; keep the
+  // label itself off the card's edges while its LINE stays at the true value.
+  const stacked = Math.abs(medPct - p90Pct) < 18;
+  // Which end of the label is pinned, so it stays on the card without leaving
+  // its line behind. A label pushed past the edge would also widen the
+  // document, which is the mobile-zoom trap (CLAUDE.md §3.2).
+  const anchorFor = pct => pct < 14 ? 'anchor-start' : (pct > 86 ? 'anchor-end' : 'anchor-mid');
+  const lbl = (pct, name, val, row) =>
+    `<span class="dist-ref-lbl ${row} ${anchorFor(pct)}" style="left:${pct.toFixed(2)}%">${name}<b>RM ${formatCurrency(val)}</b></span>`;
+
+  el.innerHTML = `<div class="card spending-card">${head}
+    <div class="sp-chip"><b>${escapeHtml(chipLabel)}</b><span class="sp-sep">•</span><b>${prof.spendDays.length}</b> spending days</div>
+    <div class="dist-plot" style="padding-top:${stacked ? 74 : 40}px">
+      ${lbl(medPct, 'Median', dist.median, 'row1')}
+      ${lbl(p90Pct, 'P90', dist.p90, stacked ? 'row2' : 'row1')}
+      <svg class="dist-svg" viewBox="0 0 ${DIST_VIEW_W} ${DIST_VIEW_H}" preserveAspectRatio="none"
+           role="img" aria-label="Distribution of daily spend for ${escapeHtml(chipLabel)}. Median RM ${formatCurrency(dist.median)}, 90th percentile RM ${formatCurrency(dist.p90)}.">
+        <path class="dist-fill" d="${fill}"/>
+        <path class="dist-line" d="${line}"/>
+        ${refLine(medPct)}${refLine(p90Pct)}
+      </svg>
+    </div>
+    <div class="dist-axis"><span>RM ${formatCurrency(dist.min)}</span><span>RM ${formatCurrency(dist.max)}</span></div>
+    <p class="dist-note">Most days sit near the median. The days past P90 are budgeted for separately.</p>
+  </div>`;
+}
+
 // ── Spending patterns (§6 candidate #3) ─────────────────────────────────────
 // The Trends cell grid, tinted by how much was SPENT each day (sienna intensity
 // ramp — never red/green, those stay semantic). A Weekly/Monthly toggle scopes
@@ -3280,8 +3504,13 @@ function renderSpendingPatterns() {
   const levelOf = spend => (spend <= 0 || maxSpend <= 0) ? 0 : Math.min(4, Math.ceil(spend / maxSpend * 4));
 
   // Summary chip figures. Average divides by ELAPSED (non-future) days — equals
-  // days-so-far for the live month and the full month for a closed month — so it
-  // matches the Today "Average Daily" tile (MTD spend ÷ days elapsed) exactly.
+  // days-so-far for the live month and the full month for a closed month.
+  //
+  // This stays a MEAN, and no longer matches the Today tile — that one reports a
+  // median of the normal days (SPEC_MEDIAN_FORECAST_20260831). The two answer
+  // different questions: this is the month's total spread over its days, printed
+  // beside that total, and dividing it by anything but a day count would not
+  // reconcile with the figure next to it.
   const total = days.reduce((s, d) => s + d.spend, 0);
   const elapsedDays = days.filter(d => !d.future).length;
   const avg = elapsedDays > 0 ? total / elapsedDays : 0;
@@ -3303,9 +3532,8 @@ function renderSpendingPatterns() {
   // NOTE this clips the RENDER only — every figure above stays computed over
   // the whole month. `total` sums all days, so clipping `days` itself would
   // silently drop a future-dated expense from the chip's RM figure while the
-  // Today Expenses tile still counted it, and break the chip average's
-  // to-the-cent parity with Today's "Average Daily" (§3.7). Closed months are
-  // untouched — they have no future days.
+  // Today Expenses tile still counted it. Closed months are untouched — they
+  // have no future days.
   const cellDays = isCur ? days.filter(d => !d.future) : days;
   let cells = '';
   for (let i = 0; i < leadBlanks; i++) cells += `<div class="hm-cell hm-blank"></div>`;
@@ -4522,6 +4750,7 @@ function calculateAndRender() {
     });
 
     renderSpendingPatterns();
+    renderSpendDistribution();
   }
   animateCounters();
   // A drill-in sheet left open across an optimistic write or a reconcile
