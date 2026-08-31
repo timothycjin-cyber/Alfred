@@ -118,15 +118,24 @@ test.describe('core interactions', () => {
 // animateCounters() counts up over 1200ms, so a text read lands mid-animation
 // (CLAUDE.md §3.12) — and only one of the two projects has reduced motion.
 
-const openDetail = async (page) => {
-  await page.locator('#today-detail-trigger').click();
-  await expect(page.locator('#today-detail .detail-panel')).toBeVisible();
-};
-
 test.describe('median daily', () => {
+  test('the detail figures are open on load, with no disclosure to tap', async ({ page }) => {
+    await openApp(page, { view: 'today', fixture: 'skewed' });
+    await expect(page.locator('#today-detail .detail-panel')).toBeVisible();
+    await expect(page.locator('#today-detail-trigger')).toHaveCount(0);
+    await expect(page.locator('.tile-chev')).toHaveCount(0);
+    // The Expenses tile is a plain block again, not a button.
+    await expect(page.locator('#today-tiles button')).toHaveCount(0);
+  });
+
+  test('the glance line is gone', async ({ page }) => {
+    await openApp(page, { view: 'today', fixture: 'skewed' });
+    await expect(page.locator('#today-glance')).toHaveCount(0);
+    await expect(page.locator('#today-view')).not.toContainText('across');
+  });
+
   test('the tile reports a median once the month has enough spending days', async ({ page }) => {
     await openApp(page, { view: 'today', fixture: 'skewed' });
-    await openDetail(page);
 
     const panel = page.locator('#today-detail');
     await expect(panel.locator('.detail-item').first().locator('.tile-label')).toHaveText('Median Daily');
@@ -142,7 +151,6 @@ test.describe('median daily', () => {
 
   test('days 1-7 fall back to the mean', async ({ page }) => {
     await openApp(page, { view: 'today', fixture: 'skewed', date: '2026-08-05T09:00:00+08:00' });
-    await openDetail(page);
     await expect(page.locator('#today-detail .detail-item').first().locator('.tile-label'))
       .toHaveText('Average Daily');
   });
@@ -159,7 +167,7 @@ test.describe('median daily', () => {
 });
 
 test.describe('spend distribution', () => {
-  test('the curve renders below the patterns grid, marking median and P90', async ({ page }) => {
+  test('the curve renders below the patterns grid, marking typical and average', async ({ page }) => {
     await openApp(page, { view: 'trends', fixture: 'skewed' });
     const card = page.locator('#spend-distribution');
     await expect(card.locator('.dist-svg')).toBeVisible();
@@ -168,9 +176,21 @@ test.describe('spend distribution', () => {
 
     const labels = card.locator('.dist-ref-lbl');
     await expect(labels).toHaveCount(2);
-    await expect(labels.first()).toContainText('Median');
+    await expect(labels.first()).toContainText('Typical day');
     await expect(labels.first()).toContainText('RM 19.00');
-    await expect(labels.nth(1)).toContainText('P90');
+    await expect(labels.nth(1)).toContainText('Average');
+    await expect(labels.nth(1)).toContainText('RM 74.17');   // 890 / 12 spending days
+
+    // No statistics jargon anywhere on the card — that is the whole point of
+    // the change, and "P90" is the term it replaced.
+    await expect(card).not.toContainText('P90');
+    await expect(card).not.toContainText('percentile');
+    await expect(card).not.toContainText('median');
+
+    // On this fixture the two lines land 14.2% apart, inside the 18% collision
+    // rule, so the stacking path is exercised here rather than left untested.
+    await expect(labels.first()).toHaveClass(/row1/);
+    await expect(labels.nth(1)).toHaveClass(/row2/);
 
     // It sits between the patterns grid and the cumulative card.
     const order = await page.evaluate(() => Array.from(
@@ -196,5 +216,38 @@ test.describe('spend distribution', () => {
       doc: document.documentElement.scrollWidth, win: window.innerWidth,
     }));
     expect(overflow.doc).toBeLessThanOrEqual(overflow.win);
+  });
+});
+
+test.describe('insight strip', () => {
+  test('interprets every chart below it', async ({ page }) => {
+    // One observation per chart, in chart order. The skewed fixture has
+    // something true to say about all four, so all four must appear.
+    await openApp(page, { view: 'trends', fixture: 'skewed' });
+    const body = page.locator('#trends-insight .insight-body');
+    await expect(body).toBeVisible();
+
+    // ⚠️ The strip types itself in (typewriteInto), so wait for the text to
+    // settle rather than reading it on the first tick.
+    await expect
+      .poll(async () => (await body.textContent()).trim().length, { timeout: 6000 })
+      .toBeGreaterThan(80);
+
+    const families = await page.evaluate(() => computeInsightNarrative().families);
+    expect(families).toContain('category');      // the donut
+    expect(families).toContain('timing');        // the calendar grid
+    expect(families).toContain('distribution');  // the spend curve
+    expect(families).toContain('pace');          // cumulative spend
+    expect(families.length).toBeLessThanOrEqual(4);
+    expect(new Set(families).size).toBe(families.length); // no chart twice
+  });
+
+  test('says nothing statistical about the curve', async ({ page }) => {
+    await openApp(page, { view: 'trends', fixture: 'skewed' });
+    const text = await page.evaluate(() =>
+      computeInsightNarrative().facts.join(' '));
+    expect(text).toContain('typical spending day');
+    expect(text).not.toContain('P90');
+    expect(text).not.toContain('median');
   });
 });

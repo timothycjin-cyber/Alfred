@@ -498,6 +498,30 @@ test('spendProfile excludes zero days (D2) and cuts the median at P90 (D3)', () 
   assert.strictEqual(medianOf(p.spendDays), 21, 'with big days in, the median drifts up');
 });
 
+test('spendDayMean averages SPENDING days, meanDaily averages calendar days', () => {
+  // Two different averages that must never be swapped. The distribution card
+  // draws spendDayMean (the like-for-like partner to the median); the Today
+  // tile's "Average Daily" in mean mode is meanDaily.
+  const p = spendProfile(skewElapsed());
+  assert.ok(Math.abs(p.spendDayMean - 890 / 12) < 1e-9, `was ${p.spendDayMean}`);
+  assert.strictEqual(p.meanDaily, 44.5);
+  assert.notStrictEqual(p.spendDayMean, p.meanDaily);
+  // The gap against the median is the skew the card exists to show.
+  assert.ok(p.spendDayMean > p.medianDaily * 3);
+  assert.strictEqual(spendProfile([0, 0, 0]).spendDayMean, 0, 'no spending days is 0, not NaN');
+  assert.strictEqual(spendProfile([]).spendDayMean, 0);
+});
+
+test('distributionBuckets carries the same spendDayMean the curve draws', () => {
+  const prof = spendProfile(skewElapsed());
+  const d = distributionBuckets(prof.spendDays, 14);
+  assert.strictEqual(d.spendDayMean, prof.spendDayMean);
+  assert.strictEqual(distributionBuckets([], 14).spendDayMean, 0);
+  // p90 is still returned even though the card stopped drawing it — the
+  // forecast needs it, and D3/D4 are unchanged by that presentation call.
+  assert.ok(d.p90 > 0);
+});
+
 test('computeSpendForecast applies the spend-day rate, not raw remaining days (D8)', () => {
   const f = computeSpendForecast({
     elapsed: skewElapsed(), history: [], historyMonths: 0,
