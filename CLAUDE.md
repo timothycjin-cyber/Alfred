@@ -91,7 +91,22 @@ In-repo `apps-script/Code.gs` is the source of truth.
 - `add`/`edit`/`delete` — row writes; both write User col H. `handleAdd` honors a client `uid`, and **refuses a `uid` it already holds** (`{success:true, uid, duplicate:true}`, no append) — the sheet arbitrates recurring idempotency, since the client can't see a row the GViz cache hasn't surfaced. Helpers: `findRowByUID()`, `generateUID()`, `backfillUIDs()`.
 - `recurring` — series definitions only. Three ops via `data.op` (`add`/`edit`/`delete`). Helpers: `getRecurringSheet()`, `findRecurringRowById()`. Occurrences are written by the *client* via the ordinary `add`, so there is exactly one row-writing path.
 - `parse` — `{user, text | image_b64[, mime][, caption]}` → `{transactions:[…], dropped, note?}`. `EXTRACT_PROMPT` (array-return schema) + `validate_transactions()`. **Extract only — never writes.** Guarded by `ALLOWED_USERS` + input size caps.
-- `insights` — LLM phrasing of client-computed facts (gpt-4o-mini, max_tokens 160, temp 0.6).
+- `insights` — LLM phrasing of client-computed facts (`max_completion_tokens` 160).
+
+**Model: `gpt-5.6-luna`** (upgraded from `gpt-4o-mini`, 2026-08-31), on the same
+`/v1/chat/completions` endpoint. It is a **reasoning** model, so three request-shape rules bind
+`callOpenAI()`:
+- ⚠️ **`max_tokens` is rejected — the parameter is `max_completion_tokens`.** A 400, not a
+  degraded answer.
+- ⚠️ **No `temperature`** (nor `top_p`/penalties): the gpt-5.x schema dropped the sampling knobs,
+  and sending one is a 400. Extraction's old 0.1 is carried by the prompt's hard schema plus
+  `validateTransactions()`; the insights call's 0.6 is simply gone.
+- ⚠️ **`reasoning_effort: 'none'`, pinned.** The default is `medium`, and reasoning tokens are
+  billed against the output budget — at any other effort the 160-token insights call spends its
+  whole allowance thinking and **returns empty content**, which the client reads as a failure and
+  falls back to the deterministic narrative. Raising effort means raising every
+  `max_completion_tokens` with it, and paying capture-flow latency against the 25s client timeout.
+- Vision (`image_url` parts) is unchanged, so the receipt-photo path needs no edit.
 
 **Script Properties:** `OPENAI_API_KEY`, `ALLOWED_USERS`. (`FIREBASE_SA_JSON` / `FCM_PROJECT_ID`
 are dead after Phase F.)
@@ -477,6 +492,7 @@ it shipped.
 **The only live items are owner steps, Apps Script side:**
 
 - **Phase F** — delete the `sendDailyDigestPush` time-driven trigger, and drop the `FIREBASE_SA_JSON` / `FCM_PROJECT_ID` Script Properties. Harmless if left, but the trigger fails silently in the execution log nightly.
+- ⚠️ **REDEPLOY REQUIRED (2026-08-31, model upgrade).** `OPENAI_MODEL` is now `gpt-5.6-luna` with the request-shape changes in §2. **Until the owner redeploys, the live script is still calling `gpt-4o-mini` and nothing changes** — the two halves are inseparable, so a redeploy carrying the new model without the new parameters would 400 every `parse` (capture dies, falling back to manual entry) and every `insights` (silent, deterministic text ships). Verify after redeploying by capturing one text expense and one receipt photo.
 - ⚠️ **REDEPLOY REQUIRED (2026-08-31).** `INSIGHTS_PROMPT` was widened to 3–4 sentences / ~60 words with a "keep every observation" rule, so the LLM phrasing layer stops compressing four chart observations back into two. **This ends the front-end-only run that held from 2026-08-08.** Until the owner redeploys, the deterministic narrative (which is already correct and covers all four charts) is what ships — the live one will read short. **Deploy → Manage deployments → Edit → new version. NEVER a new deployment** — that issues a different URL and `APPS_SCRIPT_URL` would silently fall through to the deterministic path forever.
 
 **Pending work:** the candidate features and open questions in §6.
@@ -486,9 +502,11 @@ it shipped.
 ## 5. Cost & Sustainability
 
 **~$0/month.** GitHub Pages and Apps Script are free. The only metered cost is OpenAI
-(gpt-4o-mini): ~$0.0002 per text parse, ~$0.002–0.004 per photo, a few hundred tokens per
-insights phrasing (cached client-side per month+data). Realistic total **well under $0.50/mo**
-against a $5 budget. Guards: `ALLOWED_USERS` on `parse`, input size caps, insight cache. Apps
+(`gpt-5.6-luna`, $0.20/M in · $1.20/M out): ~$0.0004 per text parse, ~$0.004–0.008 per photo, a
+few hundred tokens per insights phrasing (cached client-side per month+data). Roughly **2× the
+gpt-4o-mini figures** it replaces ($0.15/$0.60), which lands a realistic total **under $1/mo**
+against a $5 budget. ⚠️ That multiple holds **only while `reasoning_effort` stays `'none'`** (§2)
+— billed reasoning tokens are output tokens. Guards: `ALLOWED_USERS` on `parse`, input size caps, insight cache. Apps
 Script free quotas (20k UrlFetch/day, 90 min trigger runtime/day) are orders of magnitude above
 usage.
 
