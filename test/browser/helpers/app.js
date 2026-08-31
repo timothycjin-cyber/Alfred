@@ -8,14 +8,25 @@ const path = require('path');
 const { test } = require('@playwright/test');
 const { GVIZ_BODY, USER } = require('../fixtures/gviz-fixture');
 
+// Named sheets a spec can ask for. `default` is the one the original checks are
+// written against — its deliberate July gap and its Aug 2026 export label are
+// load-bearing there, so a spec that needs different data adds a fixture here
+// instead of editing that one.
+const FIXTURES = {
+  default: GVIZ_BODY,
+  skewed: require('../fixtures/gviz-fixture-skewed').GVIZ_BODY,
+};
+
 const CHART_STUB = fs.readFileSync(path.join(__dirname, '../fixtures/chart-stub.js'), 'utf8');
 
 /**
  * @param {import('@playwright/test').Page} page
- * @param {{ view?: 'today'|'logs'|'trends'|null, date?: string }} [opts]
+ * @param {{ view?: 'today'|'logs'|'trends'|null, date?: string, fixture?: keyof FIXTURES }} [opts]
  */
 async function openApp(page, opts = {}) {
-  const { view = null, date = '2026-08-19T09:00:00+08:00' } = opts;
+  const { view = null, date = '2026-08-19T09:00:00+08:00', fixture = 'default' } = opts;
+  const sheetBody = FIXTURES[fixture];
+  if (!sheetBody) throw new Error(`unknown fixture "${fixture}" — add it to FIXTURES`);
 
   // Pin the DATE with a live offset, not a frozen Date.now() — Chart.js's
   // animator reads Date.now() too, and a constant stub leaves every arc at
@@ -54,7 +65,7 @@ async function openApp(page, opts = {}) {
       return route.fulfill({ contentType: 'text/css', body: '' });
     }
     if (url.includes('gviz/tq') && url.includes('sheet=Sheet1')) {
-      return route.fulfill({ contentType: 'text/plain', body: GVIZ_BODY });
+      return route.fulfill({ contentType: 'text/plain', body: sheetBody });
     }
     if (url.includes('gviz/tq') && url.includes('sheet=Recurring')) {
       return route.fulfill({ status: 404, body: 'not found' }); // "no series", not an error

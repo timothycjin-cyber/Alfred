@@ -109,3 +109,92 @@ test.describe('core interactions', () => {
     await expect(page.locator('#month-overlay')).not.toHaveClass(/open/);
   });
 });
+
+// ── Median daily · calibrated forecast · distribution curve ─────────────────
+// SPEC_MEDIAN_FORECAST_20260831. The `skewed` fixture is built for these; see
+// its header for why the default sheet cannot exercise them.
+//
+// ⚠️ Figures are read from data-val, never from the rendered text.
+// animateCounters() counts up over 1200ms, so a text read lands mid-animation
+// (CLAUDE.md §3.12) — and only one of the two projects has reduced motion.
+
+const openDetail = async (page) => {
+  await page.locator('#today-detail-trigger').click();
+  await expect(page.locator('#today-detail .detail-panel')).toBeVisible();
+};
+
+test.describe('median daily', () => {
+  test('the tile reports a median once the month has enough spending days', async ({ page }) => {
+    await openApp(page, { view: 'today', fixture: 'skewed' });
+    await openDetail(page);
+
+    const panel = page.locator('#today-detail');
+    await expect(panel.locator('.detail-item').first().locator('.tile-label')).toHaveText('Median Daily');
+    // Median of the ten normal days (the two big days are above P90 and are
+    // carried by the buffer instead) — 18 and 20 straddle the middle.
+    expect(await panel.locator('[data-key="today-avg"]').getAttribute('data-val')).toBe('19');
+
+    // The correction is downward: the old mean projection was 890/19 * 31.
+    const forecast = Number(await panel.locator('[data-key="today-fc"]').getAttribute('data-val'));
+    expect(forecast).toBeLessThan((890 / 19) * 31);
+    expect(forecast).toBeGreaterThan(890); // still projects forward, not just spent-so-far
+  });
+
+  test('days 1-7 fall back to the mean', async ({ page }) => {
+    await openApp(page, { view: 'today', fixture: 'skewed', date: '2026-08-05T09:00:00+08:00' });
+    await openDetail(page);
+    await expect(page.locator('#today-detail .detail-item').first().locator('.tile-label'))
+      .toHaveText('Average Daily');
+  });
+
+  test('the pace strip follows the calibrated forecast, not the mean', async ({ page }) => {
+    // The skewed fixture's RM 1200 income sits between the two forecasts: the
+    // old mean projection (~1452) overshoots it, the calibrated one (~1111)
+    // does not. Trap #5 — the strip firing LESS often is the correction.
+    await openApp(page, { view: 'today', fixture: 'skewed' });
+    const strip = page.locator('.income-bar-status');
+    await expect(strip).toHaveClass(/under/);
+    await expect(strip).toContainText('on track');
+  });
+});
+
+test.describe('spend distribution', () => {
+  test('the curve renders below the patterns grid, marking median and P90', async ({ page }) => {
+    await openApp(page, { view: 'trends', fixture: 'skewed' });
+    const card = page.locator('#spend-distribution');
+    await expect(card.locator('.dist-svg')).toBeVisible();
+    await expect(card.locator('.dist-line')).toHaveAttribute('d', /^M.+C/);
+    await expect(card.locator('.dist-ref')).toHaveCount(2);
+
+    const labels = card.locator('.dist-ref-lbl');
+    await expect(labels).toHaveCount(2);
+    await expect(labels.first()).toContainText('Median');
+    await expect(labels.first()).toContainText('RM 19.00');
+    await expect(labels.nth(1)).toContainText('P90');
+
+    // It sits between the patterns grid and the cumulative card.
+    const order = await page.evaluate(() => Array.from(
+      document.querySelectorAll('#trends-view > div')).map((n) => n.id));
+    expect(order.indexOf('spend-distribution')).toBe(order.indexOf('spending-patterns') + 1);
+    expect(order.indexOf('spend-distribution')).toBeLessThan(order.indexOf('cumulative-card'));
+  });
+
+  test('fewer than three spending days shows copy, not a partial curve', async ({ page }) => {
+    // Default fixture on the 5th: only one August spending day has elapsed.
+    await openApp(page, { view: 'trends', date: '2026-08-05T09:00:00+08:00' });
+    const card = page.locator('#spend-distribution');
+    await expect(card.locator('.dist-empty')).toBeVisible();
+    await expect(card.locator('.dist-svg')).toHaveCount(0);
+    await expect(card.locator('.dist-ref-lbl')).toHaveCount(0);
+  });
+
+  test('the curve does not widen the document', async ({ page }) => {
+    // The reference labels are absolutely positioned off real data — a label
+    // pushed past the card edge is exactly the mobile-zoom trap (CLAUDE.md §3.2).
+    await openApp(page, { view: 'trends', fixture: 'skewed' });
+    const overflow = await page.evaluate(() => ({
+      doc: document.documentElement.scrollWidth, win: window.innerWidth,
+    }));
+    expect(overflow.doc).toBeLessThanOrEqual(overflow.win);
+  });
+});

@@ -24,7 +24,9 @@ const {
   parseRowDate, isoDateOf, gvizDateToIso, daysInMonthOf,
   weekSpanFor, weekRangeLabel, weekDaySlots,
   recurringUID, recurrenceDates, cadenceLabel, nextOccurrence,
-  rowSig, mergeRows, csvEscape, escapeHtml, formatCurrency, hexToRgba
+  rowSig, mergeRows, csvEscape, escapeHtml, formatCurrency, hexToRgba,
+  percentileOf, medianOf, dailyTotals, spendProfile, monthlyBigDayBuffer,
+  computeSpendForecast, distributionBuckets
 } = core;
 
 const TZ = process.env.TZ || '(system default)';
@@ -415,4 +417,226 @@ test('hexToRgba expands shorthand and applies alpha', () => {
   assert.strictEqual(hexToRgba('#C2542D', 0.12), 'rgba(194, 84, 45, 0.12)');
   assert.strictEqual(hexToRgba('#fff', 1), 'rgba(255, 255, 255, 1)');
   assert.strictEqual(hexToRgba('C2542D', 0.5), 'rgba(194, 84, 45, 0.5)');
+});
+
+// ── Spend shape: median daily, big-day buffer, calibrated forecast ───────────
+//
+// SPEC_MEDIAN_FORECAST_20260831, decisions D1–D9. The shared fixture below is a
+// deliberately right-skewed month: ten ordinary days and two big ones, over a
+// 20-day elapsed window with eight zero-spend days.
+//
+//   spend days  10 12 14 16 18 20 22 24 26 28  300 400   (12 of 20 days → rate 0.6)
+//   P90         28 + (300-28)*0.9              = 272.80
+//   normal      the ten low days               → median  = 19
+//   mean        890 / 20                       = 44.50
+//
+// The gap between 19 and 44.50 IS the problem this spec exists to fix: keep the
+// two far apart in any replacement fixture, or these tests stop proving anything.
+const SKEW_LOW = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28];
+const SKEW_BIG = [300, 400];
+const skewElapsed = () => {
+  const days = SKEW_LOW.concat(SKEW_BIG);       // 12 spending days
+  while (days.length < 20) days.push(0);        // 8 zero days
+  return days;
+};
+
+test('percentileOf interpolates linearly, never nearest-rank', () => {
+  // Nearest-rank on a small sample makes P90 jump day to day, which moves the
+  // median (D3 cuts at P90) and therefore the forecast. Trap #4.
+  assert.strictEqual(percentileOf([10, 20, 30, 40], 0.5), 25);
+  assert.strictEqual(percentileOf([10, 20, 30, 40], 0), 10);
+  assert.strictEqual(percentileOf([10, 20, 30, 40], 1), 40);
+  // rank = 3 * 0.9 = 2.7  →  30 + (40-30)*0.7
+  assert.strictEqual(percentileOf([10, 20, 30, 40], 0.9), 37);
+  assert.strictEqual(percentileOf([42], 0.9), 42, 'single sample');
+  assert.strictEqual(percentileOf([], 0.9), 0, 'empty is 0, not NaN');
+});
+
+test('medianOf sorts before measuring', () => {
+  assert.strictEqual(medianOf([30, 10, 20]), 20);
+  assert.strictEqual(medianOf([40, 10, 30, 20]), 25);
+  const input = [3, 1, 2];
+  medianOf(input);
+  assert.deepStrictEqual(input, [3, 1, 2], 'must not mutate the caller array');
+});
+
+test(`dailyTotals buckets densely and by LOCAL date [TZ=${TZ}]`, () => {
+  const rows = [
+    row({ Date: '2026-08-01', Amount: 10 }),
+    row({ Date: '2026-08-01', Amount: 5 }),
+    row({ Date: '2026-08-31', Amount: 20 }),
+    row({ Date: '2026-07-31', Amount: 99 }),   // adjacent month, must not leak
+  ];
+  const d = dailyTotals(rows, 2026, 7);
+  assert.strictEqual(d.length, 31);
+  assert.strictEqual(d[0], 15, 'day 1 sums both rows — in every timezone');
+  assert.strictEqual(d[30], 20, 'day 31');
+  assert.strictEqual(d.reduce((s, v) => s + v, 0), 35, 'July row excluded');
+  assert.strictEqual(d.filter(v => v === 0).length, 29, 'zero days are PRESENT');
+});
+
+test('dailyTotals clips a live month at upToDay', () => {
+  const rows = [row({ Date: '2026-08-05', Amount: 10 }), row({ Date: '2026-08-25', Amount: 90 })];
+  const d = dailyTotals(rows, 2026, 7, 10);
+  assert.strictEqual(d.length, 10, 'day 1 … day 10 only');
+  assert.strictEqual(d.reduce((s, v) => s + v, 0), 10, 'the future-dated row is not counted');
+});
+
+test('spendProfile excludes zero days (D2) and cuts the median at P90 (D3)', () => {
+  const p = spendProfile(skewElapsed());
+  assert.strictEqual(p.spendDays.length, 12, 'the 8 zero days are not spending days');
+  assert.strictEqual(p.spendDayRate, 0.6);
+  assert.ok(Math.abs(p.p90 - 272.8) < 1e-9, `P90 was ${p.p90}`);
+  assert.deepStrictEqual(p.bigDays, SKEW_BIG, 'both outliers are above P90');
+  assert.deepStrictEqual(p.normalDays, SKEW_LOW);
+  assert.strictEqual(p.medianDaily, 19, 'median of the NORMAL days only');
+  assert.strictEqual(p.meanDaily, 44.5);
+
+  // Skipping either exclusion gives a visibly different number — which is the
+  // whole reason both are locked decisions.
+  assert.strictEqual(medianOf(skewElapsed()), 13, 'with zeros in, the median collapses');
+  assert.strictEqual(medianOf(p.spendDays), 21, 'with big days in, the median drifts up');
+});
+
+test('computeSpendForecast applies the spend-day rate, not raw remaining days (D8)', () => {
+  const f = computeSpendForecast({
+    elapsed: skewElapsed(), history: [], historyMonths: 0,
+    daysInMonth: 31, dayOfMonth: 20
+  });
+  assert.strictEqual(f.mode, 'median');
+  assert.strictEqual(f.label, 'Median Daily');
+  assert.strictEqual(f.daily, 19);
+  assert.strictEqual(f.spentSoFar, 890);
+  assert.strictEqual(f.spendDayRate, 0.6);
+  // 890 + 19 * 11 * 0.6
+  assert.ok(Math.abs(f.forecast - 1015.4) < 1e-9, `forecast was ${f.forecast}`);
+  // The unit trap: median × every remaining day overcounts by the zero days.
+  assert.notStrictEqual(f.forecast, 890 + 19 * 11);
+  // And the correction is downward from what the old mean projection said.
+  assert.ok(f.forecast < 44.5 * 31, 'the calibrated forecast is below the mean projection');
+});
+
+test('mean mode reproduces the pre-spec figures exactly', () => {
+  // Days 1–7 fall back to the mean (D7). With no buffer that path must be a
+  // provable no-op against the shipped `exp/daysElapsed × daysInMonth`, or the
+  // extraction changed behaviour it was only meant to move.
+  const elapsed = [40, 0, 12, 300, 8, 0, 25];
+  const spent = elapsed.reduce((s, v) => s + v, 0);
+  const f = computeSpendForecast({
+    elapsed, history: [], historyMonths: 0, daysInMonth: 31, dayOfMonth: 7
+  });
+  assert.strictEqual(f.mode, 'mean');
+  assert.strictEqual(f.label, 'Average Daily');
+  assert.strictEqual(f.spendDayRate, 1, 'the mean already averages across ALL days');
+  assert.ok(Math.abs(f.forecast - (spent / 7) * 31) < 1e-9, `forecast was ${f.forecast}`);
+});
+
+test('the median takes over on day 8', () => {
+  const base = { elapsed: skewElapsed(), history: [], historyMonths: 0, daysInMonth: 31 };
+  assert.strictEqual(computeSpendForecast({ ...base, dayOfMonth: 7 }).mode, 'mean');
+  assert.strictEqual(computeSpendForecast({ ...base, dayOfMonth: 8 }).mode, 'median');
+});
+
+test('fewer than 3 spending days stays on the mean whatever the date', () => {
+  const elapsed = new Array(20).fill(0);
+  elapsed[2] = 50; elapsed[9] = 70;             // two spending days on the 20th
+  const f = computeSpendForecast({
+    elapsed, history: [], historyMonths: 0, daysInMonth: 31, dayOfMonth: 20
+  });
+  assert.strictEqual(f.mode, 'mean', 'a median over two samples is not a measurement');
+  assert.strictEqual(f.spendDayCount, 2);
+});
+
+test('a month with nothing logged reports the empty mode, not RM 0 a day', () => {
+  const f = computeSpendForecast({
+    elapsed: new Array(12).fill(0), history: [], historyMonths: 0,
+    daysInMonth: 31, dayOfMonth: 12
+  });
+  assert.strictEqual(f.mode, 'empty');
+  assert.strictEqual(f.daily, 0);
+  assert.strictEqual(f.forecast, 0);
+});
+
+test('a month where every elapsed day has spend carries a rate of 1', () => {
+  const elapsed = [20, 22, 24, 26, 28, 30, 32, 34, 36, 400];
+  const f = computeSpendForecast({
+    elapsed, history: [], historyMonths: 0, daysInMonth: 30, dayOfMonth: 10
+  });
+  assert.strictEqual(f.spendDayRate, 1, 'no zero days, so no discount');
+});
+
+// ── Big-day buffer (D5) ──────────────────────────────────────────────────────
+
+// Three pooled months: 27 quiet days and 3 big days each.
+//   90 spend days, 81 × 5 and 9 × 200
+//   P90  = rank 89*0.9 = 80.1 → 5 + (200-5)*0.1 = 24.50
+//   big  = the nine 200s = 1800  →  bufferPerMonth = 600
+const historyDays = () => {
+  const out = [];
+  for (let m = 0; m < 3; m++) {
+    for (let i = 0; i < 27; i++) out.push(5);
+    out.push(200, 200, 200);
+  }
+  return out;
+};
+
+test('monthlyBigDayBuffer needs three months of history', () => {
+  assert.strictEqual(monthlyBigDayBuffer(historyDays(), 3), 600);
+  assert.strictEqual(monthlyBigDayBuffer(historyDays(), 2), 0, 'omit, no error, no zero-as-measurement');
+  assert.strictEqual(monthlyBigDayBuffer([], 3), 0);
+  assert.strictEqual(monthlyBigDayBuffer(null, 3), 0);
+});
+
+test('only the unelapsed fraction of the buffer is added (trap #3)', () => {
+  // Big days already logged this month sit inside spentSoFar; adding a whole
+  // month's buffer on top would count them twice.
+  const base = {
+    elapsed: skewElapsed(), history: historyDays(), historyMonths: 3,
+    daysInMonth: 31, dayOfMonth: 20
+  };
+  const f = computeSpendForecast(base);
+  assert.strictEqual(f.buffer, 600, 'per month');
+  assert.ok(Math.abs(f.bufferRemaining - 600 * 11 / 31) < 1e-9, `was ${f.bufferRemaining}`);
+  assert.ok(Math.abs(f.forecast - (1015.4 + 600 * 11 / 31)) < 1e-9);
+
+  // On the last day of the month there is nothing left to buffer for.
+  const last = computeSpendForecast({ ...base, dayOfMonth: 31 });
+  assert.strictEqual(last.bufferRemaining, 0);
+  assert.strictEqual(last.forecast, last.spentSoFar);
+
+  // And with too little history the same call omits the buffer entirely.
+  const thin = computeSpendForecast({ ...base, historyMonths: 2 });
+  assert.strictEqual(thin.buffer, 0);
+  assert.ok(Math.abs(thin.forecast - 1015.4) < 1e-9);
+});
+
+// ── Distribution curve ───────────────────────────────────────────────────────
+
+test('distributionBuckets covers every spending day exactly once', () => {
+  const d = distributionBuckets(spendProfile(skewElapsed()).spendDays, 14);
+  assert.strictEqual(d.count, 12);
+  assert.strictEqual(d.buckets.length, 14);
+  assert.strictEqual(d.buckets.reduce((s, b) => s + b.count, 0), 12, 'no day falls outside');
+  assert.strictEqual(d.min, 10);
+  assert.strictEqual(d.max, 400);
+  assert.strictEqual(d.buckets[0].x0, 10);
+  assert.strictEqual(d.buckets[13].x1, 400);
+  assert.strictEqual(d.buckets[13].count, 1, 'the top bucket holds the biggest day, inclusive');
+});
+
+test('the curve marks the same median the Today tile prints', () => {
+  // A plain median over every spending day would draw a line the rest of the
+  // app disagrees with — the tile cuts at P90 (D3), so the curve must too.
+  const prof = spendProfile(skewElapsed());
+  const d = distributionBuckets(prof.spendDays, 14);
+  assert.strictEqual(d.median, prof.medianDaily);
+  assert.strictEqual(d.p90, prof.p90);
+});
+
+test('distributionBuckets survives a single distinct amount', () => {
+  const d = distributionBuckets([25, 25, 25], 14);
+  assert.strictEqual(d.buckets.length, 1, 'no range to spread across');
+  assert.strictEqual(d.buckets[0].count, 3);
+  assert.strictEqual(d.median, 25);
+  assert.deepStrictEqual(distributionBuckets([], 14).buckets, []);
 });

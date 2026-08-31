@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: 2026-08-20 — **This file was condensed** (~19.5k → ~8k words). Nothing was
+*Last updated: 2026-08-31 — **This file was condensed** (~19.5k → ~8k words). Nothing was
 decided or undecided by the trim: every ⚠️ trap, binding decision, constant and identifier is
 still here, in fewer words. What was cut is narrative — the "why we chose this over that" for
 past passes, which lives in the `alfred-history` skill. **Style rule going forward: state the
@@ -8,9 +8,12 @@ rule and the consequence, not the story.** A trap gets one sentence saying what 
 decision gets one line. If an entry needs three paragraphs of reasoning, the reasoning belongs
 in the history skill and the rule belongs here.*
 
-*Also shipped 2026-08-20: `test/browser/` — a committed Playwright harness + 26-check smoke
-suite, running in CI (§3.12). Previous banner (the Logs toolbar → masthead move) is in the
-history skill. **One banner: the current change only**; superseded ones move to the history
+*Shipped 2026-08-31: **median daily + calibrated forecast + the spend distribution curve**
+(§3.5, §3.7, §6). Spend is right-skewed, so the mean described no day the user actually has;
+**normal spend and big spend are now modelled separately** — one median, one buffer, never one
+blended average. The math is pure core (`computeSpendForecast`), and the Today tile and the pace
+bar read the SAME call, so they cannot disagree. Previous banner (the committed Playwright
+harness, §3.12) is in the history skill. **One banner: the current change only**; superseded ones move to the history
 skill, not into a queue. Two facts that live nowhere else: earlier roadmap files were folded
 into §6 (2026-07-19), and `index.html` comments still reference roadmap phase names — §6 and
 the history skill keep those resolvable.*
@@ -236,9 +239,45 @@ Order: **hero → two tiles (+ detail panel) → glance line → budget-pace car
 
 - **Hero** (`.hero-card`, `#today-hero`): label **`Budget left`** (income − expense). **1.5px `--outline` border** (light) / `rgba(255,255,255,.22)` (dark) — deliberately heavier than every other card, so the hero reads as the focal point. Embedded 6-month net-trend mini bar chart (`heroChart`; current month sienna, others green/red by sign; `minBarLength: 4` + `heroBaselinePlugin`, gated on `canvas.id === 'hero-trend'`). Sub-copy "In the green" / "Watching the leak". **The running month is drawn as provisional:** a `heroLiveMonth` flag washes the last bar to `hexToRgba('#C2542D', 0.38)` and appends `.hero-chart-note` ("August is 10 days in") — otherwise nine days read against thirty-one-day bars on one axis. Build the note from the flag, not unconditionally. ⚠️ **There is no privacy blur toggle** — `toggleHeroPrivacy()`/`.value-hidden` do not exist; the only trace is `.hero-top` still being `space-between` with one child.
 - **Tiles** (`#today-tiles`, 2-col grid): **`Income`** / **`Expenses`** on `--wash-income`/`--wash-expense`, with `▲/▼ X% vs last month` chips. ⚠️ **The income tile says `Income`, not `Budget`** — the hero 200px above says `Budget left`, and one word for two quantities was the collision. Element ids, the stored `'Income'` value and `INCOME_CATEGORIES` are unchanged. `.good` chips neutral, `.bad` red (§3.2).
-- **Detail panel** (`#today-detail`, `todayDetailHtml()`/`toggleTodayDetail()`): **`Average Daily`** + **`Forecast`**, disclosed by tapping the Expenses tile — which is therefore a real `<button>` (`#today-detail-trigger`, `aria-expanded`+`aria-controls`). It's the last child of the `.tile-row` grid spanning `1 / -1`; `#today-detail:empty { display: none }` collapses it when closed. `avgDaily = totalExpense ÷ days elapsed`, `forecast = avgDaily × days in month`; `data-key`s `today-avg`/`today-fc` (reused to preserve `counterMemory`, distinct from Trends `an-avg`/`an-fc`). `forecast > totalIncome` → both go `.overspend` red. **No `vs last mo.` chips** — a percentage against a projection is noise. ⚠️ **`animateCounters()` only runs at the end of `calculateAndRender()`** — markup injected from the click handler must be swept explicitly or figures sit at `RM 0.00` forever. `todayDetailOpen` is module state so the panel survives optimistic re-renders.
+- **Detail panel** (`#today-detail`, `todayDetailHtml()`/`toggleTodayDetail()`): **`Median Daily`** (or `Average Daily`, see below) + **`Forecast`**, disclosed by tapping the Expenses tile — which is therefore a real `<button>` (`#today-detail-trigger`, `aria-expanded`+`aria-controls`). It's the last child of the `.tile-row` grid spanning `1 / -1`; `#today-detail:empty { display: none }` collapses it when closed. `data-key`s `today-avg`/`today-fc` (reused to preserve `counterMemory`, distinct from Trends `an-avg`/`an-fc`). `forecast > totalIncome` → both go `.overspend` red. **Nothing logged this month → an em dash in both slots**, deliberately not `.counter-val` — `RM 0.00` reads as a measurement of zero rather than the absence of one.
+- **`todayForecast()` is THE forecast, and the only one the app computes** (§3.5a). The detail panel and the pace bar both read it, so they can never disagree. Memoised on `dataStamp` (like `pickerMonths()`) because it rescans four months and the panel is rebuilt from a click handler, not only from a render. **No `vs last mo.` chips** — a percentage against a projection is noise. ⚠️ **`animateCounters()` only runs at the end of `calculateAndRender()`** — markup injected from the click handler must be swept explicitly or figures sit at `RM 0.00` forever. `todayDetailOpen` is module state so the panel survives optimistic re-renders.
+### 3.5a Median Daily and Forecast — the canonical definition
+
+Source: `docs/SPEC_MEDIAN_FORECAST_20260831.md`, decisions **D1–D9, locked**. Math lives in
+`lib/alfred-core.js` (pure, TZ-proved in all four zones); `index.html` only adapts rows into it.
+
+```
+elapsed[]      per-day expense totals, day 1 → TODAY  (dailyTotals, upToDay)
+history[]      the same for the trailing 3 complete months, POOLED
+
+spendDays      = elapsed.filter(v > 0)            D2 — zeros excluded; the metric
+spendDayRate   = spendDays.length / elapsed.length     means "a typical SPENDING day"
+P90            = 90th pct of spendDays, LINEAR interpolation   D4
+medianDaily    = median(spendDays.filter(v <= P90))            D3
+bufferPerMonth = sum(history days > historyP90) / 3            D5
+
+mean mode  ⇐  dayOfMonth < 8  OR  spendDays.length < 3         D7
+             daily = mean(elapsed), rate = 1, label "Average Daily"
+median mode  daily = medianDaily, rate = spendDayRate || 1, label "Median Daily"
+
+forecast = spentSoFar + daily × remainingDays × rate + bufferPerMonth × (remainingDays / daysInMonth)
+```
+
+⚠️ **D3 is not optional.** Without the P90 cut the big days sit inside the median *and* inside
+the buffer, and the forecast counts them twice.
+⚠️ **D8 is not optional.** D2 makes the median a per-*spending*-day figure; multiplying it by
+calendar days overcounts by exactly the zero days.
+⚠️ **Only the unelapsed fraction of the buffer is added** — big days already logged this month
+are inside `spentSoFar`.
+⚠️ **Percentiles interpolate, never nearest-rank** — on a 10–20 value sample nearest-rank makes
+P90 jump day to day, which moves the median and therefore the forecast for no visible reason.
+- **Under 3 months of history the buffer is omitted entirely** — 0, no error, no warning banner.
+  A month is "history" only if it holds rows, so a gap month means too little history.
+- **The overspend strip fires LESS often than it used to. That is the correction, not a
+  regression** — do not retune the threshold to restore the old rate.
+
 - **Glance line** (`computeTodayGlance`): today's spend vs the 30-day spend-day average; zero-state "Nothing logged today yet." `.today-good` neutral, `.today-bad` red.
-- **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome, totalExpense)`): caption `Day X of N` (or `No budget set this month`); a **Spent** row and a **Month** row, each `label | track | value%` (`.income-bar-row`, a `60px 1fr 52px` grid). Spent fills **sienna**, flipping to **red** once it crosses the Month line (`.income-bar-fill.spent.over`); Month is always `--outline` gray. A shared **dotted 2px "Today" line** (`.income-bar-marker`) crosses both bars at month-elapsed, with a bubble legend above (`.income-bar-wrap` reserves space via `padding-top: 36px`). Marker and bubble are positioned against the whole wrap but must align to the *track column* — `paceMarkerLeft(pct)` = `calc(72px + (100% - 136px) * pct)`. Closes on a **status strip** (`.income-bar-status`) flush with the card's bottom edge: an info glyph plus one sentence (`Your spending is outpacing the budget` / `…is on track and within budget`). **No ringgit figure** — the strip states the verdict, the bars carry magnitude. Same `over` boolean as the bar's colour flip (`forecast > income`), so they can never disagree. **Only overspending gets a solid fill** (`--strip-over`, white text); on-track is transparent ground + `--on-surface-variant` ink with only a hairline top border. `--strip-over` is deliberately **deeper than `--semantic-expense`** (#D93A31 / #C0392F dark) — the semantic token is tuned for text *on* the surface and clears only ~4.0:1 under white. Full-bleed via negative margins (`20px -1.25rem -1.25rem`); bottom corners mirror `.card`'s asymmetric radius. **No strip in the no-budget state** — "within budget" with no budget is a false statement. `paceBarMemory` feeds the mount-then-spring.
+- **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome, totalExpense)`): caption `Day X of N` (or `No budget set this month`); a **Spent** row and a **Month** row, each `label | track | value%` (`.income-bar-row`, a `60px 1fr 52px` grid). Spent fills **sienna**, flipping to **red** once it crosses the Month line (`.income-bar-fill.spent.over`); Month is always `--outline` gray. A shared **dotted 2px "Today" line** (`.income-bar-marker`) crosses both bars at month-elapsed, with a bubble legend above (`.income-bar-wrap` reserves space via `padding-top: 36px`). Marker and bubble are positioned against the whole wrap but must align to the *track column* — `paceMarkerLeft(pct)` = `calc(72px + (100% - 136px) * pct)`. Closes on a **status strip** (`.income-bar-status`) flush with the card's bottom edge: an info glyph plus one sentence (`Your spending is outpacing the budget` / `…is on track and within budget`). **No ringgit figure** — the strip states the verdict, the bars carry magnitude. Same `over` boolean as the bar's colour flip, read from **`todayForecast()`** — the same call the detail panel prints, so the strip, the bar's red and the two figures can never disagree. **Only overspending gets a solid fill** (`--strip-over`, white text); on-track is transparent ground + `--on-surface-variant` ink with only a hairline top border. `--strip-over` is deliberately **deeper than `--semantic-expense`** (#D93A31 / #C0392F dark) — the semantic token is tuned for text *on* the surface and clears only ~4.0:1 under white. Full-bleed via negative margins (`20px -1.25rem -1.25rem`); bottom corners mirror `.card`'s asymmetric radius. **No strip in the no-budget state** — "within budget" with no budget is a false statement. `paceBarMemory` feeds the mount-then-spring.
 - **Current-month-only:** glance + pace render only for the real current month.
 
 ### 3.6 Logs tab
@@ -297,9 +336,18 @@ closes on the 1.5rem section break.
   - **Empty month:** `#donut-container` `display:none`, no overlay, list reads `No expenses logged this month.`
   - Layout: `.cat-card-body` is one column on a phone, `minmax(0,300px) minmax(0,1fr)` from 769px.
 - **Category palette** (dataviz six-checks validated, light+dark): Food & Dining `#C2542D`, Transport `#0891B2`, Bills & Utilities `#D97706`, Shopping & Groceries `#2684FF`, Subscriptions `#6554C0`, Entertainment `#DB2777`, Other `#495057`. Semantic expense red is never a category.
-- **Spending patterns** (`renderSpendingPatterns`, `#spending-patterns`): the `viewMonth` calendar as a cell grid tinted by **spend per day** on the sienna `hm-l0..l4` ramp. **Monday-first**, date numbers on each cell, **monthly-only** (the Weekly/Monthly toggle was removed). Self-scaling: `level = ceil(spend / maxSpend × 4)` over the busiest non-future day (`hm-l0` = zero, `hm-future` = dashed). A `.sp-chip` reads `Month Year • N days • ↗/↘ RM total`, with the average on **its own line** (`.sp-avg`) — as a fourth clause it wrapped at 390px. **N = `elapsedDays`** and **avg = total ÷ elapsedDays**, so the live month divides by days-so-far and a closed month by the full month, **matching the Today `Average Daily` tile exactly**. Arrow valence follows spend delta (up = red, down = green), omitted with no prior data. `.sp-legend` shows the ramp. Expense rows only, active-user-filtered.
+- **Spending patterns** (`renderSpendingPatterns`, `#spending-patterns`): the `viewMonth` calendar as a cell grid tinted by **spend per day** on the sienna `hm-l0..l4` ramp. **Monday-first**, date numbers on each cell, **monthly-only** (the Weekly/Monthly toggle was removed). Self-scaling: `level = ceil(spend / maxSpend × 4)` over the busiest non-future day (`hm-l0` = zero, `hm-future` = dashed). A `.sp-chip` reads `Month Year • N days • ↗/↘ RM total`, with the average on **its own line** (`.sp-avg`) — as a fourth clause it wrapped at 390px. **N = `elapsedDays`** and **avg = total ÷ elapsedDays**, so the live month divides by days-so-far and a closed month by the full month. ⚠️ **This stays a MEAN and no longer matches the Today tile** (which reports a median, §3.5a) — it is the month's total spread over its days, printed beside that total, and the old to-the-cent parity claim is retired. Arrow valence follows spend delta (up = red, down = green), omitted with no prior data. `.sp-legend` shows the ramp. Expense rows only, active-user-filtered.
   - **Day numbers use `--on-surface` on every step.** They used to flip to `#F5F5F2` on `hm-l3`/`hm-l4` at **2.01:1**; the deleted rule is not to come back.
-  - **The live month CLIPS THE FUTURE** (on the 10th, 22 of 31 cells were dashed placeholders). ⚠️ **The clip applies to the RENDER, not to `days`**: `const cellDays = isCur ? days.filter(d => !d.future) : days;`. Mutating `days` in place breaks two things — a future-dated expense vanishes from the chip's total while Today's tile still counts it (and the average loses to-the-cent parity with `Average Daily`), **and on a closed month `clipped` IS `days`, so `days.length = 0` renders ZERO cells.**
+  - **The live month CLIPS THE FUTURE** (on the 10th, 22 of 31 cells were dashed placeholders). ⚠️ **The clip applies to the RENDER, not to `days`**: `const cellDays = isCur ? days.filter(d => !d.future) : days;`. Mutating `days` in place breaks two things — a future-dated expense vanishes from the chip's total while Today's tile still counts it, **and on a closed month `clipped` IS `days`, so `days.length = 0` renders ZERO cells.**
+- **Spend distribution** (`renderSpendDistribution`, `#spend-distribution`, between the patterns grid and `#cumulative-card`): the month's spending-day amounts as a **smoothed filled area curve**, with dashed **Median** and **P90** reference lines. It exists to make the skew legible — it is the visual explanation for why the Today tile reports a median (§3.5a), **not a standalone analytic**.
+  - ⚠️ **A distribution, so the Y axis is a DAY COUNT, not money.** That is exactly why there are no bars: the *length = money* rule (§3.2) is honoured by not using the mark it governs (D9). The Y axis is unlabelled; sienna reads as intensity, and nothing on this card is ever semantic red.
+  - ⚠️ **NOT a bell curve.** The asymmetry IS the finding — never fit or force a symmetric distribution.
+  - ⚠️ **The live month is CLIPPED at today**, same as `todayForecast()`. The card explains that tile's median, so it must be drawn from the same days or it marks a median the tile does not print. `distributionBuckets()` also takes the median **over days at or below P90** (D3) for the same reason.
+  - **Inline SVG, no Chart.js** — 14 bucket points is a trivial path, the labels stay real DOM (§8), and it needs no fourth chart and no new id-gated canvas plugin.
+  - ⚠️ **The curve RISES (`distRise`); it is never drawn with `stroke-dasharray`.** Under `preserveAspectRatio="none"` with `vector-effect: non-scaling-stroke`, Chrome lays the dash pattern along the **device-space** path while `stroke-dasharray` stays in user units — the two disagree by the viewBox scale and a "solid" line renders as chunks with gaps. `pathLength` does **not** reconcile them.
+  - **Reference labels are anchored to their own lines** (`.anchor-start`/`-mid`/`-end` flip which end is pinned near the card edges) — a label nudged away from its line labels the wrong value, and one pushed past the edge is the mobile-zoom trap. Colliding labels (<18% apart) stack onto a second row instead.
+  - `--dist-wash` has **separate light and dark values** — sienna at 0.18 all but vanishes on `#121212`.
+  - **Empty state: fewer than 3 spending days** → one line of copy, no axes, no partial curve. Half a curve would read as a finding.
 - **The archive shelf is DELETED.** `#month-shelf`, `renderArchiveShelf()`, `.shelf-*` are gone; the picker supersedes it. ⚠️ **Two different things are called "archive":** the closed-month `archiveCardHtml()` in the `#income-bar-card` slot **stays**, as does the Logs `.logs-tail` (a lazy-load control, not a month selector). If unsure which you're looking at, stop.
 
 ### 3.8 Capture flow (FAB → sheet → parse → confirm)
@@ -356,7 +404,7 @@ test/run.sh                the same suite in four timezones
 
 test/browser/helpers/app.js   openApp() — mocks the sheet, stubs Chart.js, pins the clock
 test/browser/fixtures/        GViz mock (deliberate month gap) + Chart.js stub
-test/browser/smoke.spec.js    26 checks, 2 projects (390 light-reduced / 900 dark-motion)
+test/browser/smoke.spec.js    38 checks, 2 projects (390 light-reduced / 900 dark-motion)
 ```
 
 **`test/` (pure logic):**
@@ -369,6 +417,7 @@ test/browser/smoke.spec.js    26 checks, 2 projects (390 light-reduced / 900 dar
 - **What belongs in core:** if it needs the DOM, the network or the wall clock, it stays in `index.html`. "Today" is always passed in.
 
 **`test/browser/` (browser level):**
+- **`openApp({ fixture })` picks the sheet.** `default` is the original one — its deliberate July gap and its `Aug 2026` export label are load-bearing for the first 26 checks, so a spec needing different data **adds a fixture to `FIXTURES`, never edits that one**. `skewed` (`gviz-fixture-skewed.js`) exists for §3.5a: 12 August spending days with two outliers, three complete prior months so the buffer applies, and an income that sits **between** the mean projection and the calibrated forecast — so the pace strip reads "on track" only if it is using the new figure. Keep that gap, or those checks stop proving anything.
 - **The harness is the reusable part; the assertions aren't.** `openApp()` is what used to be rewritten each session. A new check adds an assertion, not new plumbing.
 - **CI:** `.github/workflows/browser-tests.yml`, separate from the zero-install `tests.yml` so a browser-tooling failure can't be mistaken for a core-logic one. **`@playwright/test` is pinned exact**, not a range, so CI fetches the browser this suite was verified against.
 - ⚠️ **`page.emulateMedia()` before `goto()`, not the `reducedMotion` context/project option** — the option didn't reliably reach `matchMedia()` before the app's script ran. Matters because the app reads `matchMedia('(prefers-reduced-motion: reduce)')` **once**, into `REDUCED_MOTION`, at script-parse time (§3.2, §8).
@@ -542,6 +591,29 @@ bot's repo — `validateTransactions()` remains untested.
 3. **`page.emulateMedia()` before `goto()`, not the `reducedMotion` context option** (§3.12, §8).
 4. **`@playwright/test` is pinned exact** — a range would let CI fetch a different browser than the one verified against.
 
+### Median daily · calibrated forecast · distribution curve ✅ (2026-08-31)
+
+Source: `docs/SPEC_MEDIAN_FORECAST_20260831.md` (committed with this change). **D1–D9 are LOCKED**; the calculation reference is
+§3.5a, which is the canonical definition of "Median Daily" and "Forecast".
+
+| # | Locked decision |
+|---|---|
+| D1 | The metric is a **median**, not a mean — resistant to the high-value tail |
+| D2 | **Zero-spend days are excluded** from it; it means "a typical spending day" |
+| D3 | The median is taken over days **at or below P90 only** — or big days are counted twice |
+| D4 | The big-day threshold is **P90, self-adjusting** — no user-set threshold to maintain |
+| D5 | The buffer derives from the **trailing 3 complete months** |
+| D6 | The forecast is **one number**; the buffer is never surfaced or labelled |
+| D7 | Days 1–7 fall back to the **mean**, labelled `Average Daily` |
+| D8 | The forecast applies a **spend-day rate**, never a raw remaining-day count |
+| D9 | The Trends chart is a **smoothed distribution curve**, never a histogram of bars |
+
+1. **One forecast, two consumers.** The detail tile and the pace bar's overspend flip read the same `todayForecast()`. A third consumer calls it too — it does not recompute.
+2. **The overspend strip fires less often now, and that is the correction.** Do not retune it.
+3. **Trends' closed-month `an-avg`/`an-fc` tiles stay a mean** — they state a closed month's actuals, where there is no forecast to calibrate.
+4. **The Spending-patterns chip stays a mean**, and its to-the-cent parity with Today is formally retired (§3.7).
+5. **The distribution card is a distribution view (Y = day count)** and is a stated exception to *bars = money* — resolved by **not using bars**, not by excusing one.
+
 ### Design fix spec ✅ (2026-08-10, second pass)
 
 1. **`body` never pins the `wght` axis** (§3.2).
@@ -591,6 +663,9 @@ validation suite.
 - Adding `viewport-fit=cover` casually — every `env(safe-area-inset-*)` is currently inert, so turning it on shifts the FAB cluster's geometry and both top offsets at once (§3.3)
 - Spreading `--font-display` beyond the masthead month (§3.2)
 - Any change to the category donut's chart config (§3.7)
+- Recalibrating the overspend threshold to restore the old trigger rate, or blending the median and the big-day buffer back into one average (§3.5a)
+- Surfacing the buffer as its own figure — the forecast is one number (D6)
+- Drawing the distribution curve with `stroke-dasharray`, or turning it into bars (§3.7)
 - Reinstating the FAB long-press → camera accelerator, or any press-and-hold on the FAB, without a hardware verification plan (§3.3, §3.8)
 - Deleting `repaintNavCluster()` as dead code — a Chromium/Android workaround, unreproducible locally (§3.3)
 - `defer` on the Chart.js tag or the `lib/alfred-core.js` tag — both are called into at module scope by the inline script, which runs first
@@ -624,6 +699,7 @@ phase name referenced in an `index.html` comment.
 
 **CSS & platform**
 
+- **`stroke-dasharray` and a non-uniform `viewBox` do not compose.** Under `preserveAspectRatio="none"` with `vector-effect: non-scaling-stroke`, Chrome lays the dash pattern out along the **device-space** path while the dash values stay in user units. A dasharray meant to cover the whole path covers a fraction of it, and the "solid" line renders as chunks — with no error and a passing DOM assertion, since the `d` attribute is perfectly correct. `pathLength` does not reconcile the two. Animate scale or opacity instead, and **look at the pixels** — this one is invisible to every probe that reads markup.
 - **A scroll timeline on an unscrollable document is INACTIVE, and an inactive timeline's keyframes do not apply at all.** Any property an animation gates falls back to the base rule — which makes the *base rule* the value that has to be safe. Write the gate so the un-animated state is the **closed** one: turning something **on** in keyframes works; turning it **off** only works while the timeline happens to be live.
 - **A scroll-driven animation of a custom property is not off the main thread.** Only transform/opacity/filter/backdrop-filter get the compositor. The win is "no JS", not "no work" — and the cost scales with the number of `var()` consumers.
 - **In a variable font, `font-variation-settings` beats `font-weight` — and hides it.** `getComputedStyle().fontWeight` reports the declared value either way, so the DOM agrees with the CSS and only the pixels disagree. Assertions about weight must measure rendered ink, with the real variable font loaded.
@@ -640,6 +716,7 @@ phase name referenced in an `index.html` comment.
 
 **Design & interaction**
 
+- **A label nudged off its own reference line labels the wrong value.** Clamping a label's position to keep it on the card silently moves it away from the mark it names. Change which END of the label is pinned instead — the anchor moves, the position doesn't.
 - **If everything is reassuring, nothing is an alert.** Reserve semantic colour and solid fills for what has gone wrong; state the ordinary case in words.
 - **Emoji are a third colour system** — an emoji glyph in a tinted chip carries the OS font's palette alongside the app's ink and the category's hue. Inline SVG inheriting `currentColor` makes the chip one hue and themeable for free.
 - **A control that must be tapped should look like a slot, not a mark.** Seven bars on a card read as a chart; seven bars in seven tinted slots read as buttons.
@@ -657,6 +734,8 @@ phase name referenced in an `index.html` comment.
 
 **Data & architecture**
 
+- **Normal spend and big spend are two behaviours, and one average describes neither.** A mean sat between a cluster of ordinary days and a handful of large ones and reported a day the user never has. Model them separately — one median for the normal days, one buffer for the outliers — and never blend them back together. The corollary is a units trap: once a metric is per-*spending*-day, it can no longer be multiplied by calendar days.
+- **Two figures the user will compare must come from ONE call, not two matching formulas.** The forecast was computed twice, identically, in two functions; the moment one changed they would have disagreed on screen about whether the month was overspending. A shared, memoised function is the fix — a comment promising they agree is not.
 - **Two doors onto the same state must be built from the same list.** The picker offered only months holding data; the swipe was specced against calendar months. The disagreement is invisible until a user swipes into a month the picker refuses to show. Derive a second affordance from the first one's data, not from the underlying domain.
 - **"The topmost thing currently intersecting" is not a position readout.** It's asymmetric — scroll back and the item you're returning to has already left the band, so the readout latches on where you were. Use the observer as a *trigger* and resolve geometrically against a single line.
 - **"N months back" is not the same question as "N months of data."** Anything whose label promises what a tap will reveal must be counted the second way. **Fixtures for this need a deliberate gap.**
