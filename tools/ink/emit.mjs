@@ -38,7 +38,8 @@ function art({ ink, accent, anim, ground = true }) {
    never opened the app, which three bars do not (CLAUDE.md §3.15).
    d = 1 strips the detail that turns to mush below ~48px and fattens what is
    left, so the silhouette survives instead of going grey. */
-function pig({ ink, accent, d = 2, ground = true, wash = true }) {
+function pig({ ink, accent, d = 2, ground = true, wash = true,
+  washStops = ['#FBE9E3', '#F6D4C8', '#F0C0B1'] }) {
   const P = (dd, f) => `<path d="${dd}" fill="${f}"/>`;
   const w = d > 1 ? 1 : 1.45;          // one nib size for the whole small variant
   const lw = d > 1 ? 1 : 1.15;         // legs are a shape; they do not take the nib scale
@@ -95,8 +96,14 @@ function pig({ ink, accent, d = 2, ground = true, wash = true }) {
   // two objectBoundingBox gradients would each restart and show the join. It
   // is a tint of the sienna, not a new hue: a true pink would be the icon's
   // third colour. Inset 4 units so it never peeks past the ink outline.
+  // ⚠️ The stops are a PARAMETER, not literals, because the wash has to read
+  // on two grounds. The icon is a PNG on paper and takes the pinks directly.
+  // In-app the ink is warm-WHITE on dark, and warm-white on pale pink has
+  // almost no contrast — the outline stops doing its job and the pig reads as
+  // a blob. The masthead therefore passes CSS custom properties that flip to a
+  // warm DARK ramp under prefers-color-scheme: dark (§3.15).
   const washDefs = `<defs><linearGradient id="pigWash" gradientUnits="userSpaceOnUse" x1="250" y1="196" x2="278" y2="372">
-      <stop offset="0" stop-color="#FBE9E3"/><stop offset="0.55" stop-color="#F6D4C8"/><stop offset="1" stop-color="#F0C0B1"/>
+      <stop offset="0" stop-color="${washStops[0]}"/><stop offset="0.55" stop-color="${washStops[1]}"/><stop offset="1" stop-color="${washStops[2]}"/>
     </linearGradient></defs>`;
 
   const out = [
@@ -198,12 +205,17 @@ fs.writeFileSync('capture-receipt-markup.txt',
   + receipt({ ink: 'var(--loader-ink)', accent: 'var(--sienna)' }) + '</svg>');
 console.log('capture receipt emitted');
 
-/* The Today masthead's brand mark. d:1 (no tail, eye, nostrils or $ — at 34px
-   the coin is ~9px and a glyph inside it is mush), no ground shadow and no
-   pink wash, so it is the same two inks as the loader and the receipt.
-   viewBox is tight to the art WITHOUT the shadow. */
+/* The Today masthead's brand mark — the ICON's drawing, at full detail: tail,
+   eye, nostrils and the $ on the coin, over the pink wash.
+   ⚠️ The ONE thing it does not take from the tile is the ground shadow. That
+   shadow is drawn in the ink colour, and on the dark theme the ink is
+   warm-WHITE — so it renders as a pale smear under the feet rather than a
+   shadow. A shadow cannot be darker than a near-black surface; there is no
+   value that works, which is why this is a drop and not a re-tint.
+   viewBox is therefore tight to the art WITHOUT the shadow. */
 fs.writeFileSync('masthead-brand-markup.txt',
-  '<svg class="masthead-pig" viewBox="86 90 326 326" width="38" height="38" aria-hidden="true" focusable="false">'
-  + pig({ ink: 'var(--loader-ink)', accent: 'var(--sienna)', d: 1, ground: false, wash: false })
+  '<svg class="masthead-pig" viewBox="86 90 326 326" width="44" height="44" aria-hidden="true" focusable="false">'
+  + pig({ ink: 'var(--loader-ink)', accent: 'var(--sienna)', d: 2, ground: false, wash: true,
+          washStops: ['var(--pig-wash-1)', 'var(--pig-wash-2)', 'var(--pig-wash-3)'] })
   + '</svg>');
 console.log('masthead brand emitted');
