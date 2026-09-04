@@ -519,7 +519,14 @@
      the masthead's height and therefore --pill-travel are unchanged (§3.4).
      ⚠️ `[hidden] { display: none }` is load-bearing here too: the base
      `display: flex` beats the UA sheet's [hidden]. */
-  .masthead-brand { display: flex; align-self: center; flex: none; }
+  /* ⚠️ Nudged with a TRANSFORM, not a margin. `align-self: center` centres the
+     mark on the flex row, which leaves it sitting ~5px below the day text's
+     optical centre — the row is taller than the text. A margin would fix that
+     by changing layout, and layout is exactly what must not move here (the
+     masthead's height and --pill-travel, §3.4). A transform is painted, not
+     laid out, so the invariant holds by construction rather than by luck.
+     -5px lands the pig's feet on the serif's baseline; -7px rides high. */
+  .masthead-brand { display: flex; align-self: center; flex: none; transform: translateY(-5px); }
   .masthead-brand[hidden] { display: none; }
   .masthead-pig { display: block; }
 

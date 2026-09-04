@@ -229,6 +229,7 @@ up, so `space-between` still pins whichever one is visible to the right edge.
 - **The brand mark is Today-only**, toggled the same way (`mhBrand.hidden = !isToday`), and `.masthead-brand[hidden] { display: none }` is load-bearing for the same reason.
 - ⚠️ **No figures, still — but "tools only" no longer describes this slot.** The governing principle is about *measuring the period*, and a pig states nothing about it, so it is intact. But the mark is decoration, and it is the first decorative element in the app; it is here because it was asked for, not because the slot wanted filling. **A figure is still barred.**
 - ⚠️ **38px and `align-self: center`**, under `.month-btn`'s 44px floor — so the month button still sets the masthead's height, and the height and `--pill-travel` are byte-identical on all three tabs. Asserted, with a negative control at 60px (§3.12).
+- ⚠️ **The optical nudge is `transform: translateY(-5px)`, never a margin.** Centring on the flex row leaves the mark ~5px below the day text's optical centre, because the row is taller than the text. A margin would correct that by changing layout, and layout is precisely what must not move here; a transform is painted rather than laid out, so the height invariant holds by construction instead of by luck. −5px lands the pig's feet on the serif's baseline; −7px rides high.
 
 **The lift-off.** `--p` is a registered `@property` number, 0 at the top of a pane → 1 at
 hand-off, driven by a **scroll-driven animation on `body`** (`animation-range: 0 86px`), with a
