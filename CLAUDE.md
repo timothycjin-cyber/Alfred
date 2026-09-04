@@ -526,7 +526,7 @@ One nib, **three subjects, one per job** — a small cast, not one logo stretche
 | App icon (`icons/*.png`) | **Piggy bank taking a coin** | The tile has to say *money* to someone who has never opened the app. Bars do not. |
 | Loader (`#main-loader .loader-mark`) | **Four bars on a baseline** | It is the app's own data grammar (§3.2, length = money), and four is what the loader always had. |
 | Capture parse (`#capture-parse .capture-receipt`, §3.8) | **A receipt printing** | It names *what* is being waited on, which a generic busy mark cannot. |
-| Today masthead (`#masthead-brand .masthead-pig`, §3.4) | **The icon's pig, in-app** | The one place the tile's mark appears inside the app. Decoration, and the only decoration. |
+| Today masthead (`#masthead-brand .masthead-pig`, §3.4) | **The icon's pig, in-app, at full detail** | The one place the tile's mark appears inside the app. Decoration, and the only decoration. |
 
 ⚠️ **The icon and the loader are deliberately NOT the same drawing.** They were for one commit;
 the icon's job is recognition in a grid of other apps, the loader's is continuity with the
@@ -589,17 +589,29 @@ back — that argument has been had and this table is the answer.
   ⚠️ The `$` is **ink on sienna** (~4.3:1), not a knockout in the paper colour (~3.9:1), which
   also keeps the drawing to two inks. It is `d: 2` only; at 64px the coin is ~20px and a glyph
   inside it is mush.
-- ⚠️ **The in-app pig is NOT the icon's pig.** `pig()` takes `ground` and `wash`; the masthead
-  mark passes **both false** and `d: 1`. The ground shadow is ink-coloured and inverts into a
-  pale puddle on dark; the wash is a fixed tint that would make this the only non-two-colour
-  mark in the app's chrome; and at 38px the coin is ~9px, so the `$` and the tail would be mush.
-  It is `aria-hidden`, not a button, and takes no tab stop — it states nothing and does nothing.
-- **The pink wash is ICON-ONLY, and it is a tint of the sienna, not a new hue** — a true pink
+- **The in-app pig IS the icon's drawing** — `d: 2` at **44px**, so the tail, eye, nostrils and
+  the `$` all come across, over the pink wash. It is `aria-hidden`, not a button, and takes no
+  tab stop; it states nothing and does nothing. Two things differ from the tile, both forced:
+  - ⚠️ **No ground shadow, and this one cannot be fixed by re-tinting.** The shadow is drawn in
+    the ink colour, and on dark the ink is warm-**white** — so it renders as a pale smear under
+    the feet. A shadow has to be darker than its ground, and nothing is darker than `#121212`
+    here. `ground: false`, permanently.
+  - ⚠️ **The wash stops are TOKENS (`--pig-wash-1..3`), never the icon's literal pinks.**
+    Warm-white ink on pale pink has almost no contrast: on dark the outline stops doing its job
+    and the pig reads as a blob. Dark swaps in a warm near-black ramp (`#3A2E28` → `#241C19`),
+    so the body still separates from the surface and the ink still draws it. **The regression
+    is invisible in the light theme**, which is why the suite asserts no `stop-color="#"` is
+    present at all. The icon PNGs keep the literal pinks — a PNG has no tokens and always sits
+    on paper, so `pig()` takes them as a `washStops` parameter.
+  - **44px is the ceiling**, equal to `.month-btn`'s floor: the month button still sets the
+    masthead's height, and the height and `--pill-travel` stay byte-identical on all three tabs.
+- **The pink wash is a tint of the sienna, not a new hue** — a true pink
   would be the drawing's third colour. ⚠️ **One `linearGradient` in `userSpaceOnUse` spans BOTH
   the body and the snout.** Two `objectBoundingBox` gradients each restart inside their own
   shape, so the overlap shows a seam. ⚠️ The fill shapes are inset 6 units at jitter **0.02**,
   not `blob()`'s default 0.05 — at 5% the fill's own wobble pushes past the outline's inner edge
-  and fringes pink outside the drawing. The loader and the capture receipt stay two-colour.
+  and fringes pink outside the drawing. **The loader and the capture receipt stay two-colour** —
+  the wash reaches the icon and the masthead mark only.
 - ⚠️ **The body arc STOPS either side of the snout** (`GAP = 0.36` rad in `pig()`), it does not
   run behind it. Drawn as a full ring, the body's right edge cuts a chord straight across the
   snout; the snout has no fill to hide it, and giving it one would tie the drawing to a single
@@ -863,8 +875,11 @@ recorded here so they are not re-proposed as new.
    pretending otherwise.
 3. **The in-app pig drops the ground shadow and the pink wash** — both are icon-only, and the
    in-app marks are two inks that flip with the theme.
-4. **38px, under the 44px floor.** The masthead's height and `--pill-travel` are unchanged on
+4. **44px, equal to the 44px floor.** The masthead's height and `--pill-travel` are unchanged on
    all three tabs, asserted with a 60px negative control.
+5. **The mark is the icon's full drawing** (2026-09-04, tenth pass) — the stripped `d: 1`
+   variant was not what was wanted. It keeps the wash but as **themed tokens**, and still drops
+   the ground shadow, which cannot survive a dark ground at any tint.
 
 ### Design fix spec ✅ (2026-08-10, second pass)
 
@@ -911,7 +926,7 @@ validation suite.
 - Restoring the app header, or moving any *figure* into the masthead or the pill (§3.3, §3.4). **Today DOES have a masthead** — it states the date and is inert
 - Reinstating the masthead chevrons, any month stepper, the Trends archive shelf, or the binary `.condensed` condense-on-scroll (§3.4, §3.7)
 - Reinstating the Logs toolbar row, or putting a *figure* in the masthead's right slot (§3.4, §3.6) — the Today brand mark is not a figure and does not reopen this
-- Giving the in-app pig the icon's ground shadow or pink wash, or making it a button (§3.15)
+- Giving the in-app pig the icon's ground shadow, hard-coding its wash stops as literal pinks, or making it a button (§3.15)
 - Setting `.pill { pointer-events: auto }` — the resting value must stay `none` (§3.4, §8)
 - Adding `viewport-fit=cover` casually — every `env(safe-area-inset-*)` is currently inert, so turning it on shifts the FAB cluster's geometry and both top offsets at once (§3.3)
 - Spreading `--font-display` beyond the masthead month (§3.2)
@@ -968,7 +983,7 @@ phase name referenced in an `index.html` comment.
 - **A scroll timeline on an unscrollable document is INACTIVE, and an inactive timeline's keyframes do not apply at all.** Any property an animation gates falls back to the base rule — which makes the *base rule* the value that has to be safe. Write the gate so the un-animated state is the **closed** one: turning something **on** in keyframes works; turning it **off** only works while the timeline happens to be live.
 - **A scroll-driven animation of a custom property is not off the main thread.** Only transform/opacity/filter/backdrop-filter get the compositor. The win is "no JS", not "no work" — and the cost scales with the number of `var()` consumers.
 - **In a variable font, `font-variation-settings` beats `font-weight` — and hides it.** `getComputedStyle().fontWeight` reports the declared value either way, so the DOM agrees with the CSS and only the pixels disagree. Assertions about weight must measure rendered ink, with the real variable font loaded.
-- **A token that has to read on two grounds needs two values.**
+- **A token that has to read on two grounds needs two values.** Its sharpest form: a *fill* and the *ink drawn on top of it* are one such pair. Porting the icon's pale-pink body into the app kept the light theme perfect and, on dark, put warm-white ink on pale pink — the outline vanished into its own fill and the drawing became a blob. **A shadow is the case with no solution:** it must be darker than its ground, and on a near-black surface no value is, so it is dropped rather than re-tinted.
 - **`env(safe-area-inset-*)` does nothing without `viewport-fit=cover`.** Without that meta every `env()` resolves to `0px`, so a stylesheet can be full of inset arithmetic that has never once been evaluated — and the check passes because both sides are zero.
 - **A compositing layer that nothing invalidates never repaints.** When the browser won't invalidate a layer, ask it to: drop the filter for one frame and put it back.
 - **A cancelled file picker fires nothing.** No `change`, no reliable `cancel` — so a flag set before opening one outlives the gesture and is still set at the user's next, unrelated pick. Read-and-clear at the top of the handler.

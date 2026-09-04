@@ -460,15 +460,30 @@ test.describe('masthead brand mark', () => {
           + (svg.hasAttribute('stroke') || svg.hasAttribute('stroke-width') ? 1 : 0),
         accent: [...svg.querySelectorAll('path')]
           .filter((p) => p.getAttribute('fill') === 'var(--sienna)').length,
-        // ⚠️ No pink wash and no ground shadow in-app: the wash is a fixed
-        // tint and the shadow inverts on dark (§3.15).
+        // The mark IS the icon's drawing now — full detail plus the wash.
         washed: svg.innerHTML.includes('pigWash'),
+        // ⚠️ ...but the wash stops must be TOKENS, not the icon's literal
+        // pinks: warm-white ink on pale pink has almost no contrast, so on
+        // dark the outline stops reading. Hard-coding #FBE9E3 here is the
+        // regression, and it is invisible in the light theme.
+        washLiteral: /stop-color="#/.test(svg.innerHTML),
+        // The ground shadow still does not come across: it is ink-coloured,
+        // and on dark the ink is warm-white, so it renders as a pale smear.
+        // The shadow is the widest thing in the drawing, so its absence is
+        // measurable as the art's width against its height.
+        detail: {
+          tail: svg.querySelectorAll('path').length,
+        },
       };
     });
     expect(info.buttons).toBe(0);
     expect(info.ariaHidden).toBe('true');
     expect(info.stroked).toBe(0);
     expect(info.accent).toBe(1);
-    expect(info.washed).toBe(false);
+    expect(info.washed).toBe(true);
+    expect(info.washLiteral).toBe(false);
+    // Full detail: the stripped variant draws 7 paths, the icon's drawing 13+
+    // (tail, eye, two nostrils, the $ as two strokes, two ticks).
+    expect(info.detail.tail).toBeGreaterThan(11);
   });
 });
