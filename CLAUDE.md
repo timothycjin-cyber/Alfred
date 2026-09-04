@@ -28,7 +28,10 @@ busy indicator and never two. **Corrected on device evidence:** the icon is **on
 "any maskable"` — a launcher masks a `purpose: "any"` icon too, so the earlier full-bleed/maskable
 split shipped a clipped home-screen icon with a correctly-sized file sitting unused beside it.
 The scale comes from the furthest **ink pixel** (192.1), never the bbox corner (226.7).
-**Also 2026-09-04:** the pig now appears **in-app**, in the Today masthead's right slot (§3.4,
+**Also 2026-09-04:** the loader's bars now **lift (`translateY`) instead of squashing
+(`scaleY`)**, a quarter-cycle apart rather than 120ms — a shared scale factor over four different
+bar heights flattened the ascending silhouette mid-cycle, and the clustered phases made the four
+move as one lump (§3.15). The pig now appears **in-app**, in the Today masthead's right slot (§3.4,
 §3.15) — `d: 1`, no ground shadow, no pink wash, two themed inks. It is decoration and is
 labelled as such: not a button, `aria-hidden`, no tab stop.
 Previous banner (median daily,
@@ -543,18 +546,25 @@ back — that argument has been had and this table is the answer.
 - ⚠️ **The loader has NO ground shadow; the icon does.** The shadow is ink-coloured, so on the
   dark theme it inverts into a pale puddle under the mark. The icon always sits on paper and
   keeps it. Do not "restore" the shadow to the loader for consistency — the two grounds differ.
-- **Animation:** `.lb` groups bounce in sequence (`loaderBounce`, **1s, 120ms stagger,
-  `ease-in-out`** — the CSS loader's original rhythm) with `transform-box: fill-box`; `.lt` ticks
-  pulse. Reduced motion moves the pulse to the whole mark and sets `.lb`/`.lt` to
-  `animation: none` — which is also what makes the bars sit full height.
-- ⚠️ **The keyframes must be SYMMETRIC: `0%` and `100%` hold the same value.** The first version
-  grew to `scaleY(1)`, sat there for half the cycle, then jumped back to `0.08` at the wrap —
-  a stutter once per loop that no DOM assertion can see, because the markup is identical either
-  way. Asserted by reading the rule out of the stylesheet (§3.12).
-- ⚠️ **A DRAWN bar cannot squash as far as a filled one.** The floor is **0.5**, not the old CSS
-  loader's 0.25, and the resting heights are **110/150/190/230** rather than starting at 88: the
-  box outline is 13 units thick top and bottom, so a short bar at a low floor closes up into a
-  blob. Lower the floor or shorten the first bar and it mushes — check the frames, not the code.
+- **Animation:** `.lb` groups **LIFT** in sequence (`loaderBounce`, **1s, `translateY(-26px)`,
+  `ease-in-out`, a 250ms stagger**); `.lt` ticks pulse. Reduced motion moves the pulse to the
+  whole mark and sets `.lb`/`.lt` to `animation: none` — which is also what sets the bars back
+  down on the baseline.
+- ⚠️ **The bars TRANSLATE; they are never scaled.** Two separate breakages, both invisible to a
+  DOM assertion: `scaleY` thins the mark's own 13-unit outline (the shortest bar closes into a
+  blob), **and** because every bar scales by the same *factor* while their heights differ
+  (110/150/190/230), the tall bar travels twice as far as the short one and the ascending
+  silhouette flattens into four equal stubs halfway through each cycle. A translate moves all
+  four the same distance and leaves the drawing untouched at every frame. The offset is in user
+  units, so it scales with the mark. Asserted (§3.12); check the frames, not the numbers.
+- ⚠️ **The stagger is a QUARTER-CYCLE (250ms), not 120ms.** At 120ms all four phases sat in the
+  first third of the loop, so the bars rose together and fell together with a dead stretch
+  after — the lump that reads as "not seamless". A quarter apart, one bar is always rising and
+  one always falling.
+- ⚠️ **The keyframes must be SYMMETRIC: `0%` and `100%` hold the same value.** A loop that grows
+  and then jumps back at the wrap stutters once per cycle, and no DOM assertion can see it
+  because the markup is identical either way. Asserted by reading the rule out of the
+  stylesheet (§3.12).
 - ⚠️ **The capture receipt has NO paper fill** — a white fill is a bright block on the dark
   theme, and a token fill would fight the sheet it sits on. It is an outline drawing, so it
   needs neither. It has no ground shadow either, for the same reason the loader has none.
@@ -830,7 +840,18 @@ recorded here so they are not re-proposed as new.
 2. **The keyframes are symmetric** (`0%`/`100%` equal) on the original 1s / 120ms / `ease-in-out`
    rhythm. An asymmetric loop stutters once per cycle and nothing but the eye reports it.
 3. **The squash floor is 0.5 and the shortest bar is 110 tall** — a drawn outline cannot squash
-   like a filled rect.
+   like a filled rect. *(Superseded the same day, ninth pass: **the bars are not squashed at
+   all.** See below.)*
+
+### Loader bounce — lift, not squash ✅ (2026-09-04, ninth pass)
+
+1. **The bounce is a `translateY`, never a `scaleY`.** A shared scale factor over four different
+   bar heights flattens the ascending silhouette mid-cycle, on top of thinning the drawn
+   outline. Both are why the motion read as "loafing" rather than bouncing.
+2. **The stagger is a quarter-cycle (250ms).** Evenly spread phases, no clump and no dead
+   stretch. This supersedes the "original 1s / 120ms rhythm" decision above.
+3. **The keyframe check now also asserts the transform is a translate**, with a negative control
+   proved against the old `scaleY` rule.
 
 ### Brand mark in the Today masthead ✅ (2026-09-04, seventh pass)
 
@@ -908,6 +929,7 @@ validation suite.
 - Parsing a row's date with `new Date(row.Date)` or `new Date(row.Date + 'T00:00:00')` (§1, §3.12)
 - Interpolating sheet text into `innerHTML` without `escapeHtml()` (§3.6)
 - Stroking any part of the marker mark, hand-editing its path data, or adding the ground shadow back to the loader or the capture receipt (§3.15)
+- Scaling the loader's bars instead of translating them, or clustering their phases back into the first third of the cycle (§3.15)
 - Giving the loader or the capture receipt a second colour, or spreading the icon's pink wash to either of them — the wash is icon-only and is a tint of the sienna, not a third hue (§3.15)
 - Reusing `FRAME`'s numbers after changing the drawing without re-measuring `getBBox()` (§3.15)
 - Running the send-arrow spinner and the capture receipt at the same time, or giving the receipt a paper fill (§3.8, §3.15)
@@ -957,7 +979,9 @@ phase name referenced in an `index.html` comment.
 - **A horizontal transform + `position:fixed; right:0` = a mobile zoom trap** (§3.2). Caught by measuring `scrollWidth`, not by eye.
 - **Chart.js custom canvas draws must be gated by `canvas.id`** — ungated plugins bleed onto every chart on the page.
 - **A looping animation whose first and last keyframe differ stutters once per cycle, and nothing reports it.** The markup is identical, the computed styles are identical, every DOM assertion passes; the defect exists only between the last frame and the first. Write loops symmetric, and assert it by reading the keyframe rule itself — that is the one place the discontinuity is visible to a test.
-- **A drawn mark cannot be transformed as freely as a solid one.** `scaleY(0.25)` on a filled rounded rect is a squash; on a 13-unit outline it closes the interior and reads as a blob. Any transform on generated line art has to be judged on rendered frames, not on the transform's numbers.
+- **A drawn mark cannot be transformed as freely as a solid one.** `scaleY(0.25)` on a filled rounded rect is a squash; on a 13-unit outline it closes the interior and reads as a blob. Any transform on generated line art has to be judged on rendered frames, not on the transform's numbers. **The fix is usually a different transform, not a gentler one** — the loader's bars translate, which distorts nothing at any amplitude and left the squash-floor tuning with nothing to tune.
+- **A shared scale factor over elements of different sizes is not a shared motion.** Scaling four bars of 110/150/190/230 by the same 0.5→1 moves the tall one twice as far as the short one, so the shape the mark exists to show — an ascending chart — flattens to four equal stubs halfway through every cycle and springs back. Every keyframe is correct; the silhouette *between* them is the defect. Equal-distance motion (a translate) is the shape-preserving choice.
+- **A stagger shorter than a cycle divided by the number of elements makes a lump, not a wave.** Four bars 120ms apart in a 1000ms loop all move in the first third and then nothing moves — read as a stutter even though the timing function is perfectly smooth. Spread phases evenly across the cycle.
 - **Reading `.cssRules` on a cross-origin stylesheet throws, and one bad sheet kills the whole `page.evaluate`.** The app links Google Fonts, so any probe that walks `document.styleSheets` must `try/catch` per sheet — otherwise it fails against perfectly correct CSS and looks like a real finding.
 
 **Design & interaction**

@@ -1330,28 +1330,38 @@
      rather than stroked. Every mark is a FILLED tapered path — a uniform
      stroked line is what makes a hand-drawn mark read as clip art — so there
      is no stroke-width anywhere in it and nothing here scales by stroke.
-     The bars grow in sequence; the ticks are the first thing to go quiet. */
+     The bars lift in sequence; the ticks are the first thing to go quiet. */
   .loader-mark { display: block; margin-bottom: 14px; }
   .loader-mark .lb {
-    transform-box: fill-box; transform-origin: 50% 100%;
     animation: loaderBounce 1s ease-in-out infinite;
   }
-  .loader-mark .lb2 { animation-delay: 120ms; }
-  .loader-mark .lb3 { animation-delay: 240ms; }
-  .loader-mark .lb4 { animation-delay: 360ms; }
+  /* Phases are spread EVENLY over the cycle (a quarter each), not clustered in
+     its first third. At a 120ms stagger all four bars rose together and fell
+     together, leaving a dead stretch every loop — the lump the eye reads as
+     "not seamless". A quarter-cycle apart, one bar is always on the way up and
+     one always on the way down. */
+  .loader-mark .lb2 { animation-delay: 250ms; }
+  .loader-mark .lb3 { animation-delay: 500ms; }
+  .loader-mark .lb4 { animation-delay: 750ms; }
   .loader-mark .lt {
     transform-box: fill-box; transform-origin: 50% 100%;
     animation: loaderTick 1.5s ease-in-out infinite;
   }
   /* ⚠️ SYMMETRIC — the first and last keyframes must hold the same value.
-     The previous version grew to scaleY(1), sat there for half the cycle and
-     then JUMPED back to 0.08 at the wrap. Nothing reports that; it just reads
-     as a stutter once per loop. A bounce that starts and ends in the same
-     place has no seam to see. Same 1s / 120ms rhythm as the CSS bars this
-     replaced. */
+     A bounce that starts and ends in the same place has no seam to see; one
+     that grows and then jumps back stutters once per loop, and nothing but the
+     eye reports it.
+     ⚠️ The bars LIFT, they do not squash. scaleY distorts the drawing — the
+     outline is 13 units thick, so a squashed bar thins its own line and the
+     shortest one closes into a blob — and because every bar scales by the same
+     FACTOR while their heights differ, the tall bar travelled twice as far as
+     the short one and the ascending silhouette flattened to four equal stubs
+     mid-cycle. A translate moves all four by the same distance, leaves the
+     drawing untouched at every frame, and keeps the chart readable throughout.
+     The offset is in user units, so it scales with the mark. */
   @keyframes loaderBounce {
-    0%, 100% { transform: scaleY(0.5); }
-    50% { transform: scaleY(1); }
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-26px); }
   }
   @keyframes loaderTick {
     0%, 100% { opacity: 0.25; transform: scale(0.86); }
@@ -1766,9 +1776,9 @@
       animation: refreshSpin 0.7s linear infinite;
     }
     /* Loader still signals activity, but the whole mark breathes instead of
-       the bars growing — pulsing the three pieces separately would be busier
-       than the animation it replaces. Clearing .lb's animation also drops its
-       scaleY, so the bars sit at full height. */
+       the bars lifting — pulsing the three pieces separately would be busier
+       than the animation it replaces. Clearing .lb's animation drops its
+       translate, so the bars sit back down on the baseline. */
     .loader-mark { animation: loaderPulse 1.6s ease-in-out infinite; }
     .loader-mark .lb, .loader-mark .lt { animation: none; }
   }
