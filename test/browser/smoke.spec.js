@@ -372,3 +372,62 @@ test.describe('capture parse busy state', () => {
     await expect(page.locator('#capture-card')).not.toHaveClass(/busy/);
   });
 });
+
+test.describe('masthead brand mark', () => {
+  test('rides in the right slot on Today only', async ({ page }) => {
+    await openApp(page, { view: 'today' });
+    await expect(page.locator('#masthead-brand')).toBeVisible();
+    await expect(page.locator('#masthead-actions')).toBeHidden();
+
+    for (const view of ['logs', 'trends']) {
+      await page.evaluate((v) => switchView(v), view);
+      await expect(page.locator('#masthead-brand')).toBeHidden();
+    }
+    // ...and the Logs actions still get the slot to themselves.
+    await page.evaluate(() => switchView('logs'));
+    await expect(page.locator('#masthead-actions')).toBeVisible();
+  });
+
+  test('does not change the masthead height or --pill-travel on any tab', async ({ page }) => {
+    // CLAUDE.md §3.4: anything added to the right slot must leave the
+    // masthead's height and the pill's measured travel alone. The mark is
+    // 38px against .month-btn's 44px floor and align-self: center, so the
+    // month-button is still what sets the height — this is what proves it.
+    await openApp(page, { view: 'today' });
+    const seen = [];
+    for (const view of ['today', 'logs', 'trends']) {
+      await page.evaluate((v) => switchView(v), view);
+      await page.waitForTimeout(120);
+      seen.push(await page.evaluate(() =>
+        document.getElementById('masthead').getBoundingClientRect().height));
+    }
+    expect(new Set(seen).size).toBe(1); // identical on all three tabs
+  });
+
+  test('states nothing and takes no tab stop', async ({ page }) => {
+    // It is decoration: not a button, hidden from the accessibility tree, and
+    // never a focus target. A brand mark that announces itself is noise.
+    await openApp(page, { view: 'today' });
+    const info = await page.evaluate(() => {
+      const el = document.getElementById('masthead-brand');
+      const svg = el.querySelector('.masthead-pig');
+      return {
+        buttons: el.querySelectorAll('button, a, [tabindex]').length,
+        ariaHidden: svg.getAttribute('aria-hidden'),
+        // Same style rule as every other mark from this nib.
+        stroked: svg.querySelectorAll('[stroke], [stroke-width]').length
+          + (svg.hasAttribute('stroke') || svg.hasAttribute('stroke-width') ? 1 : 0),
+        accent: [...svg.querySelectorAll('path')]
+          .filter((p) => p.getAttribute('fill') === 'var(--sienna)').length,
+        // ⚠️ No pink wash and no ground shadow in-app: the wash is a fixed
+        // tint and the shadow inverts on dark (§3.15).
+        washed: svg.innerHTML.includes('pigWash'),
+      };
+    });
+    expect(info.buttons).toBe(0);
+    expect(info.ariaHidden).toBe('true');
+    expect(info.stroked).toBe(0);
+    expect(info.accent).toBe(1);
+    expect(info.washed).toBe(false);
+  });
+});

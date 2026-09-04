@@ -28,6 +28,9 @@ busy indicator and never two. **Corrected on device evidence:** the icon is **on
 "any maskable"` — a launcher masks a `purpose: "any"` icon too, so the earlier full-bleed/maskable
 split shipped a clipped home-screen icon with a correctly-sized file sitting unused beside it.
 The scale comes from the furthest **ink pixel** (192.1), never the bbox corner (226.7).
+**Also 2026-09-04:** the pig now appears **in-app**, in the Today masthead's right slot (§3.4,
+§3.15) — `d: 1`, no ground shadow, no pink wash, two themed inks. It is decoration and is
+labelled as such: not a button, `aria-hidden`, no tab stop.
 Previous banner (median daily,
 calibrated forecast and the distribution curve, §3.5a) is in the history skill. **One banner: the
 current change only**; superseded ones move to the history skill, not into a queue. Two facts
@@ -216,12 +219,16 @@ Three text tabs in a 280×**56**px glass pill (4px padding, 4px gaps). Today is 
 - **Per tab:** Today reads the **date** (`Monday` + `11 August` in `.sm`; pill `11 Aug`) and is **inert** — no caret, `tabindex="-1"`, `aria-haspopup="false"`, and `openMonthPicker()` refuses it. Today's period is a **day**, so the unit itself distinguishes readout from control. Trends and Logs read `MONTHS_FULL[viewMonth]` + year (pill `Aug 2026`) and open the picker.
 - **Visibility, all three tabs:** show once `earliestDataMonth() !== null`. `body.has-masthead` must stay in step (it's what stops the double status-bar inset).
 
-**The right slot** (`#masthead-actions`) holds the **Logs** actions — recurring glyph + export
-icon (moved out of the deleted `.logs-toolbar`, §3.6).
+**The right slot** holds two mutually exclusive things: `#masthead-actions`, the **Logs** actions
+(recurring glyph + export icon, moved out of the deleted `.logs-toolbar`, §3.6), and
+`#masthead-brand`, the **Today** brand mark (§3.15). Trends leaves it empty. They are never both
+up, so `space-between` still pins whichever one is visible to the right edge.
 
 - **Logs-only via `hidden`:** `renderMasthead()` sets `mhActions.hidden = currentView !== 'logs'`. ⚠️ `.masthead-actions[hidden] { display: none }` is **load-bearing** — the base `display: flex` beats the UA sheet's `[hidden]` (same trap as `.pill[hidden]`). `hidden`, not opacity/visibility, because it also controls tab order.
 - ⚠️ **`align-self: center`**, against the container's `align-items: baseline`. An icon button has no baseline, so baseline alignment drops it below the serif and **changes the masthead's height**, moving the title and re-deriving `--pill-travel`.
-- **Tools, not figures** — a repeat glyph and a download glyph state nothing about the month, so the governing principle is intact.
+- **The brand mark is Today-only**, toggled the same way (`mhBrand.hidden = !isToday`), and `.masthead-brand[hidden] { display: none }` is load-bearing for the same reason.
+- ⚠️ **No figures, still — but "tools only" no longer describes this slot.** The governing principle is about *measuring the period*, and a pig states nothing about it, so it is intact. But the mark is decoration, and it is the first decorative element in the app; it is here because it was asked for, not because the slot wanted filling. **A figure is still barred.**
+- ⚠️ **38px and `align-self: center`**, under `.month-btn`'s 44px floor — so the month button still sets the masthead's height, and the height and `--pill-travel` are byte-identical on all three tabs. Asserted, with a negative control at 60px (§3.12).
 
 **The lift-off.** `--p` is a registered `@property` number, 0 at the top of a pane → 1 at
 hand-off, driven by a **scroll-driven animation on `body`** (`animation-range: 0 86px`), with a
@@ -457,7 +464,7 @@ test/run.sh                the same suite in four timezones
 
 test/browser/helpers/app.js   openApp() — mocks the sheet, stubs Chart.js, pins the clock
 test/browser/fixtures/        GViz mock (deliberate month gap) + Chart.js stub
-test/browser/smoke.spec.js    51 checks, 2 projects (390 light-reduced / 900 dark-motion)
+test/browser/smoke.spec.js    61 checks, 2 projects (390 light-reduced / 900 dark-motion)
 ```
 
 **`test/` (pure logic):**
@@ -515,6 +522,7 @@ One nib, **three subjects, one per job** — a small cast, not one logo stretche
 | App icon (`icons/*.png`) | **Piggy bank taking a coin** | The tile has to say *money* to someone who has never opened the app. Bars do not. |
 | Loader (`#main-loader .loader-mark`) | **Three bars on a baseline** | It is the app's own data grammar (§3.2, length = money), and it is what the loader always was. |
 | Capture parse (`#capture-parse .capture-receipt`, §3.8) | **A receipt printing** | It names *what* is being waited on, which a generic busy mark cannot. |
+| Today masthead (`#masthead-brand .masthead-pig`, §3.4) | **The icon's pig, in-app** | The one place the tile's mark appears inside the app. Decoration, and the only decoration. |
 
 ⚠️ **The icon and the loader are deliberately NOT the same drawing.** They were for one commit;
 the icon's job is recognition in a grid of other apps, the loader's is continuity with the
@@ -561,6 +569,11 @@ back — that argument has been had and this table is the answer.
   ⚠️ The `$` is **ink on sienna** (~4.3:1), not a knockout in the paper colour (~3.9:1), which
   also keeps the drawing to two inks. It is `d: 2` only; at 64px the coin is ~20px and a glyph
   inside it is mush.
+- ⚠️ **The in-app pig is NOT the icon's pig.** `pig()` takes `ground` and `wash`; the masthead
+  mark passes **both false** and `d: 1`. The ground shadow is ink-coloured and inverts into a
+  pale puddle on dark; the wash is a fixed tint that would make this the only non-two-colour
+  mark in the app's chrome; and at 38px the coin is ~9px, so the `$` and the tail would be mush.
+  It is `aria-hidden`, not a button, and takes no tab stop — it states nothing and does nothing.
 - **The pink wash is ICON-ONLY, and it is a tint of the sienna, not a new hue** — a true pink
   would be the drawing's third colour. ⚠️ **One `linearGradient` in `userSpaceOnUse` spans BOTH
   the body and the snout.** Two `objectBoundingBox` gradients each restart inside their own
@@ -801,6 +814,19 @@ recorded here so they are not re-proposed as new.
    **replaces** the send-arrow spinner rather than joining it, and reduced motion swaps them
    back the other way — one indicator either way.
 
+### Brand mark in the Today masthead ✅ (2026-09-04, seventh pass)
+
+1. **The right slot now holds two mutually exclusive things** — Logs actions, Today brand mark.
+   Trends leaves it empty. A third thing needs a reason, not just space.
+2. **The mark is decoration, and says so.** Not a button, `aria-hidden`, no tab stop. The
+   governing principle (the masthead never *measures* the period) is intact; "tools, not
+   figures" no longer describes the slot on its own, and the file says that rather than
+   pretending otherwise.
+3. **The in-app pig drops the ground shadow and the pink wash** — both are icon-only, and the
+   in-app marks are two inks that flip with the theme.
+4. **38px, under the 44px floor.** The masthead's height and `--pill-travel` are unchanged on
+   all three tabs, asserted with a 60px negative control.
+
 ### Design fix spec ✅ (2026-08-10, second pass)
 
 1. **`body` never pins the `wght` axis** (§3.2).
@@ -845,7 +871,8 @@ validation suite.
 - Re-pinning the `wght` axis on `body`; reinstating the white heatmap ink, the green good-news states, or `Budget` as a transaction-type label (§3.2, §3.5)
 - Restoring the app header, or moving any *figure* into the masthead or the pill (§3.3, §3.4). **Today DOES have a masthead** — it states the date and is inert
 - Reinstating the masthead chevrons, any month stepper, the Trends archive shelf, or the binary `.condensed` condense-on-scroll (§3.4, §3.7)
-- Reinstating the Logs toolbar row, or putting a *figure* in the masthead's right slot (§3.4, §3.6)
+- Reinstating the Logs toolbar row, or putting a *figure* in the masthead's right slot (§3.4, §3.6) — the Today brand mark is not a figure and does not reopen this
+- Giving the in-app pig the icon's ground shadow or pink wash, or making it a button (§3.15)
 - Setting `.pill { pointer-events: auto }` — the resting value must stay `none` (§3.4, §8)
 - Adding `viewport-fit=cover` casually — every `env(safe-area-inset-*)` is currently inert, so turning it on shifts the FAB cluster's geometry and both top offsets at once (§3.3)
 - Spreading `--font-display` beyond the masthead month (§3.2)
