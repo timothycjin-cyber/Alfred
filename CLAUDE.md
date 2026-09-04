@@ -194,7 +194,7 @@ linear(...))` these become sampled damped-spring curves (wobble 320/ζ0.62 ~632m
 - **Mount-then-spring:** elements born at final state never animate — mount at the previous state, apply the real value one frame later.
 - **Shared-axis tab slide:** `.axis-in-left/right` in `switchView()`. ⚠️ **`.container` must keep `overflow-x: clip`** — the transient `translateX` widens the document, then `position:fixed; right:0` bars size to the widened viewport and *sustain* it, which mobile zooms to fit. `clip`, not `hidden` (that kills vertical scroll/sticky).
 - **`prefers-reduced-motion`:** zeroes motion tokens + stagger; the JS `REDUCED_MOTION` flag makes counters instant, sets `Chart.defaults.animation = false`, skips the typewriter, disables smooth scroll.
-- **Loader:** the marker mark — **four** drawn bars on a baseline, tallest one sienna, bouncing in sequence on the same 1s / 120ms rhythm as the CSS bars it replaced (§3.15). Reduced motion pulses the whole mark and clears `.lb`'s animation, which is what drops its `scaleY` so the bars sit at full height.
+- **Loader:** the marker mark — **four** drawn bars on a baseline, tallest one sienna, **lifting** in sequence (1s, `translateY(-26px)`, a **250ms** quarter-cycle stagger — §3.15, which is where the two traps behind both numbers live). Reduced motion pulses the whole mark and clears `.lb`'s animation, which is what drops its `translateY` so the bars sit back down on the baseline.
 
 ### 3.3 Navigation — Today · Logs · Trends + detached FAB
 
@@ -630,8 +630,9 @@ back — that argument has been had and this table is the answer.
 - **`icon-64.png` is the tab favicon**, drawn at `d: 1` (no tail, eye or nostrils; heavier nib).
   ⚠️ **Downscaling the 192 for a 16–32px tab renders grey mush** — the detail that reads at 192
   is exactly what cannot survive there.
-- **Icons:** five manifest entries plus the favicon link (§3.11). The tile ground is the paper
-  `#FFFCF8`; ink is the literal `#12100E` (a PNG has no tokens).
+- **Icons: THREE manifest entries, and the favicon is one of them** — `icon-64` is both the
+  `rel="icon"` link and the manifest's 64px `any` entry, not a fourth file (§3.11). The tile
+  ground is the paper `#FFFCF8`; ink is the literal `#12100E` (a PNG has no tokens).
 
 ---
 
