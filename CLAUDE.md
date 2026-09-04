@@ -191,7 +191,7 @@ linear(...))` these become sampled damped-spring curves (wobble 320/ζ0.62 ~632m
 - **Mount-then-spring:** elements born at final state never animate — mount at the previous state, apply the real value one frame later.
 - **Shared-axis tab slide:** `.axis-in-left/right` in `switchView()`. ⚠️ **`.container` must keep `overflow-x: clip`** — the transient `translateX` widens the document, then `position:fixed; right:0` bars size to the widened viewport and *sustain* it, which mobile zooms to fit. `clip`, not `hidden` (that kills vertical scroll/sticky).
 - **`prefers-reduced-motion`:** zeroes motion tokens + stagger; the JS `REDUCED_MOTION` flag makes counters instant, sets `Chart.defaults.animation = false`, skips the typewriter, disables smooth scroll.
-- **Loader:** the marker mark — three drawn bars on a baseline, tallest one sienna, growing in sequence (§3.15). Reduced motion pulses the whole mark and clears `.lb`'s animation, which is what drops its `scaleY` so the bars sit at full height.
+- **Loader:** the marker mark — **four** drawn bars on a baseline, tallest one sienna, bouncing in sequence on the same 1s / 120ms rhythm as the CSS bars it replaced (§3.15). Reduced motion pulses the whole mark and clears `.lb`'s animation, which is what drops its `scaleY` so the bars sit at full height.
 
 ### 3.3 Navigation — Today · Logs · Trends + detached FAB
 
@@ -229,6 +229,7 @@ up, so `space-between` still pins whichever one is visible to the right edge.
 - **The brand mark is Today-only**, toggled the same way (`mhBrand.hidden = !isToday`), and `.masthead-brand[hidden] { display: none }` is load-bearing for the same reason.
 - ⚠️ **No figures, still — but "tools only" no longer describes this slot.** The governing principle is about *measuring the period*, and a pig states nothing about it, so it is intact. But the mark is decoration, and it is the first decorative element in the app; it is here because it was asked for, not because the slot wanted filling. **A figure is still barred.**
 - ⚠️ **38px and `align-self: center`**, under `.month-btn`'s 44px floor — so the month button still sets the masthead's height, and the height and `--pill-travel` are byte-identical on all three tabs. Asserted, with a negative control at 60px (§3.12).
+- ⚠️ **The optical nudge is `transform: translateY(-5px)`, never a margin.** Centring on the flex row leaves the mark ~5px below the day text's optical centre, because the row is taller than the text. A margin would correct that by changing layout, and layout is precisely what must not move here; a transform is painted rather than laid out, so the height invariant holds by construction instead of by luck. −5px lands the pig's feet on the serif's baseline; −7px rides high.
 
 **The lift-off.** `--p` is a registered `@property` number, 0 at the top of a pane → 1 at
 hand-off, driven by a **scroll-driven animation on `body`** (`animation-range: 0 86px`), with a
@@ -464,7 +465,7 @@ test/run.sh                the same suite in four timezones
 
 test/browser/helpers/app.js   openApp() — mocks the sheet, stubs Chart.js, pins the clock
 test/browser/fixtures/        GViz mock (deliberate month gap) + Chart.js stub
-test/browser/smoke.spec.js    61 checks, 2 projects (390 light-reduced / 900 dark-motion)
+test/browser/smoke.spec.js    63 checks, 2 projects (390 light-reduced / 900 dark-motion)
 ```
 
 **`test/` (pure logic):**
@@ -520,7 +521,7 @@ One nib, **three subjects, one per job** — a small cast, not one logo stretche
 | Where | Subject | Why that one |
 |---|---|---|
 | App icon (`icons/*.png`) | **Piggy bank taking a coin** | The tile has to say *money* to someone who has never opened the app. Bars do not. |
-| Loader (`#main-loader .loader-mark`) | **Three bars on a baseline** | It is the app's own data grammar (§3.2, length = money), and it is what the loader always was. |
+| Loader (`#main-loader .loader-mark`) | **Four bars on a baseline** | It is the app's own data grammar (§3.2, length = money), and four is what the loader always had. |
 | Capture parse (`#capture-parse .capture-receipt`, §3.8) | **A receipt printing** | It names *what* is being waited on, which a generic busy mark cannot. |
 | Today masthead (`#masthead-brand .masthead-pig`, §3.4) | **The icon's pig, in-app** | The one place the tile's mark appears inside the app. Decoration, and the only decoration. |
 
@@ -542,9 +543,18 @@ back — that argument has been had and this table is the answer.
 - ⚠️ **The loader has NO ground shadow; the icon does.** The shadow is ink-coloured, so on the
   dark theme it inverts into a pale puddle under the mark. The icon always sits on paper and
   keeps it. Do not "restore" the shadow to the loader for consistency — the two grounds differ.
-- **Animation:** `.lb` groups grow in sequence (`loaderGrow`, 160ms stagger) with
-  `transform-box: fill-box`; `.lt` ticks pulse. Reduced motion moves the pulse to the whole mark
-  and sets `.lb`/`.lt` to `animation: none` — which is also what makes the bars sit full height.
+- **Animation:** `.lb` groups bounce in sequence (`loaderBounce`, **1s, 120ms stagger,
+  `ease-in-out`** — the CSS loader's original rhythm) with `transform-box: fill-box`; `.lt` ticks
+  pulse. Reduced motion moves the pulse to the whole mark and sets `.lb`/`.lt` to
+  `animation: none` — which is also what makes the bars sit full height.
+- ⚠️ **The keyframes must be SYMMETRIC: `0%` and `100%` hold the same value.** The first version
+  grew to `scaleY(1)`, sat there for half the cycle, then jumped back to `0.08` at the wrap —
+  a stutter once per loop that no DOM assertion can see, because the markup is identical either
+  way. Asserted by reading the rule out of the stylesheet (§3.12).
+- ⚠️ **A DRAWN bar cannot squash as far as a filled one.** The floor is **0.5**, not the old CSS
+  loader's 0.25, and the resting heights are **110/150/190/230** rather than starting at 88: the
+  box outline is 13 units thick top and bottom, so a short bar at a low floor closes up into a
+  blob. Lower the floor or shorten the first bar and it mushes — check the frames, not the code.
 - ⚠️ **The capture receipt has NO paper fill** — a white fill is a bright block on the dark
   theme, and a token fill would fight the sheet it sits on. It is an outline drawing, so it
   needs neither. It has no ground shadow either, for the same reason the loader has none.
@@ -814,6 +824,14 @@ recorded here so they are not re-proposed as new.
    **replaces** the send-arrow spinner rather than joining it, and reduced motion swaps them
    back the other way — one indicator either way.
 
+### Loader bounce restored ✅ (2026-09-04, eighth pass)
+
+1. **Four bars, not three.** The CSS loader had four; the redraw quietly dropped one.
+2. **The keyframes are symmetric** (`0%`/`100%` equal) on the original 1s / 120ms / `ease-in-out`
+   rhythm. An asymmetric loop stutters once per cycle and nothing but the eye reports it.
+3. **The squash floor is 0.5 and the shortest bar is 110 tall** — a drawn outline cannot squash
+   like a filled rect.
+
 ### Brand mark in the Today masthead ✅ (2026-09-04, seventh pass)
 
 1. **The right slot now holds two mutually exclusive things** — Logs actions, Today brand mark.
@@ -917,6 +935,7 @@ phase name referenced in an `index.html` comment.
 - **Reach for a property test when two implementations must agree.** `recurrenceDates()` enumerates and `nextOccurrence()` computes analytically; nothing held them in step, and examples hide the disagreement on the 29th of a leap February.
 - **Extracting for testability is a code move, not a rewrite.** The moment an extraction also "improves" the logic, nothing can tell you which half broke it.
 - **When the verification loop is structurally blind to a failure mode, stop fixing and start removing.** The FAB long-press passed 104/104, then 141/141, then 180/180, and failed on a real phone every time. **Three green runs against a defect that never moves is itself a result** — the loop can't see the bug, so every further fix is a guess with a passing test attached.
+- **`| tail -n` on a test summary can hide the failure line.** Playwright prints `N failed` ABOVE `N passed`, so `tail -2` showed a green-looking "1 skipped / 61 passed" while two checks were failing — and the negative control run against that same broken probe reported "1 failed", which read as the control working. **Grep the summary for failed/passed/skipped rather than tailing it**, and treat a control that fails for an unknown reason as unproven.
 - **A tool that refuses to perform an action has told you something an assertion could not.** Playwright wouldn't click the relocated icons and named the intercepting element — that report *was* the bug. "Is this visible button clickable" is not a question you write a probe for. Read a refusal as a finding before reaching for `{ force: true }`.
 - **A context-level emulation option and the runtime call that does the same thing are not guaranteed interchangeable.** Playwright's `reducedMotion` project option and `page.emulateMedia()` are documented as equivalent; only the runtime call reliably reached `matchMedia()` before the page's script ran. Harmless for a check reading *computed CSS*, silently wrong for one reading a JS flag captured once at parse time. **A new probe has to be proven to fail before it's trusted to pass.**
 - **Remove the feature, keep the findings** — the platform learnings are the most transferable thing a failed attempt produces.
@@ -937,6 +956,9 @@ phase name referenced in an `index.html` comment.
 - **An app's own startup work is the load that breaks its startup-time interactions.** Anything documented as "never awaited, must not delay first paint" belongs in `requestIdleCallback` — un-awaited still runs *now*.
 - **A horizontal transform + `position:fixed; right:0` = a mobile zoom trap** (§3.2). Caught by measuring `scrollWidth`, not by eye.
 - **Chart.js custom canvas draws must be gated by `canvas.id`** — ungated plugins bleed onto every chart on the page.
+- **A looping animation whose first and last keyframe differ stutters once per cycle, and nothing reports it.** The markup is identical, the computed styles are identical, every DOM assertion passes; the defect exists only between the last frame and the first. Write loops symmetric, and assert it by reading the keyframe rule itself — that is the one place the discontinuity is visible to a test.
+- **A drawn mark cannot be transformed as freely as a solid one.** `scaleY(0.25)` on a filled rounded rect is a squash; on a 13-unit outline it closes the interior and reads as a blob. Any transform on generated line art has to be judged on rendered frames, not on the transform's numbers.
+- **Reading `.cssRules` on a cross-origin stylesheet throws, and one bad sheet kills the whole `page.evaluate`.** The app links Google Fonts, so any probe that walks `document.styleSheets` must `try/catch` per sheet — otherwise it fails against perfectly correct CSS and looks like a real finding.
 
 **Design & interaction**
 

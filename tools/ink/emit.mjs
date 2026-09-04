@@ -6,7 +6,7 @@ import fs from 'fs';
 function art({ ink, accent, anim, ground = true }) {
   const P = (d, f, cls) => `<path d="${d}" fill="${f}"${cls ? ` class="${cls}"` : ''}/>`;
   const bar = (cls, x1, y1, x2, y2, seed, fill) => {
-    const inner = (fill ? P(slab(x1 + 7, y1 + 8, x2 - 7, y2 - 6), fill) : '') + P(box(x1, y1, x2, y2, { w0: 15, seed }), ink);
+    const inner = (fill ? P(slab(x1 + 7, y1 + 8, x2 - 7, y2 - 6), fill) : '') + P(box(x1, y1, x2, y2, { w0: 13, seed }), ink);
     return anim ? `<g class="${cls}">${inner}</g>` : inner;
   };
   const slab = (x1, y1, x2, y2) => `M ${x1} ${y1} L ${x2} ${y1 - 1} L ${x2 + 1} ${y2} L ${x1 - 1} ${y2 + 1} Z`;
@@ -15,13 +15,20 @@ function art({ ink, accent, anim, ground = true }) {
     // pale puddle. The icon always sits on paper and keeps it; the loader,
     // which has to work in both themes, is grounded by the baseline alone.
     ground ? P(blob(252, 416, 104, 9, 5), ink) : '',
-    P(stroke([[104, 392], [252, 396], [408, 390]], { w0: 18, w1: 12, seed: 2 }), ink),
-    bar('lb', 132, 290, 196, 388, 3),
-    bar('lb lb2', 224, 228, 288, 388, 7),
-    bar('lb lb3', 316, 162, 380, 388, 11, accent),
-    ...sparkle(404, 138, 30, 9, 4, 3, .95).map((d) => P(d, ink, anim ? 'lt' : '')),
-    P(blob(100, 244, 7, 7, 9), ink),
-    P(blob(120, 196, 5, 5, 13), ink),
+    P(stroke([[98, 392], [252, 396], [414, 390]], { w0: 18, w1: 12, seed: 2 }), ink),
+    // FOUR bars, as the CSS loader this replaced always had. 56 wide on a
+    // 24 gap, ascending, sienna on the last — the same arrangement, redrawn.
+    // ⚠️ Resting heights are 110/150/190/230, not 88/142/184/230. A DRAWN bar
+    // cannot squash as far as a filled one: at 34% the 88-tall bar's top and
+    // bottom strokes (15 units each) met in the middle and it read as a blob.
+    // Taller shortest bar + a 0.5 floor keeps an interior at every frame.
+    bar('lb', 110, 278, 166, 388, 3),
+    bar('lb lb2', 190, 238, 246, 388, 7),
+    bar('lb lb3', 270, 198, 326, 388, 11, null),
+    bar('lb lb4', 350, 158, 406, 388, 17, accent),
+    ...sparkle(398, 112, 26, 8, 4, 2, 1.05).map((d) => P(d, ink, anim ? 'lt' : '')),
+    P(blob(92, 252, 7, 7, 9), ink),
+    P(blob(112, 206, 5, 5, 13), ink),
   ].join('');
 }
 
@@ -131,9 +138,9 @@ function pig({ ink, accent, d = 2, ground = true, wash = true }) {
   return out.join('');
 }
 
-const VB = '84 116 344 296';   // tight to the art, so it scales without dead margin
+const VB = '79 83 341 328';   // measured from getBBox() + 6 units of air   // tight to the art, so it scales without dead margin
 fs.writeFileSync('loader-markup.txt',
-  `<svg class="loader-mark" viewBox="${VB}" width="132" height="114" aria-hidden="true">`
+  `<svg class="loader-mark" viewBox="${VB}" width="132" height="127" aria-hidden="true">`
   + art({ ink: 'var(--loader-ink)', accent: 'var(--sienna)', anim: true, ground: false }) + '</svg>');
 
 /* ONE framing, and it is circle-safe.
