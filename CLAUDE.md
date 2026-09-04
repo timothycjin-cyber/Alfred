@@ -8,18 +8,27 @@ rule and the consequence, not the story.** A trap gets one sentence saying what 
 decision gets one line. If an entry needs three paragraphs of reasoning, the reasoning belongs
 in the history skill and the rule belongs here.*
 
-*Shipped 2026-08-31: **median daily + calibrated forecast + the spend distribution curve**
-(§3.5, §3.7, §6). Spend is right-skewed, so the mean described no day the user actually has;
-**normal spend and big spend are now modelled separately** — one median, one buffer, never one
-blended average. The math is pure core (`computeSpendForecast`), and the Today tile and the pace
-bar read the SAME call, so they cannot disagree. **Follow-up pass the same day:** Today's detail
-figures are always open and the glance line is gone; the distribution card marks **median vs
-mean** instead of median vs P90 (a percentile explains nothing to a non-statistician); and the
-insight strip now covers **one observation per chart** rather than the top three of six. Previous
-banner (the committed Playwright harness, §3.12) is in the history skill. **One banner: the current change only**; superseded ones move to the history
-skill, not into a queue. Two facts that live nowhere else: earlier roadmap files were folded
-into §6 (2026-07-19), and `index.html` comments still reference roadmap phase names — §6 and
-the history skill keep those resolvable.*
+*Shipped 2026-09-04: **the marker loader and a new app icon** (§3.15, §3.11). The four CSS
+bouncing bars and the sienna "A" tile are gone; both are now one drawn mark — three bars on a
+baseline, tallest one sienna. **Every mark is a filled tapered path and nothing in it is
+stroked**, which is the entire style: a constant-width stroke is what makes a hand-drawn mark
+read as clip art, and the browser suite fails if a `stroke` appears on the mark OR on its root.
+Two things that differ between the two homes: the **loader has no ground shadow** (ink-coloured,
+so it inverts into a pale puddle on dark) and the **maskable icon is a separate file** at 76%
+scale (one file cannot serve both purposes — the full-bleed art clips under Android's circular
+mask). `--loader-ink` is a new light/dark pair, deliberately not `--on-surface`. The serif did
+NOT come along: Newsreader is still the masthead's alone. **Same day, further passes:** the app icon is now the **piggy bank taking a
+coin** — `$` on the coin, a spring tail, and a pink wash inside the body (one `userSpaceOnUse`
+gradient across body and snout, or the overlap seams) — not the bars — the tile's job is to say *money* to someone who has never opened the app,
+and the loader keeps the bars (§3.15 has the table; do not unify them back). The capture
+sheet's parse wait prints a **receipt** from the same nib (§3.8) — a different subject on
+purpose, since it names what is being waited on. It **replaces** the send-arrow spinner;
+reduced motion stills the receipt and brings the spinner back, so there is always exactly one
+busy indicator and never two. Previous banner (median daily,
+calibrated forecast and the distribution curve, §3.5a) is in the history skill. **One banner: the
+current change only**; superseded ones move to the history skill, not into a queue. Two facts
+that live nowhere else: earlier roadmap files were folded into §6 (2026-07-19), and `index.html`
+comments still reference roadmap phase names — §6 and the history skill keep those resolvable.*
 
 ---
 
@@ -151,7 +160,7 @@ width — "August" at 31px is 93.6px in Newsreader vs 93.0px in Roboto Flex, so 
 passes with the serif never loading.
 
 **Colour:**
-- **Light and dark semantic tokens are separate values.** Light `--semantic-income`/`--semantic-expense` = **#007A52 / #C62828**; dark = **#2ECC71 / #FF4D4D**. One pair tuned on dark cleared only 2.9:1 / 4.1:1 on white.
+- **Light and dark semantic tokens are separate values.** Light `--semantic-income`/`--semantic-expense` = **#007A52 / #C62828**; dark = **#2ECC71 / #FF4D4D**. One pair tuned on dark cleared only 2.9:1 / 4.1:1 on white. **`--loader-ink` is a third such pair** (#12100E / #F2EDE7): warm-black on paper, warm-white on near-black. It is deliberately not `--on-surface` — that token is a cool grey tuned for text, and a marker stroke in cool grey reads as a widget instead of a drawn line.
 - **Good news is stated, not coloured.** `.tile-chip.good`, `.today-good` and the on-track pace strip are **neutral ink**. Only bad states (`.tile-chip.bad`, `.income-bar-status.over`) keep semantic colour and solid fill.
 - **Sienna is the only primary** (FAB, `.btn-primary`, `.capture-send`); `--primary` (near-black/near-white ink) is **not** a button fill, so two things never both claim primary. Red is **not a selection state** — `.type-toggle` active segment is `--on-surface`.
 
@@ -160,6 +169,9 @@ the OS font, so a `CAT_COLORS`-tinted chip carried a clashing glyph. Both call s
 (`categoryBreakdownHtml`, `txnRowHtml`) pass **`color:` as well as the background tint**.
 ⚠️ `CAT_ICONS` holds an **`"Income"`** key — income rows look it up by name rather than falling
 through to `"Other"`. The only emoji reaching the DOM is the ⚠️ in the failed-load state.
+⚠️ **The loader mark is the one inline SVG that does NOT inherit `currentColor`** — it names
+`var(--loader-ink)` and `var(--sienna)` directly, because it is two-colour by design and
+`currentColor` would flatten the sienna bar into the ink (§3.15).
 
 **Motion tokens:** `--motion-wobble` (overshoot spring), `--motion-snap` (taps),
 `--motion-wobble-nav` (nav only, ≈20% shorter). Under `@supports (transition-timing-function:
@@ -172,7 +184,7 @@ linear(...))` these become sampled damped-spring curves (wobble 320/ζ0.62 ~632m
 - **Mount-then-spring:** elements born at final state never animate — mount at the previous state, apply the real value one frame later.
 - **Shared-axis tab slide:** `.axis-in-left/right` in `switchView()`. ⚠️ **`.container` must keep `overflow-x: clip`** — the transient `translateX` widens the document, then `position:fixed; right:0` bars size to the widened viewport and *sustain* it, which mobile zooms to fit. `clip`, not `hidden` (that kills vertical scroll/sticky).
 - **`prefers-reduced-motion`:** zeroes motion tokens + stagger; the JS `REDUCED_MOTION` flag makes counters instant, sets `Chart.defaults.animation = false`, skips the typewriter, disables smooth scroll.
-- **Loader:** 4-bar bouncing mini bar-chart, last bar sienna.
+- **Loader:** the marker mark — three drawn bars on a baseline, tallest one sienna, growing in sequence (§3.15). Reduced motion pulses the whole mark and clears `.lb`'s animation, which is what drops its `scaleY` so the bars sit at full height.
 
 ### 3.3 Navigation — Today · Logs · Trends + detached FAB
 
@@ -382,7 +394,9 @@ closes on the 1.5rem section break.
 - **There is no FAB long-press.** `wireFabGestures()`, `openCameraDirect()`, `FAB_LONG_PRESS`, `_fabCameraShortcut` are gone. **The camera is the camera button in this sheet.** ⚠️ **Removed for reliability, not taste** — see §6/§8: the gesture's outcome is decided by main-thread timing, an off-main-thread platform long-press, file-chooser activation rules and camera-intent latency, and the render loop models none of them, so three green suites said nothing about the only environment where it broke.
 - Clip button → `#capture-gallery-file` (bare `accept="image/*"`); camera button → `#capture-camera-file` (`capture="environment"`). Both feed `handleCaptureFile`; photos downscale to ≤1280px JPEG q0.82 before base64.
 - **Photo + comment:** a photo parks as `pendingImageB64` with a removable `.capture-attach` chip so a note can be typed; send submits both, note as `caption`. Survives close/reopen until sent or removed. Placeholder `"Coffee RM8"` is set in markup **and** in `clearCaptureAttachment()`.
-- POSTs `action:'parse'`; spinner replaces the send arrow; 25s timeout; notes/errors in `#capture-note` (persist to next open, cleared on new parse).
+- POSTs `action:'parse'`; **the receipt prints in `#capture-parse` while the request is in flight** (§3.15); 25s timeout; notes/errors in `#capture-note` (persist to next open, cleared on new parse).
+- ⚠️ **Exactly one busy indicator, and which one depends on the motion setting.** The receipt **replaces** the send-arrow spinner — two of them a centimetre apart is noise. Under `prefers-reduced-motion` the receipt goes still, so the spinner comes back; **that branch is now the only place the spinner's CSS lives**. Never both, never neither — asserted both ways (§3.12).
+- **`setCaptureBusy()` is the single hook** for both halves, and `parseCapture()`'s `finally` already covers success, error and the 25s abort — so the receipt cannot be left printing behind an error message.
 - **`Enter manually instead` is styled as a fallback** (`.capture-manual`) — an underlined text button, not a `.btn`, which outranked the capture field the sheet exists for. Still a 44px target. ⚠️ It **replaced** its `.modal-actions` wrapper rather than sitting inside it (the rule carries its own `margin-top`).
 - **Confirm flow:** 1 txn → the normal txn modal pre-filled ("Confirm entry", saves via untouched `saveTxn()`); N txns → `#review-overlay` (editable amounts, removable rows, sequential "Save all"; saved rows leave the list so retry can't duplicate).
 - **Sources:** capture-confirmed adds carry `'web'`/`'web-image'`; plain FAB adds send `'dashboard'` (`pendingSource` resets on every plain modal open — `openManualFromCapture()` preserves it).
@@ -408,6 +422,12 @@ the GViz month-correction so optimistic and reconciled rows format identically.
 ### 3.11 PWA shell (push retired — Phase F)
 
 `manifest.json` is now the **entire** PWA shell and carries installability on its own.
+**Five icon entries, three framings of one drawing:** `icon-<n>.png` is `purpose: "any"`,
+`icon-maskable-<n>.png` is `purpose: "maskable"` and holds the SAME art at a smaller scale, and
+`icon-64.png` is the tab favicon (stripped variant, also `any`). ⚠️ **One file cannot serve both
+purposes.** A maskable icon is cropped to a centred circle of 80% diameter, so full-bleed art
+declared as maskable loses its edges on Android. The two scales and why they differ are in
+§3.15. `background_color` is the paper `#FFFCF8`.
 **No service worker** (`firebase-messaging-sw.js` and its registration are deleted; it only did
 push display + PWA presence, no fetch handler). **No push client** — bell, `togglePush()`,
 `initPushUI()`, the Firebase SDK import, `FIREBASE_CONFIG`, `FCM_VAPID_KEY` and
@@ -430,7 +450,7 @@ test/run.sh                the same suite in four timezones
 
 test/browser/helpers/app.js   openApp() — mocks the sheet, stubs Chart.js, pins the clock
 test/browser/fixtures/        GViz mock (deliberate month gap) + Chart.js stub
-test/browser/smoke.spec.js    46 checks, 2 projects (390 light-reduced / 900 dark-motion)
+test/browser/smoke.spec.js    51 checks, 2 projects (390 light-reduced / 900 dark-motion)
 ```
 
 **`test/` (pure logic):**
@@ -448,6 +468,7 @@ test/browser/smoke.spec.js    46 checks, 2 projects (390 light-reduced / 900 dar
 - **CI:** `.github/workflows/browser-tests.yml`, separate from the zero-install `tests.yml` so a browser-tooling failure can't be mistaken for a core-logic one. **`@playwright/test` is pinned exact**, not a range, so CI fetches the browser this suite was verified against.
 - ⚠️ **`page.emulateMedia()` before `goto()`, not the `reducedMotion` context/project option** — the option didn't reliably reach `matchMedia()` before the app's script ran. Matters because the app reads `matchMedia('(prefers-reduced-motion: reduce)')` **once**, into `REDUCED_MOTION`, at script-parse time (§3.2, §8).
 - The masthead-corner checks are a **permanent regression test** for the pill `pointer-events` bug (§3.4) — proved to fail against the pre-fix CSS before being trusted.
+- The **loader-mark checks** are the same kind of floor for §3.15, and cost one round of the same lesson: the first draft read `svg.querySelectorAll('[stroke]')`, which searches DESCENDANTS ONLY, so a `stroke` on the `<svg>` root — the worst version of the regression, since every child inherits it — passed the negative control. ⚠️ **Test the root as well as its descendants.** Both controls (root, and one path) now fail; the shipped markup passes.
 
 ⚠️ **Figure assertions need reduced motion.** `animateCounters()` counts up, so a read 600ms
 after load lands mid-animation (the hero measured `RM 1,859.70` en route to `1,887.00`).
@@ -477,6 +498,88 @@ A series is a **definition** in the `Recurring` tab (§1); its **occurrences** a
 - **A category sheet hides the row badges** — `renderDrillSheetBody()` toggles **`.hide-cat-badge`** on `#drill-body` when `kind === 'category'`, because the sheet is already titled with the category. **The day sheet keeps its badges** (there the category is new information). Income rows badge as **`Income`**, not `Budget`.
 - ⚠️ **The sheet CLOSES before `openTxnModal(uid)`** (`bindDrillRowClicks`) — `trapModalFocus` holds one trap, so stacking clobbers the return-focus chain. Closing hands focus back to the column/row, which the txn modal adopts as *its* return target. **No new edit/delete logic exists anywhere.**
 - ⚠️ It is `.align-bottom` **plus `.sheet-rise`** — `.align-bottom` alone is FAB-anchored (§3.3), and this sheet is triggered mid-page. `.sheet-rise` overrides the origin to `50% 100%`.
+
+### 3.15 The marker mark — loader and app icon
+
+One nib, **three subjects, one per job** — a small cast, not one logo stretched across the app:
+
+| Where | Subject | Why that one |
+|---|---|---|
+| App icon (`icons/*.png`) | **Piggy bank taking a coin** | The tile has to say *money* to someone who has never opened the app. Bars do not. |
+| Loader (`#main-loader .loader-mark`) | **Three bars on a baseline** | It is the app's own data grammar (§3.2, length = money), and it is what the loader always was. |
+| Capture parse (`#capture-parse .capture-receipt`, §3.8) | **A receipt printing** | It names *what* is being waited on, which a generic busy mark cannot. |
+
+⚠️ **The icon and the loader are deliberately NOT the same drawing.** They were for one commit;
+the icon's job is recognition in a grid of other apps, the loader's is continuity with the
+charts underneath it, and one mark served the second better than the first. Do not "unify" them
+back — that argument has been had and this table is the answer.
+
+- ⚠️ **Every mark is a FILLED, tapered path. Nothing in it is stroked.** A felt-tip changes width
+  as it moves; a `stroke` of constant width is exactly what makes a hand-drawn mark read as clip
+  art. There is no `stroke`, `stroke-width` or `stroke-linecap` anywhere in the mark, and the
+  browser suite fails if one appears — **on the root as well as on a child** (§3.12).
+- **Nothing scales by stroke**, so the same path data serves 40px and 512px unchanged.
+- **The geometry is generated, not hand-written.** A nib model (tapered + bellied + wobbled
+  centreline) emits the outlines; the committed artefact is the resulting path data. Regenerating
+  is a design task, not a code one — do not hand-edit the `d` attributes.
+- **Ink is `--loader-ink`, not `--on-surface`** (§3.2), and the sienna bar is `var(--sienna)`.
+  Exactly **one** element is sienna; a second would make the accent decorative.
+- ⚠️ **The loader has NO ground shadow; the icon does.** The shadow is ink-coloured, so on the
+  dark theme it inverts into a pale puddle under the mark. The icon always sits on paper and
+  keeps it. Do not "restore" the shadow to the loader for consistency — the two grounds differ.
+- **Animation:** `.lb` groups grow in sequence (`loaderGrow`, 160ms stagger) with
+  `transform-box: fill-box`; `.lt` ticks pulse. Reduced motion moves the pulse to the whole mark
+  and sets `.lb`/`.lt` to `animation: none` — which is also what makes the bars sit full height.
+- ⚠️ **The capture receipt has NO paper fill** — a white fill is a bright block on the dark
+  theme, and a token fill would fight the sheet it sits on. It is an outline drawing, so it
+  needs neither. It has no ground shadow either, for the same reason the loader has none.
+- **Receipt animation:** `.cr-rule` lines scale in from the left (180ms stagger), `.cr-total`
+  pops last (`crRule` / `crTotal`, 2.2s). Reduced motion sets both to `animation: none`, which
+  leaves the receipt complete and still.
+- **Copy is `Adding it up`** (loader) and **`Reading it`** (capture), both in the body face. ⚠️ **Not Newsreader** — the serif is the
+  masthead's alone (§3.2), and the design draft that used it there was not carried over.
+- **Icon framing — `FRAME` and `ART_CENTRE` in `tools/ink/emit.mjs` are MEASURED, not chosen.**
+  ⚠️ **Re-derive both after any change to the drawing** — ask the browser for the art group's
+  `getBBox()`, don't estimate. The tail alone has moved them twice: three turns pushed the left
+  edge out to 70.6, two turns brought it back to 91.5. Current: bbox **315.2 × 325.8** about
+  **(249.1, 259.3)**, furthest bbox corner **226.7** units from that centre.
+  - `any` is full-bleed at **1.22** → art at ~75% × 78% of the tile. ⚠️ At 1.0 the pig floats in
+    a large empty square and becomes a dot on a home screen; the art's own bounds are not the
+    tile's composition.
+  - `maskable` is **0.88** → furthest corner ~199 inside the 205-unit safe radius. ⚠️ It is
+    `200 / maxR` for **this** drawing, not a constant — it has already been 0.76, 0.86, 0.85 and
+    now 0.88, and none of those changes were visible without measuring.
+- **The coin never simplifies away.** It carries a drawn **`$`** (S plus bar, same nib) and is
+  the only saturated colour — the only reason the tile reads as money rather than as an animal.
+  ⚠️ The `$` is **ink on sienna** (~4.3:1), not a knockout in the paper colour (~3.9:1), which
+  also keeps the drawing to two inks. It is `d: 2` only; at 64px the coin is ~20px and a glyph
+  inside it is mush.
+- **The pink wash is ICON-ONLY, and it is a tint of the sienna, not a new hue** — a true pink
+  would be the drawing's third colour. ⚠️ **One `linearGradient` in `userSpaceOnUse` spans BOTH
+  the body and the snout.** Two `objectBoundingBox` gradients each restart inside their own
+  shape, so the overlap shows a seam. ⚠️ The fill shapes are inset 6 units at jitter **0.02**,
+  not `blob()`'s default 0.05 — at 5% the fill's own wobble pushes past the outline's inner edge
+  and fringes pink outside the drawing. The loader and the capture receipt stay two-colour.
+- ⚠️ **The body arc STOPS either side of the snout** (`GAP = 0.36` rad in `pig()`), it does not
+  run behind it. Drawn as a full ring, the body's right edge cuts a chord straight across the
+  snout; the snout has no fill to hide it, and giving it one would tie the drawing to a single
+  background colour. The gap is where the body ellipse meets the snout circle, so the two ends
+  land ON it and read as a join. **Re-derive it if either shape moves** — it is not a constant.
+- ⚠️ **The legs are filled wedges, and their width is a SHAPE, not a stroke.** Two consequences:
+  they take their own small-size bump (`lw`, 1.15), never the nib's 1.45 — at 1.45 the two legs
+  merged into one black mass at 40px; and their tops sit at the body's **outline** (y ≈ 358 at
+  those x), not inside it, because the body has no fill and a leg starting in the belly shows
+  through as a black skirt.
+- **The tail is a spring of TWO turns** — a prolate cycloid, which is what a coil looks like
+  from the side. Three turns read as a corkscrew rather than a pig's tail; two is the ceiling.
+  ⚠️ **The loops only close while `PITCH × 2π < 2 × RAD`** (3.4 and 12: 21 < 24).
+  Raise the pitch and the curve silently relaxes into a wave with no error and no visual warning
+  beyond "the tail looks wrong". Its first point sits inside the body so it reads as attached.
+- **`icon-64.png` is the tab favicon**, drawn at `d: 1` (no tail, eye or nostrils; heavier nib).
+  ⚠️ **Downscaling the 192 for a 16–32px tab renders grey mush** — the detail that reads at 192
+  is exactly what cannot survive there.
+- **Icons:** five manifest entries plus the favicon link (§3.11). The tile ground is the paper
+  `#FFFCF8`; ink is the literal `#12100E` (a PNG has no tokens).
 
 ---
 
@@ -652,6 +755,39 @@ statistics, and Today must stop hiding its own figures:
 9. **The card's average is `spendDayMean`** (÷ spending days), not `meanDaily` (÷ calendar days). Two different figures; the copy says which.
 10. **The insight strip covers one chart per line, in chart order** — coverage, not top-3 ranking. Novelty rotation is narrowed to tie-breaking only, deliberately.
 
+### Marker loader + app icon ✅ (2026-09-04)
+
+Replaces the four CSS bouncing bars and the sienna "A" tile. Direction picked from a
+three-way exploration (marker bars / piggy bank / receipt slip); the two unchosen ones are
+recorded here so they are not re-proposed as new.
+
+1. **Filled tapered paths, never strokes.** This is the whole style, and it is asserted (§3.12).
+2. **One sienna element per mark**, never two.
+3. **The loader carries no ground shadow, the icon does** — the shadow inverts on dark.
+4. **`--loader-ink` is its own light/dark pair**, not `--on-surface`.
+5. **Maskable icons are a separate file**, art at 76% — one file cannot serve both purposes.
+6. **The serif did not come with the mark.** Newsreader stays the masthead's alone.
+7. **The path data is generated by a nib model and committed as data** — regenerate, never
+   hand-edit.
+8. **The icon is the pig, and the loader stays the bars** (2026-09-04, third pass). Three
+   subjects, one per job — see the table in §3.15. The two scales (`any` 1.22, `maskable` 0.86)
+   are derived from the pig's own bounds and are not reusable constants.
+9. **`icon-64.png` exists because the tab favicon is 16–32px**, where the 192 downscales into
+   mush.
+9a. **The pig's anatomy is fixed by rules, not by taste** (2026-09-04, fourth and fifth passes):
+   the body arc stops either side of the snout rather than cutting through it; the legs are
+   filled wedges starting at the outline; the tail is a **spring** whose loops close only while
+   `PITCH × 2π < 2 × RAD`; the coin carries a drawn `$` in ink; and a **pink wash** — one
+   `userSpaceOnUse` gradient across body and snout — fills the body. All in §3.15, because each
+   one looks arbitrary until it is broken.
+9b. **`FRAME` and `ART_CENTRE` are measured from `getBBox()`, every time the drawing changes.**
+   The spring tail moved the art's left edge by 40 units; scales carried over by eye would have
+   been wrong in a way nothing tests.
+10. **The capture sheet's parse wait got the receipt** (2026-09-04, same day). A different
+   subject from the loader's bars, deliberately: it names what is being waited on. It
+   **replaces** the send-arrow spinner rather than joining it, and reduced motion swaps them
+   back the other way — one indicator either way.
+
 ### Design fix spec ✅ (2026-08-10, second pass)
 
 1. **`body` never pins the `wght` axis** (§3.2).
@@ -713,6 +849,11 @@ validation suite.
 - `defer` on the Chart.js tag or the `lib/alfred-core.js` tag — both are called into at module scope by the inline script, which runs first
 - Parsing a row's date with `new Date(row.Date)` or `new Date(row.Date + 'T00:00:00')` (§1, §3.12)
 - Interpolating sheet text into `innerHTML` without `escapeHtml()` (§3.6)
+- Stroking any part of the marker mark, hand-editing its path data, or adding the ground shadow back to the loader or the capture receipt (§3.15)
+- Giving the loader or the capture receipt a second colour, or spreading the icon's pink wash to either of them — the wash is icon-only and is a tint of the sienna, not a third hue (§3.15)
+- Reusing `FRAME`'s numbers after changing the drawing without re-measuring `getBBox()` (§3.15)
+- Running the send-arrow spinner and the capture receipt at the same time, or giving the receipt a paper fill (§3.8, §3.15)
+- Declaring the full-bleed `any` icon as `maskable`, or dropping the separate maskable files (§3.11)
 - Any new backend endpoints, LLM calls, or paid services
 
 ---

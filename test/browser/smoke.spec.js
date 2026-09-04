@@ -258,3 +258,117 @@ test.describe('insight strip', () => {
     expect(text).not.toContain('median');
   });
 });
+
+test.describe('loader mark', () => {
+  test('is drawn in filled paths, never stroked lines', async ({ page }) => {
+    // The whole point of the marker style is that a mark's width varies along
+    // its length, which a stroked line cannot do. A `stroke` attribute
+    // creeping back in is the regression this guards — it would look like a
+    // uniform monoline again and nothing else in the suite would notice.
+    await openApp(page);
+    const mark = page.locator('#main-loader .loader-mark');
+    await expect(mark).toHaveCount(1);
+    const shape = await page.evaluate(() => {
+      const svg = document.querySelector('#main-loader .loader-mark');
+      return {
+        paths: svg.querySelectorAll('path').length,
+        // ⚠️ Count the ROOT as well as its descendants. querySelectorAll only
+        // searches descendants, so a stroke set on the <svg> itself — which
+        // every child would inherit, the worst version of this regression —
+        // walked straight past the first draft of this check.
+        stroked: svg.querySelectorAll('[stroke], [stroke-width]').length
+          + (svg.hasAttribute('stroke') || svg.hasAttribute('stroke-width') ? 1 : 0),
+        bars: svg.querySelectorAll('.lb').length,
+        accent: [...svg.querySelectorAll('path')]
+          .filter((p) => p.getAttribute('fill') === 'var(--sienna)').length,
+      };
+    });
+    expect(shape.stroked).toBe(0);
+    expect(shape.paths).toBeGreaterThan(5);
+    expect(shape.bars).toBe(3);
+    expect(shape.accent).toBe(1); // sienna marks exactly one bar, never two
+  });
+
+  test('reduced motion stops the bars growing rather than hiding them', async ({ page }) => {
+    // Clearing .lb's animation is what drops its scaleY, so the bars must sit
+    // at full height — a reduced-motion loader that renders 8%-tall stubs
+    // would read as a broken chart, not a calm one.
+    await openApp(page);
+    const reduced = await page.evaluate(() =>
+      matchMedia('(prefers-reduced-motion: reduce)').matches);
+    test.skip(!reduced, 'only meaningful in the reduced-motion project');
+    const anim = await page.evaluate(() =>
+      getComputedStyle(document.querySelector('#main-loader .lb')).animationName);
+    expect(anim).toBe('none');
+  });
+});
+
+test.describe('capture parse busy state', () => {
+  // Hold the parse POST open so the busy state can be looked at. Registered
+  // AFTER openApp(), so it wins over the harness's catch-all route.
+  async function stallParse(page) {
+    await page.route('**/script.google.com/**', () => { /* never fulfilled */ });
+  }
+
+  test('the receipt prints while the model reads the entry', async ({ page }) => {
+    await openApp(page);
+    await stallParse(page);
+    await page.evaluate(() => openCaptureModal());
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+
+    const panel = page.locator('#capture-parse');
+    await expect(panel).toBeVisible();
+    await expect(page.locator('#capture-card')).toHaveClass(/busy/);
+
+    const shape = await page.evaluate(() => {
+      const svg = document.querySelector('#capture-parse .capture-receipt');
+      return {
+        // Same rule as the loader mark: filled tapered paths, no strokes, and
+        // the ROOT counts (querySelectorAll searches descendants only).
+        stroked: svg.querySelectorAll('[stroke], [stroke-width]').length
+          + (svg.hasAttribute('stroke') || svg.hasAttribute('stroke-width') ? 1 : 0),
+        rules: svg.querySelectorAll('.cr-rule').length,
+        accent: [...svg.querySelectorAll('path')]
+          .filter((p) => p.getAttribute('fill') === 'var(--sienna)').length,
+      };
+    });
+    expect(shape.stroked).toBe(0);
+    expect(shape.rules).toBe(3);
+    expect(shape.accent).toBe(1);
+  });
+
+  test('exactly one busy indicator, whichever one the motion setting calls for', async ({ page }) => {
+    // The receipt REPLACES the send-arrow spinner — two of them a centimetre
+    // apart is noise. Under reduced motion the receipt goes still, so the
+    // spinner comes back instead. Never both, never neither.
+    await openApp(page);
+    await stallParse(page);
+    await page.evaluate(() => openCaptureModal());
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+    await expect(page.locator('#capture-parse')).toBeVisible();
+
+    const state = await page.evaluate(() => ({
+      reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      spinner: getComputedStyle(document.querySelector('.capture-send'), '::after').content !== 'none',
+      printing: getComputedStyle(document.querySelector('.capture-receipt .cr-rule')).animationName !== 'none',
+    }));
+    expect(state.spinner).toBe(state.reduced);
+    expect(state.printing).toBe(!state.reduced);
+  });
+
+  test('the receipt is cleared when the parse finishes', async ({ page }) => {
+    // parseCapture()'s finally block is the only thing standing between a
+    // failed parse and a receipt that prints forever behind an error message.
+    await openApp(page);
+    await page.route('**/script.google.com/**', (route) =>
+      route.fulfill({ contentType: 'application/json', body: '{"error":"nope"}' }));
+    await page.evaluate(() => openCaptureModal());
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+    await expect(page.locator('#capture-note')).toContainText('Could not read that');
+    await expect(page.locator('#capture-parse')).toBeHidden();
+    await expect(page.locator('#capture-card')).not.toHaveClass(/busy/);
+  });
+});
