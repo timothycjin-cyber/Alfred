@@ -54,9 +54,9 @@ function pig({ ink, accent, d = 2 }) {
   // like from the side. ⚠️ The loops only close when the advance per turn is
   // less than the loop's own width — PITCH * 2π < 2 * RAD. At PITCH 4 / RAD 12
   // that is 25 < 24... so PITCH is 3.4: 21 < 24, and the curve crosses itself
-  // three times. Raise the pitch and it silently relaxes into a wave.
+  // twice. Raise the pitch and it silently relaxes into a wave.
   const spring = () => {
-    const PITCH = 3.4, RAD = 12, TURNS = 3, x0 = 144, y0 = 296;
+    const PITCH = 3.4, RAD = 12, TURNS = 2, x0 = 144, y0 = 296;
     const pts = [[152, 298]];
     const steps = 54;
     for (let i = 0; i <= steps; i++) {
@@ -139,14 +139,14 @@ fs.writeFileSync('loader-markup.txt',
    left edge from 110 to 71 and shifted the centre with it.
    Current: bbox 336.1 x 325.8 about (238.7, 259.3); furthest bbox corner
    234 units from that centre.
-   - `any` is full-bleed at 1.22 -> art at ~80% x 78% of the tile. At 1.0 the
+   - `any` is full-bleed at 1.22 -> art at ~75% x 78% of the tile. At 1.0 the
      pig floats in a large empty square and turns into a dot on a home screen.
    - `maskable` is cropped to a centred circle of 80% diameter — a 205-unit
-     safe radius. 0.85 lands the furthest corner at ~199, inside it with a
+     safe radius. 0.88 lands the furthest corner at ~199, inside it with a
      little margin. ⚠️ Not a constant to copy: it is 200/maxR for THIS
-     drawing. */
-const FRAME = { any: 1.22, maskable: 0.85 };
-const ART_CENTRE = { x: 238.7, y: 259.3 };
+     drawing, and it has already been 0.76, 0.86 and 0.85 for earlier ones. */
+const FRAME = { any: 1.22, maskable: 0.88 };
+const ART_CENTRE = { x: 249.1, y: 259.3 };
 
 const page = (size, maskable, detail) => {
   const k = maskable ? FRAME.maskable : FRAME.any;

@@ -540,15 +540,15 @@ back — that argument has been had and this table is the answer.
   masthead's alone (§3.2), and the design draft that used it there was not carried over.
 - **Icon framing — `FRAME` and `ART_CENTRE` in `tools/ink/emit.mjs` are MEASURED, not chosen.**
   ⚠️ **Re-derive both after any change to the drawing** — ask the browser for the art group's
-  `getBBox()`, don't estimate. The spring tail moved the left edge from 110 to **70.6** and took
-  the centre with it. Current: bbox **336.1 × 325.8** about **(238.7, 259.3)**, furthest bbox
-  corner **234** units from that centre.
-  - `any` is full-bleed at **1.22** → art at ~80% × 78% of the tile. ⚠️ At 1.0 the pig floats in
+  `getBBox()`, don't estimate. The tail alone has moved them twice: three turns pushed the left
+  edge out to 70.6, two turns brought it back to 91.5. Current: bbox **315.2 × 325.8** about
+  **(249.1, 259.3)**, furthest bbox corner **226.7** units from that centre.
+  - `any` is full-bleed at **1.22** → art at ~75% × 78% of the tile. ⚠️ At 1.0 the pig floats in
     a large empty square and becomes a dot on a home screen; the art's own bounds are not the
     tile's composition.
-  - `maskable` is **0.85** → furthest corner ~199 inside the 205-unit safe radius. ⚠️ It is
-    `200 / maxR` for **this** drawing, not a constant: the bar mark's was 0.76, the pig's earlier
-    silhouette 0.86.
+  - `maskable` is **0.88** → furthest corner ~199 inside the 205-unit safe radius. ⚠️ It is
+    `200 / maxR` for **this** drawing, not a constant — it has already been 0.76, 0.86, 0.85 and
+    now 0.88, and none of those changes were visible without measuring.
 - **The coin never simplifies away.** It carries a drawn **`$`** (S plus bar, same nib) and is
   the only saturated colour — the only reason the tile reads as money rather than as an animal.
   ⚠️ The `$` is **ink on sienna** (~4.3:1), not a knockout in the paper colour (~3.9:1), which
@@ -570,8 +570,9 @@ back — that argument has been had and this table is the answer.
   merged into one black mass at 40px; and their tops sit at the body's **outline** (y ≈ 358 at
   those x), not inside it, because the body has no fill and a leg starting in the belly shows
   through as a black skirt.
-- **The tail is a spring** — a prolate cycloid, which is what a coil looks like from the side.
-  ⚠️ **The loops only close while `PITCH × 2π < 2 × RAD`** (3.4 and 12: 21 < 24, three crossings).
+- **The tail is a spring of TWO turns** — a prolate cycloid, which is what a coil looks like
+  from the side. Three turns read as a corkscrew rather than a pig's tail; two is the ceiling.
+  ⚠️ **The loops only close while `PITCH × 2π < 2 × RAD`** (3.4 and 12: 21 < 24).
   Raise the pitch and the curve silently relaxes into a wave with no error and no visual warning
   beyond "the tail looks wrong". Its first point sits inside the body so it reads as attached.
 - **`icon-64.png` is the tab favicon**, drawn at `d: 1` (no tail, eye or nostrils; heavier nib).
