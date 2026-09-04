@@ -17,7 +17,11 @@ Two things that differ between the two homes: the **loader has no ground shadow*
 so it inverts into a pale puddle on dark) and the **maskable icon is a separate file** at 76%
 scale (one file cannot serve both purposes — the full-bleed art clips under Android's circular
 mask). `--loader-ink` is a new light/dark pair, deliberately not `--on-surface`. The serif did
-NOT come along: Newsreader is still the masthead's alone. Previous banner (median daily,
+NOT come along: Newsreader is still the masthead's alone. **Same day, second pass:** the capture
+sheet's parse wait now prints a **receipt** from the same nib (§3.8) — a different subject on
+purpose, since it names what is being waited on. It **replaces** the send-arrow spinner;
+reduced motion stills the receipt and brings the spinner back, so there is always exactly one
+busy indicator and never two. Previous banner (median daily,
 calibrated forecast and the distribution curve, §3.5a) is in the history skill. **One banner: the
 current change only**; superseded ones move to the history skill, not into a queue. Two facts
 that live nowhere else: earlier roadmap files were folded into §6 (2026-07-19), and `index.html`
@@ -387,7 +391,9 @@ closes on the 1.5rem section break.
 - **There is no FAB long-press.** `wireFabGestures()`, `openCameraDirect()`, `FAB_LONG_PRESS`, `_fabCameraShortcut` are gone. **The camera is the camera button in this sheet.** ⚠️ **Removed for reliability, not taste** — see §6/§8: the gesture's outcome is decided by main-thread timing, an off-main-thread platform long-press, file-chooser activation rules and camera-intent latency, and the render loop models none of them, so three green suites said nothing about the only environment where it broke.
 - Clip button → `#capture-gallery-file` (bare `accept="image/*"`); camera button → `#capture-camera-file` (`capture="environment"`). Both feed `handleCaptureFile`; photos downscale to ≤1280px JPEG q0.82 before base64.
 - **Photo + comment:** a photo parks as `pendingImageB64` with a removable `.capture-attach` chip so a note can be typed; send submits both, note as `caption`. Survives close/reopen until sent or removed. Placeholder `"Coffee RM8"` is set in markup **and** in `clearCaptureAttachment()`.
-- POSTs `action:'parse'`; spinner replaces the send arrow; 25s timeout; notes/errors in `#capture-note` (persist to next open, cleared on new parse).
+- POSTs `action:'parse'`; **the receipt prints in `#capture-parse` while the request is in flight** (§3.15); 25s timeout; notes/errors in `#capture-note` (persist to next open, cleared on new parse).
+- ⚠️ **Exactly one busy indicator, and which one depends on the motion setting.** The receipt **replaces** the send-arrow spinner — two of them a centimetre apart is noise. Under `prefers-reduced-motion` the receipt goes still, so the spinner comes back; **that branch is now the only place the spinner's CSS lives**. Never both, never neither — asserted both ways (§3.12).
+- **`setCaptureBusy()` is the single hook** for both halves, and `parseCapture()`'s `finally` already covers success, error and the 25s abort — so the receipt cannot be left printing behind an error message.
 - **`Enter manually instead` is styled as a fallback** (`.capture-manual`) — an underlined text button, not a `.btn`, which outranked the capture field the sheet exists for. Still a 44px target. ⚠️ It **replaced** its `.modal-actions` wrapper rather than sitting inside it (the rule carries its own `margin-top`).
 - **Confirm flow:** 1 txn → the normal txn modal pre-filled ("Confirm entry", saves via untouched `saveTxn()`); N txns → `#review-overlay` (editable amounts, removable rows, sequential "Save all"; saved rows leave the list so retry can't duplicate).
 - **Sources:** capture-confirmed adds carry `'web'`/`'web-image'`; plain FAB adds send `'dashboard'` (`pendingSource` resets on every plain modal open — `openManualFromCapture()` preserves it).
@@ -441,7 +447,7 @@ test/run.sh                the same suite in four timezones
 
 test/browser/helpers/app.js   openApp() — mocks the sheet, stubs Chart.js, pins the clock
 test/browser/fixtures/        GViz mock (deliberate month gap) + Chart.js stub
-test/browser/smoke.spec.js    48 checks, 2 projects (390 light-reduced / 900 dark-motion)
+test/browser/smoke.spec.js    51 checks, 2 projects (390 light-reduced / 900 dark-motion)
 ```
 
 **`test/` (pure logic):**
@@ -492,9 +498,11 @@ A series is a **definition** in the `Recurring` tab (§1); its **occurrences** a
 
 ### 3.15 The marker mark — loader and app icon
 
-One drawn mark, two places: the pre-dashboard loader (`#main-loader .loader-mark`) and the app
-icon (`icons/*.png`). Three bars on a baseline, tallest one sienna — the same subject the loader
-always had, redrawn by hand.
+One nib, three places: the pre-dashboard loader (`#main-loader .loader-mark`), the app icon
+(`icons/*.png`), and the capture sheet's parse-busy mark (`#capture-parse .capture-receipt`,
+§3.8). The first two are the same drawing — three bars on a baseline, tallest one sienna. The
+third is a receipt printing itself, from the same exploration; **it is a different subject on
+purpose**, because it says what is being waited on, which the bars cannot.
 
 - ⚠️ **Every mark is a FILLED, tapered path. Nothing in it is stroked.** A felt-tip changes width
   as it moves; a `stroke` of constant width is exactly what makes a hand-drawn mark read as clip
@@ -512,7 +520,13 @@ always had, redrawn by hand.
 - **Animation:** `.lb` groups grow in sequence (`loaderGrow`, 160ms stagger) with
   `transform-box: fill-box`; `.lt` ticks pulse. Reduced motion moves the pulse to the whole mark
   and sets `.lb`/`.lt` to `animation: none` — which is also what makes the bars sit full height.
-- **Copy is `Adding it up`**, in the body face. ⚠️ **Not Newsreader** — the serif is the
+- ⚠️ **The capture receipt has NO paper fill** — a white fill is a bright block on the dark
+  theme, and a token fill would fight the sheet it sits on. It is an outline drawing, so it
+  needs neither. It has no ground shadow either, for the same reason the loader has none.
+- **Receipt animation:** `.cr-rule` lines scale in from the left (180ms stagger), `.cr-total`
+  pops last (`crRule` / `crTotal`, 2.2s). Reduced motion sets both to `animation: none`, which
+  leaves the receipt complete and still.
+- **Copy is `Adding it up`** (loader) and **`Reading it`** (capture), both in the body face. ⚠️ **Not Newsreader** — the serif is the
   masthead's alone (§3.2), and the design draft that used it there was not carried over.
 - **Icons:** four manifest entries, two art files per size (§3.11). The tile ground is the paper
   `#FFFCF8`; ink is the literal `#12100E` (a PNG has no tokens).
@@ -705,6 +719,10 @@ recorded here so they are not re-proposed as new.
 6. **The serif did not come with the mark.** Newsreader stays the masthead's alone.
 7. **The path data is generated by a nib model and committed as data** — regenerate, never
    hand-edit.
+8. **The capture sheet's parse wait got the receipt** (2026-09-04, same day). A different
+   subject from the loader's bars, deliberately: it names what is being waited on. It
+   **replaces** the send-arrow spinner rather than joining it, and reduced motion swaps them
+   back the other way — one indicator either way.
 
 ### Design fix spec ✅ (2026-08-10, second pass)
 
@@ -767,7 +785,8 @@ validation suite.
 - `defer` on the Chart.js tag or the `lib/alfred-core.js` tag — both are called into at module scope by the inline script, which runs first
 - Parsing a row's date with `new Date(row.Date)` or `new Date(row.Date + 'T00:00:00')` (§1, §3.12)
 - Interpolating sheet text into `innerHTML` without `escapeHtml()` (§3.6)
-- Stroking any part of the marker mark, hand-editing its path data, giving it a second accent colour, or adding the ground shadow back to the loader (§3.15)
+- Stroking any part of the marker mark, hand-editing its path data, giving it a second accent colour, or adding the ground shadow back to the loader or the capture receipt (§3.15)
+- Running the send-arrow spinner and the capture receipt at the same time, or giving the receipt a paper fill (§3.8, §3.15)
 - Declaring the full-bleed `any` icon as `maskable`, or dropping the separate maskable files (§3.11)
 - Any new backend endpoints, LLM calls, or paid services
 

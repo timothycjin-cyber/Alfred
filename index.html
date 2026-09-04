@@ -1549,12 +1549,36 @@
   }
   .capture-card.busy .capture-send, .capture-card.busy .icon-btn { pointer-events: none; opacity: 0.55; }
   .capture-card.busy .capture-input { pointer-events: none; }
-  /* Busy = spinner replaces the send arrow: status feedback, kept under reduced motion. */
-  .capture-card.busy .capture-send svg { display: none; }
-  .capture-card.busy .capture-send::after {
-    content: ''; width: 14px; height: 14px; border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.35); border-top-color: var(--on-primary);
-    animation: refreshSpin 0.7s linear infinite;
+
+  /* Parse busy state: the receipt prints itself while the model reads the
+     entry — same nib as the loader mark (§3.15), same generator. It REPLACES
+     the send-arrow spinner rather than joining it; two busy indicators eight
+     millimetres apart is noise, and the receipt is the one that says what is
+     being waited on. ⚠️ Under reduced motion the receipt goes still, so the
+     spinner comes BACK there — that branch is the only place it now lives. */
+  .capture-parse {
+    display: none; flex-direction: column; align-items: center; gap: 10px;
+    padding: 8px 0 18px;
+  }
+  .capture-parse.show { display: flex; }
+  .capture-parse-copy { font-size: 12px; font-weight: 600; color: var(--on-surface-variant); }
+  .capture-receipt .cr-rule {
+    transform-box: fill-box; transform-origin: 0% 50%;
+    animation: crRule 2.2s cubic-bezier(0.3, 0.9, 0.3, 1) infinite;
+  }
+  .capture-receipt .cr-r1 { animation-delay: 180ms; }
+  .capture-receipt .cr-r2 { animation-delay: 360ms; }
+  .capture-receipt .cr-total {
+    transform-box: fill-box; transform-origin: 50% 50%;
+    animation: crTotal 2.2s cubic-bezier(0.34, 1.6, 0.5, 1) infinite;
+  }
+  @keyframes crRule {
+    0%, 6% { transform: scaleX(0); opacity: 0; }
+    26%, 100% { transform: scaleX(1); opacity: 1; }
+  }
+  @keyframes crTotal {
+    0%, 46% { transform: scale(0.5); opacity: 0; }
+    68%, 100% { transform: scale(1); opacity: 1; }
   }
   .capture-note {
     display: none; font-size: 12px; font-weight: 600;
@@ -1703,6 +1727,17 @@
     .hero-card, .tile-block, .tile-row .tile-block:nth-child(1), .tile-row .tile-block:nth-child(2),
     .txn-row, .txn-icon-chip, .hm-cell,
     .month-header.logs-new, .week-row.logs-new { animation-delay: 0ms; }
+    /* The receipt goes still — a printing animation is the whole point of it,
+       so with the motion gone it would be a static drawing claiming nothing.
+       The send-arrow spinner comes back to carry the status instead; it is
+       status, not flourish, which is why it survives here and only here. */
+    .capture-receipt .cr-rule, .capture-receipt .cr-total { animation: none; }
+    .capture-card.busy .capture-send svg { display: none; }
+    .capture-card.busy .capture-send::after {
+      content: ''; width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.35); border-top-color: var(--on-primary);
+      animation: refreshSpin 0.7s linear infinite;
+    }
     /* Loader still signals activity, but the whole mark breathes instead of
        the bars growing — pulsing the three pieces separately would be busier
        than the animation it replaces. Clearing .lb's animation also drops its
@@ -2017,6 +2052,10 @@
            (capture attr), clip opens gallery/files for screenshots. -->
       <input type="file" id="capture-camera-file" accept="image/*" capture="environment" hidden>
       <input type="file" id="capture-gallery-file" accept="image/*" hidden>
+    </div>
+    <div class="capture-parse" id="capture-parse" role="status">
+      <svg class="capture-receipt" viewBox="138 80 240 300" width="94" height="118" aria-hidden="true"><path d="M 159.3 149.7 L 159.4 146.8 L 159.3 141.0 L 159.0 132.4 L 158.6 121.2 L 158.9 112.6 L 160.0 106.7 L 161.2 103.7 L 159.8 104.3 L 172.2 102.8 L 196.7 102.1 L 232.4 102.3 L 279.3 103.4 L 315.0 104.9 L 339.5 106.7 L 351.7 108.5 L 348.2 104.3 L 350.6 120.1 L 352.6 152.1 L 353.8 199.1 L 354.3 260.9 L 353.0 308.6 L 350.0 341.9 L 345.8 360.2 L 341.6 363.4 L 337.2 365.6 L 333.4 365.8 L 329.0 364.2 L 322.3 358.9 L 313.5 355.5 L 304.5 355.7 L 296.0 359.4 L 289.4 364.9 L 284.6 366.8 L 280.4 366.5 L 276.0 364.2 L 269.6 358.3 L 260.8 354.2 L 251.1 353.8 L 241.7 357.3 L 235.0 362.6 L 231.1 364.3 L 227.9 364.4 L 223.9 362.8 L 217.1 357.5 L 207.9 353.9 L 198.1 353.9 L 189.0 357.7 L 182.3 363.2 L 178.2 364.8 L 174.8 364.8 L 170.7 363.0 L 165.5 358.7 L 161.4 354.0 L 158.6 349.2 L 157.2 343.9 L 157.0 337.3 L 156.9 323.8 L 157.1 304.3 L 157.5 278.9 L 158.2 247.4 L 158.7 223.7 L 159.1 208.0 L 159.4 200.1 Q 152.0 200.0 144.9 199.9 L 145.2 207.8 L 145.4 223.5 L 145.5 247.2 L 145.4 278.7 L 145.3 304.2 L 145.1 323.7 L 145.0 337.2 L 144.9 345.3 L 146.7 353.6 L 150.4 361.3 L 155.9 368.3 L 163.5 374.7 L 172.0 378.3 L 181.0 378.4 L 189.7 374.9 L 196.4 369.6 L 201.0 367.9 L 204.9 368.3 L 209.1 370.5 L 215.4 376.4 L 224.5 380.7 L 234.6 381.1 L 244.2 377.4 L 250.9 372.0 L 254.5 370.4 L 257.5 370.3 L 261.3 371.6 L 268.1 376.9 L 277.5 380.5 L 287.4 380.3 L 296.6 376.5 L 303.3 371.0 L 307.3 369.4 L 310.7 369.5 L 314.6 371.3 L 321.2 376.8 L 330.7 380.5 L 340.8 380.0 L 349.9 375.5 L 359.1 366.2 L 364.5 344.2 L 367.9 309.5 L 369.6 261.1 L 369.8 198.9 L 369.2 151.6 L 367.9 118.8 L 365.5 99.8 L 356.8 91.2 L 341.3 88.8 L 315.9 87.3 L 279.7 86.4 L 232.5 86.1 L 196.4 86.7 L 171.0 88.2 L 155.8 90.8 L 149.5 96.4 L 146.6 103.1 L 145.1 111.3 L 144.5 121.3 L 144.8 133.0 L 145.0 141.7 L 145.1 147.4 L 145.2 150.3 Q 152.0 150.0 159.3 149.7 Z" fill="var(--loader-ink)"/><g class="cr-rule cr-r0"><path d="M 184.2 161.4 L 193.0 161.0 L 210.7 159.6 L 237.4 159.6 L 272.9 158.7 L 299.5 157.5 L 317.3 156.9 L 326.1 155.3 Q 326.0 152.0 325.9 147.8 L 317.0 147.2 L 299.3 148.8 L 272.6 149.2 L 237.1 149.1 L 210.5 149.9 L 192.7 150.3 L 183.9 151.5 Q 184.0 156.0 184.2 161.4 Z" fill="var(--loader-ink)"/></g><g class="cr-rule cr-r1"><path d="M 184.1 205.1 L 191.1 204.8 L 205.2 205.1 L 226.1 204.0 L 254.1 202.3 L 275.1 202.3 L 289.1 201.6 L 296.1 201.1 Q 296.0 197.0 295.9 193.8 L 288.9 193.4 L 274.9 192.2 L 253.9 193.0 L 225.9 193.8 L 204.9 194.8 L 190.9 195.3 L 183.8 194.2 Q 184.0 200.0 184.1 205.1 Z" fill="var(--loader-ink)"/></g><g class="cr-rule cr-r2"><path d="M 184.1 248.9 L 192.5 248.5 L 209.2 248.3 L 234.4 247.7 L 267.9 247.8 L 293.0 246.2 L 309.7 244.8 L 318.1 245.1 Q 318.0 241.0 317.9 236.1 L 309.5 236.8 L 292.8 237.2 L 267.6 237.5 L 234.1 238.2 L 209.0 237.7 L 192.3 238.5 L 183.9 239.6 Q 184.0 244.0 184.1 248.9 Z" fill="var(--loader-ink)"/></g><g class="cr-total"><path d="M 182 286 L 330 285 L 331 320 L 181 321 Z" fill="var(--sienna)"/><path d="M 189.0 301.4 L 188.3 300.7 L 187.7 299.3 L 187.1 297.1 L 186.8 294.7 L 187.1 293.4 L 187.5 292.7 L 188.1 292.1 L 189.0 291.6 L 198.6 290.9 L 216.2 290.6 L 241.4 290.7 L 274.3 291.1 L 299.2 292.0 L 316.0 293.3 L 323.8 294.6 L 321.4 293.3 L 322.1 294.5 L 322.7 296.8 L 323.0 299.9 L 322.9 303.9 L 322.6 307.3 L 322.1 310.0 L 321.7 312.3 L 323.8 311.8 L 315.9 313.5 L 298.8 314.6 L 273.4 314.8 L 239.8 314.3 L 214.2 313.6 L 196.8 312.9 L 188.0 312.1 L 188.9 312.8 L 187.7 311.5 L 186.6 308.9 L 185.7 305.3 L 185.2 300.5 L 184.9 296.9 L 184.6 294.5 L 184.4 293.2 Q 180.3 293.8 175.5 294.4 L 175.2 295.7 L 175.1 298.1 L 175.4 301.8 L 176.0 306.9 L 176.9 311.6 L 178.1 315.7 L 179.9 319.5 L 185.1 323.7 L 195.8 325.2 L 213.8 325.9 L 239.6 326.0 L 273.4 325.6 L 299.2 324.6 L 317.0 323.1 L 327.5 320.9 L 331.1 316.2 L 332.2 312.6 L 333.0 308.7 L 333.3 304.3 L 333.3 299.5 L 333.2 295.2 L 332.8 291.3 L 331.9 287.6 L 327.5 282.5 L 317.0 280.6 L 299.5 279.7 L 274.3 279.6 L 241.3 280.2 L 215.9 280.7 L 198.1 281.3 L 187.7 281.9 L 183.1 283.5 L 179.8 286.3 L 177.9 290.1 L 177.4 294.1 L 177.7 297.6 L 177.9 299.8 L 177.9 301.3 L 177.8 302.0 Q 183.3 301.7 189.0 301.4 Z" fill="var(--loader-ink)"/></g></svg>
+      <div class="capture-parse-copy">Reading it</div>
     </div>
     <div class="capture-note" id="capture-note" aria-live="polite"></div>
     <!-- No .modal-actions wrapper: .capture-manual carries its own spacing, and
@@ -5236,6 +5275,10 @@ function setCaptureNote(msg, isError) {
 function setCaptureBusy(busy) {
   captureBusy = busy;
   document.getElementById('capture-card').classList.toggle('busy', busy);
+  // One hook for both halves of the busy state — parseCapture()'s finally
+  // block already covers success, error and the 25s abort, so the receipt
+  // can never be left printing after the request is done.
+  document.getElementById('capture-parse').classList.toggle('show', busy);
 }
 
 // A chosen photo doesn't send immediately — it parks as an attachment

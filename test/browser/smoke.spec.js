@@ -302,3 +302,73 @@ test.describe('loader mark', () => {
     expect(anim).toBe('none');
   });
 });
+
+test.describe('capture parse busy state', () => {
+  // Hold the parse POST open so the busy state can be looked at. Registered
+  // AFTER openApp(), so it wins over the harness's catch-all route.
+  async function stallParse(page) {
+    await page.route('**/script.google.com/**', () => { /* never fulfilled */ });
+  }
+
+  test('the receipt prints while the model reads the entry', async ({ page }) => {
+    await openApp(page);
+    await stallParse(page);
+    await page.evaluate(() => openCaptureModal());
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+
+    const panel = page.locator('#capture-parse');
+    await expect(panel).toBeVisible();
+    await expect(page.locator('#capture-card')).toHaveClass(/busy/);
+
+    const shape = await page.evaluate(() => {
+      const svg = document.querySelector('#capture-parse .capture-receipt');
+      return {
+        // Same rule as the loader mark: filled tapered paths, no strokes, and
+        // the ROOT counts (querySelectorAll searches descendants only).
+        stroked: svg.querySelectorAll('[stroke], [stroke-width]').length
+          + (svg.hasAttribute('stroke') || svg.hasAttribute('stroke-width') ? 1 : 0),
+        rules: svg.querySelectorAll('.cr-rule').length,
+        accent: [...svg.querySelectorAll('path')]
+          .filter((p) => p.getAttribute('fill') === 'var(--sienna)').length,
+      };
+    });
+    expect(shape.stroked).toBe(0);
+    expect(shape.rules).toBe(3);
+    expect(shape.accent).toBe(1);
+  });
+
+  test('exactly one busy indicator, whichever one the motion setting calls for', async ({ page }) => {
+    // The receipt REPLACES the send-arrow spinner — two of them a centimetre
+    // apart is noise. Under reduced motion the receipt goes still, so the
+    // spinner comes back instead. Never both, never neither.
+    await openApp(page);
+    await stallParse(page);
+    await page.evaluate(() => openCaptureModal());
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+    await expect(page.locator('#capture-parse')).toBeVisible();
+
+    const state = await page.evaluate(() => ({
+      reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      spinner: getComputedStyle(document.querySelector('.capture-send'), '::after').content !== 'none',
+      printing: getComputedStyle(document.querySelector('.capture-receipt .cr-rule')).animationName !== 'none',
+    }));
+    expect(state.spinner).toBe(state.reduced);
+    expect(state.printing).toBe(!state.reduced);
+  });
+
+  test('the receipt is cleared when the parse finishes', async ({ page }) => {
+    // parseCapture()'s finally block is the only thing standing between a
+    // failed parse and a receipt that prints forever behind an error message.
+    await openApp(page);
+    await page.route('**/script.google.com/**', (route) =>
+      route.fulfill({ contentType: 'application/json', body: '{"error":"nope"}' }));
+    await page.evaluate(() => openCaptureModal());
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+    await expect(page.locator('#capture-note')).toContainText('Could not read that');
+    await expect(page.locator('#capture-parse')).toBeHidden();
+    await expect(page.locator('#capture-card')).not.toHaveClass(/busy/);
+  });
+});
