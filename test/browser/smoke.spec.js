@@ -285,8 +285,38 @@ test.describe('loader mark', () => {
     });
     expect(shape.stroked).toBe(0);
     expect(shape.paths).toBeGreaterThan(5);
-    expect(shape.bars).toBe(3);
+    expect(shape.bars).toBe(4);
     expect(shape.accent).toBe(1); // sienna marks exactly one bar, never two
+  });
+
+  test('the bounce is seamless — first and last keyframe hold the same value', async ({ page }) => {
+    // ⚠️ The regression this guards is invisible to every other check: the
+    // previous keyframes grew to scaleY(1), sat there, then JUMPED back to
+    // 0.08 at the wrap. The DOM is identical either way; it just stutters
+    // once per loop. Read the rule out of the stylesheet and compare the two
+    // ends of the cycle.
+    await openApp(page);
+    const kf = await page.evaluate(() => {
+      for (const sheet of document.styleSheets) {
+        // ⚠️ Reading .cssRules on a cross-origin sheet throws SecurityError,
+        // and one bad sheet kills the whole evaluate. The app links Google
+        // Fonts, so this is not hypothetical — it is what made the first
+        // draft of this check fail against correct CSS.
+        let rules;
+        try { rules = sheet.cssRules; } catch { continue; }
+        for (const rule of rules) {
+          if (rule.type === CSSRule.KEYFRAMES_RULE && rule.name === 'loaderBounce') {
+            const at = (k) => [...rule.cssRules].find((r) => r.keyText.split(',')
+              .map((s) => s.trim()).includes(k));
+            return { start: at('0%')?.style.transform, end: at('100%')?.style.transform };
+          }
+        }
+      }
+      return null;
+    });
+    expect(kf).not.toBeNull();
+    expect(kf.start).toBeTruthy();
+    expect(kf.start).toBe(kf.end);
   });
 
   test('reduced motion stops the bars growing rather than hiding them', async ({ page }) => {
