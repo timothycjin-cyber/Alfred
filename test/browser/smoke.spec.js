@@ -258,3 +258,47 @@ test.describe('insight strip', () => {
     expect(text).not.toContain('median');
   });
 });
+
+test.describe('loader mark', () => {
+  test('is drawn in filled paths, never stroked lines', async ({ page }) => {
+    // The whole point of the marker style is that a mark's width varies along
+    // its length, which a stroked line cannot do. A `stroke` attribute
+    // creeping back in is the regression this guards — it would look like a
+    // uniform monoline again and nothing else in the suite would notice.
+    await openApp(page);
+    const mark = page.locator('#main-loader .loader-mark');
+    await expect(mark).toHaveCount(1);
+    const shape = await page.evaluate(() => {
+      const svg = document.querySelector('#main-loader .loader-mark');
+      return {
+        paths: svg.querySelectorAll('path').length,
+        // ⚠️ Count the ROOT as well as its descendants. querySelectorAll only
+        // searches descendants, so a stroke set on the <svg> itself — which
+        // every child would inherit, the worst version of this regression —
+        // walked straight past the first draft of this check.
+        stroked: svg.querySelectorAll('[stroke], [stroke-width]').length
+          + (svg.hasAttribute('stroke') || svg.hasAttribute('stroke-width') ? 1 : 0),
+        bars: svg.querySelectorAll('.lb').length,
+        accent: [...svg.querySelectorAll('path')]
+          .filter((p) => p.getAttribute('fill') === 'var(--sienna)').length,
+      };
+    });
+    expect(shape.stroked).toBe(0);
+    expect(shape.paths).toBeGreaterThan(5);
+    expect(shape.bars).toBe(3);
+    expect(shape.accent).toBe(1); // sienna marks exactly one bar, never two
+  });
+
+  test('reduced motion stops the bars growing rather than hiding them', async ({ page }) => {
+    // Clearing .lb's animation is what drops its scaleY, so the bars must sit
+    // at full height — a reduced-motion loader that renders 8%-tall stubs
+    // would read as a broken chart, not a calm one.
+    await openApp(page);
+    const reduced = await page.evaluate(() =>
+      matchMedia('(prefers-reduced-motion: reduce)').matches);
+    test.skip(!reduced, 'only meaningful in the reduced-motion project');
+    const anim = await page.evaluate(() =>
+      getComputedStyle(document.querySelector('#main-loader .lb')).animationName);
+    expect(anim).toBe('none');
+  });
+});
