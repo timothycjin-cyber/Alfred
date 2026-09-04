@@ -24,7 +24,11 @@ and the loader keeps the bars (§3.15 has the table; do not unify them back). Th
 sheet's parse wait prints a **receipt** from the same nib (§3.8) — a different subject on
 purpose, since it names what is being waited on. It **replaces** the send-arrow spinner;
 reduced motion stills the receipt and brings the spinner back, so there is always exactly one
-busy indicator and never two. Previous banner (median daily,
+busy indicator and never two. **Corrected on device evidence:** the icon is **one circle-safe file per size**, `purpose:
+"any maskable"` — a launcher masks a `purpose: "any"` icon too, so the earlier full-bleed/maskable
+split shipped a clipped home-screen icon with a correctly-sized file sitting unused beside it.
+The scale comes from the furthest **ink pixel** (192.1), never the bbox corner (226.7).
+Previous banner (median daily,
 calibrated forecast and the distribution curve, §3.5a) is in the history skill. **One banner: the
 current change only**; superseded ones move to the history skill, not into a queue. Two facts
 that live nowhere else: earlier roadmap files were folded into §6 (2026-07-19), and `index.html`
@@ -422,11 +426,14 @@ the GViz month-correction so optimistic and reconciled rows format identically.
 ### 3.11 PWA shell (push retired — Phase F)
 
 `manifest.json` is now the **entire** PWA shell and carries installability on its own.
-**Five icon entries, three framings of one drawing:** `icon-<n>.png` is `purpose: "any"`,
-`icon-maskable-<n>.png` is `purpose: "maskable"` and holds the SAME art at a smaller scale, and
-`icon-64.png` is the tab favicon (stripped variant, also `any`). ⚠️ **One file cannot serve both
-purposes.** A maskable icon is cropped to a centred circle of 80% diameter, so full-bleed art
-declared as maskable loses its edges on Android. The two scales and why they differ are in
+**Three icon entries, ONE framing.** `icon-192.png` and `icon-512.png` are
+`purpose: "any maskable"`; `icon-64.png` is the tab favicon (stripped variant, `any`).
+⚠️ **A launcher masks whatever icon it picks, INCLUDING a `purpose: "any"` one.** This was found
+on a real device: a full-bleed `any` icon at 1.22 came back from an Android home screen with the
+coin, legs and tail cropped off, while the correctly-sized maskable file sat unused beside it.
+There is therefore **no full-bleed framing to be had** — the art is scaled once to sit inside the
+mask and both purposes are declared on the one file. Separate `icon-maskable-*.png` files are
+**deleted**; do not reintroduce them for this drawing. The scale and how to re-derive it are in
 §3.15. `background_color` is the paper `#FFFCF8`.
 **No service worker** (`firebase-messaging-sw.js` and its registration are deleted; it only did
 push display + PWA presence, no fetch handler). **No push client** — bell, `togglePush()`,
@@ -538,17 +545,17 @@ back — that argument has been had and this table is the answer.
   leaves the receipt complete and still.
 - **Copy is `Adding it up`** (loader) and **`Reading it`** (capture), both in the body face. ⚠️ **Not Newsreader** — the serif is the
   masthead's alone (§3.2), and the design draft that used it there was not carried over.
-- **Icon framing — `FRAME` and `ART_CENTRE` in `tools/ink/emit.mjs` are MEASURED, not chosen.**
-  ⚠️ **Re-derive both after any change to the drawing** — ask the browser for the art group's
-  `getBBox()`, don't estimate. The tail alone has moved them twice: three turns pushed the left
-  edge out to 70.6, two turns brought it back to 91.5. Current: bbox **315.2 × 325.8** about
-  **(249.1, 259.3)**, furthest bbox corner **226.7** units from that centre.
-  - `any` is full-bleed at **1.22** → art at ~75% × 78% of the tile. ⚠️ At 1.0 the pig floats in
-    a large empty square and becomes a dot on a home screen; the art's own bounds are not the
-    tile's composition.
-  - `maskable` is **0.88** → furthest corner ~199 inside the 205-unit safe radius. ⚠️ It is
-    `200 / maxR` for **this** drawing, not a constant — it has already been 0.76, 0.86, 0.85 and
-    now 0.88, and none of those changes were visible without measuring.
+- **Icon framing — one `FRAME` (0.97) and one `ART_CENTRE`, both MEASURED.**
+  ⚠️ **Measure the furthest INK PIXEL from the art's centre. Never the bbox corner.** Rasterise
+  the art and read the alpha channel; `getBBox()` answers a different question. The pig is a
+  rounded silhouette that reaches nowhere near its own corners — bbox corner **226.7** units out,
+  furthest drawn pixel only **192.1**. Sizing against the corner shrank the maskable file for
+  nothing *and* said nothing at all about the file that was actually being clipped.
+  **0.97** puts the furthest pixel at ~186, inside the spec's 205-unit safe radius (a circle of
+  80% diameter) with margin for launchers that crop harder than the guarantee. Verified against
+  crops at 100%, 80% and 72%.
+  ⚠️ **Re-derive it after any change to the drawing** — the tail alone has moved the art's
+  bounds twice.
 - **The coin never simplifies away.** It carries a drawn **`$`** (S plus bar, same nib) and is
   the only saturated colour — the only reason the tile reads as money rather than as an animal.
   ⚠️ The `$` is **ink on sienna** (~4.3:1), not a knockout in the paper colour (~3.9:1), which
@@ -765,7 +772,9 @@ recorded here so they are not re-proposed as new.
 2. **One sienna element per mark**, never two.
 3. **The loader carries no ground shadow, the icon does** — the shadow inverts on dark.
 4. **`--loader-ink` is its own light/dark pair**, not `--on-surface`.
-5. **Maskable icons are a separate file**, art at 76% — one file cannot serve both purposes.
+5. ~~Maskable icons are a separate file~~ — **REVERSED on device evidence (2026-09-04, sixth
+   pass).** A launcher masks a `purpose: "any"` icon too, so a full-bleed framing does not
+   survive a home screen. One file, one scale, `purpose: "any maskable"` (§3.11).
 6. **The serif did not come with the mark.** Newsreader stays the masthead's alone.
 7. **The path data is generated by a nib model and committed as data** — regenerate, never
    hand-edit.
@@ -780,9 +789,13 @@ recorded here so they are not re-proposed as new.
    `PITCH × 2π < 2 × RAD`; the coin carries a drawn `$` in ink; and a **pink wash** — one
    `userSpaceOnUse` gradient across body and snout — fills the body. All in §3.15, because each
    one looks arbitrary until it is broken.
-9b. **`FRAME` and `ART_CENTRE` are measured from `getBBox()`, every time the drawing changes.**
-   The spring tail moved the art's left edge by 40 units; scales carried over by eye would have
-   been wrong in a way nothing tests.
+9b. **`FRAME` and `ART_CENTRE` are measured every time the drawing changes** — and measured
+   from the **furthest ink pixel**, not from `getBBox()`. The bbox corner overstated this
+   drawing's reach by 18% (226.7 vs 192.1), which made every maskable scale derived from it
+   both too small and, worse, irrelevant to the file that was actually clipping.
+9c. **The device is the only authority on icon framing.** Four rounds of arithmetic produced a
+   correctly-sized maskable file sitting unused beside a clipped `any` file. No local check
+   would have caught it: the maths was right about the wrong file.
 10. **The capture sheet's parse wait got the receipt** (2026-09-04, same day). A different
    subject from the loader's bars, deliberately: it names what is being waited on. It
    **replaces** the send-arrow spinner rather than joining it, and reduced motion swaps them
@@ -853,7 +866,8 @@ validation suite.
 - Giving the loader or the capture receipt a second colour, or spreading the icon's pink wash to either of them — the wash is icon-only and is a tint of the sienna, not a third hue (§3.15)
 - Reusing `FRAME`'s numbers after changing the drawing without re-measuring `getBBox()` (§3.15)
 - Running the send-arrow spinner and the capture receipt at the same time, or giving the receipt a paper fill (§3.8, §3.15)
-- Declaring the full-bleed `any` icon as `maskable`, or dropping the separate maskable files (§3.11)
+- Reintroducing separate `icon-maskable-*.png` files, or giving the `any` icon a full-bleed framing — a launcher masks whatever it picks, so both purposes ride one circle-safe file (§3.11)
+- Deriving an icon scale from `getBBox()` — measure the furthest ink pixel (§3.15)
 - Any new backend endpoints, LLM calls, or paid services
 
 ---

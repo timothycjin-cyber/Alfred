@@ -132,40 +132,34 @@ fs.writeFileSync('loader-markup.txt',
   `<svg class="loader-mark" viewBox="${VB}" width="132" height="114" aria-hidden="true">`
   + art({ ink: 'var(--loader-ink)', accent: 'var(--sienna)', anim: true, ground: false }) + '</svg>');
 
-/* Two framings of the same drawing.
-   ⚠️ These are MEASURED, not chosen, and they are not round numbers by
-   accident. Ask the browser for the art's bbox (getBBox on the group) after
-   any change to the drawing and re-derive both — the spring tail moved the
-   left edge from 110 to 71 and shifted the centre with it.
-   Current: bbox 336.1 x 325.8 about (238.7, 259.3); furthest bbox corner
-   234 units from that centre.
-   - `any` is full-bleed at 1.22 -> art at ~75% x 78% of the tile. At 1.0 the
-     pig floats in a large empty square and turns into a dot on a home screen.
-   - `maskable` is cropped to a centred circle of 80% diameter — a 205-unit
-     safe radius. 0.88 lands the furthest corner at ~199, inside it with a
-     little margin. ⚠️ Not a constant to copy: it is 200/maxR for THIS
-     drawing, and it has already been 0.76, 0.86 and 0.85 for earlier ones. */
-const FRAME = { any: 1.22, maskable: 0.88 };
-const ART_CENTRE = { x: 249.1, y: 259.3 };
-
-const page = (size, maskable, detail) => {
-  const k = maskable ? FRAME.maskable : FRAME.any;
-  return `<!doctype html><meta charset="utf-8">
+/* ONE framing, and it is circle-safe.
+   ⚠️ Measure the furthest INK PIXEL from the art's centre, never the bbox
+   corner. The pig is a rounded silhouette and reaches nowhere near its own
+   corners: the bbox corner is 226.7 units out, the furthest drawn pixel only
+   192.1. Sizing against the corner shrank the maskable file for nothing AND
+   said nothing about the file that actually got clipped.
+   A launcher applies its mask to whatever icon it picks — including a
+   `purpose: "any"` one. So there is no full-bleed framing to be had here: the
+   art is scaled once, to sit inside the mask, and BOTH purposes are declared
+   on the one file.
+   0.97 puts the furthest pixel at ~186 — inside the spec's 205-unit safe
+   radius (a circle of 80% diameter) with margin for launchers that crop
+   harder than the guarantee. Re-derive it by rasterising the art and reading
+   pixels, not from getBBox(). */
+const FRAME = 0.97;
+const ART_CENTRE = { x: 248.5, y: 259 };
+const page = (size, detail) => `<!doctype html><meta charset="utf-8">
 <body style="margin:0"><svg width="${size}" height="${size}" viewBox="0 0 512 512" style="display:block;background:#FFFCF8">
-<g transform="translate(256 256) scale(${k}) translate(${-ART_CENTRE.x} ${-ART_CENTRE.y})">
+<g transform="translate(256 256) scale(${FRAME}) translate(${-ART_CENTRE.x} ${-ART_CENTRE.y})">
 ${pig({ ink: '#12100E', accent: '#C2542D', d: detail })}
 </g>
 </svg></body>`;
-};
 
-for (const s of [192, 512]) {
-  fs.writeFileSync(`icon-${s}.html`, page(s, false, 2));
-  fs.writeFileSync(`icon-maskable-${s}.html`, page(s, true, 2));
-}
+for (const s of [192, 512]) fs.writeFileSync(`icon-${s}.html`, page(s, 2));
 // The browser tab renders at 16-32px. Downscaling the 192 there mushes the
 // tail, eye and nostrils into grey; the stripped variant (d=1) keeps the
 // silhouette and the coin, which is all that survives at that size anyway.
-fs.writeFileSync('icon-64.html', page(64, false, 1));
+fs.writeFileSync('icon-64.html', page(64, 1));
 console.log('emitted');
 
 /* The capture sheet's parse-busy mark: the receipt from the same exploration,
