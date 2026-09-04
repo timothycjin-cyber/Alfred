@@ -1,4 +1,4 @@
-import { stroke, box, ring, blob, sparkle } from './ink.mjs';
+import { stroke, box, ring, blob, sparkle, rnd } from './ink.mjs';
 import fs from 'fs';
 
 // Same nib as the canvas, emitted twice: once with CSS-variable inks for
@@ -34,17 +34,60 @@ function art({ ink, accent, anim, ground = true }) {
 function pig({ ink, accent, d = 2 }) {
   const P = (dd, f) => `<path d="${dd}" fill="${f}"/>`;
   const w = d > 1 ? 1 : 1.45;          // one nib size for the whole small variant
+  const lw = d > 1 ? 1 : 1.15;   // legs are a shape; they do not take the nib scale
+  const R = rnd(919);
+  const j = (a) => (R() - .5) * a;
+
+  // Inverted-triangle legs. A tapered STROKE would work but keeps a rounded
+  // cap, which reads as a stick with a fat top; a real wedge ends in a point
+  // and reads as a leg. Slightly bowed sides so it stays drawn, not vector.
+  const leg = (x, y0, y1, wTop, wBot) => {
+    const my = (y0 + y1) / 2;
+    return `M ${x - wTop / 2 + j(4)} ${y0 + j(3)}`
+      + ` L ${x + wTop / 2 + j(4)} ${y0 + j(3)}`
+      + ` Q ${x + wBot / 2 + wTop / 5 + j(2)} ${my} ${x + wBot / 2 + j(2)} ${y1 + j(2)}`
+      + ` L ${x - wBot / 2 + j(2)} ${y1 + j(2)}`
+      + ` Q ${x - wBot / 2 - wTop / 5 + j(2)} ${my} ${x - wTop / 2 + j(4)} ${y0 + j(3)} Z`;
+  };
+
+  // A curl, not a loop: an Archimedean spiral tightening as it goes, drawn as
+  // one tapering stroke off the body's back edge.
+  const curl = () => {
+    const pts = [[146, 296], [132, 288]];
+    const cx = 108, cy = 296, turns = 2.15;
+    const steps = 30;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const a = -0.9 + Math.PI * 2 * turns * t;
+      const r = 27 - 21 * t;
+      pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.92]);
+    }
+    return stroke(pts, { w0: 13, w1: 4, belly: 0, seed: 51, wob: .5 });
+  };
+
+  // ⚠️ The body arc STOPS either side of the snout instead of running behind
+  // it. Drawn as a full ring, the body's right edge cuts a chord straight
+  // across the snout — the snout has no fill to hide it, and filling it would
+  // tie the drawing to one background colour. The gap (±0.36 rad) is where the
+  // ellipse meets the snout circle, so the two ends land ON it and read as a
+  // join rather than a hole. Re-derive this if either shape moves.
+  const GAP = 0.36;
   const out = [
     P(blob(254, 412, 112, 10, 5), ink),
-    P(stroke([[184, 358], [182, 402]], { w0: 17 * w, w1: 15 * w, seed: 21, wob: .6 }), ink),
-    P(stroke([[308, 360], [310, 402]], { w0: 17 * w, w1: 15 * w, seed: 25, wob: .6 }), ink),
-    P(ring(250, 284, 116, 84, { w0: 16 * w, w1: 14 * w, seed: 31, a0: -2.4 }), ink),
+    // ⚠️ The wedges start at the body's OUTLINE (y ~358 at these x), not
+    // inside it. The body has no fill, so a leg whose top sits in the belly
+    // shows through as a black skirt rather than as two legs. And the width is
+    // a shape, not a stroke — it takes its own small-size bump (1.15), not the
+    // nib's 1.45, which turned them into a single black mass at 40px.
+    P(leg(198, 350, 406, 32 * lw, 10 * lw), ink),
+    P(leg(306, 350, 406, 32 * lw, 10 * lw), ink),
+    P(ring(250, 284, 116, 84, { w0: 16 * w, w1: 14 * w, seed: 31, a0: GAP, turns: 1 - GAP / Math.PI }), ink),
     P(stroke([[272, 210], [288, 164], [330, 194], [298, 216]], { w0: 14 * w, w1: 11 * w, seed: 35 }), ink),
     P(ring(370, 288, 31, 27, { w0: 13 * w, w1: 11 * w, seed: 41, a0: -1.2 }), ink),
     P(stroke([[228, 206], [288, 200]], { w0: 15 * w, w1: 13 * w, seed: 45, wob: .5 }), ink),
   ];
   if (d > 1) {
-    out.push(P(stroke([[142, 316], [120, 310], [116, 332], [138, 338], [142, 324]], { w0: 12, w1: 8, seed: 51 }), ink));
+    out.push(P(curl(), ink));
     out.push(P(blob(312, 244, 9, 10, 55), ink));
     out.push(P(blob(362, 284, 6, 7, 59), ink), P(blob(380, 286, 6, 7, 61), ink));
   }

@@ -548,6 +548,18 @@ back — that argument has been had and this table is the answer.
     larger. Copying it across would have shrunk the art for nothing.
 - **The coin never simplifies away.** It is the only colour and the only reason the tile reads
   as money rather than as an animal.
+- ⚠️ **The body arc STOPS either side of the snout** (`GAP = 0.36` rad in `pig()`), it does not
+  run behind it. Drawn as a full ring, the body's right edge cuts a chord straight across the
+  snout; the snout has no fill to hide it, and giving it one would tie the drawing to a single
+  background colour. The gap is where the body ellipse meets the snout circle, so the two ends
+  land ON it and read as a join. **Re-derive it if either shape moves** — it is not a constant.
+- ⚠️ **The legs are filled wedges, and their width is a SHAPE, not a stroke.** Two consequences:
+  they take their own small-size bump (`lw`, 1.15), never the nib's 1.45 — at 1.45 the two legs
+  merged into one black mass at 40px; and their tops sit at the body's **outline** (y ≈ 358 at
+  those x), not inside it, because the body has no fill and a leg starting in the belly shows
+  through as a black skirt.
+- **The tail is a spiral, not a loop** — an Archimedean curl tightening over ~2.15 turns, drawn
+  as one tapering stroke. Its first two points sit inside the body so it reads as attached.
 - **`icon-64.png` is the tab favicon**, drawn at `d: 1` (no tail, eye or nostrils; heavier nib).
   ⚠️ **Downscaling the 192 for a 16–32px tab renders grey mush** — the detail that reads at 192
   is exactly what cannot survive there.
@@ -747,6 +759,10 @@ recorded here so they are not re-proposed as new.
    are derived from the pig's own bounds and are not reusable constants.
 9. **`icon-64.png` exists because the tab favicon is 16–32px**, where the 192 downscales into
    mush.
+9a. **The pig's anatomy is fixed by three rules, not by taste** (2026-09-04, fourth pass): the
+   body arc stops either side of the snout rather than cutting through it; the legs are filled
+   wedges starting at the outline; the tail is a spiral. All three are in §3.15 with the
+   reasoning, because each one is a thing that looks arbitrary until it is broken.
 10. **The capture sheet's parse wait got the receipt** (2026-09-04, same day). A different
    subject from the loader's bars, deliberately: it names what is being waited on. It
    **replaces** the send-arrow spinner rather than joining it, and reduced motion swaps them
