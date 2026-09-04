@@ -8,7 +8,10 @@
 <meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="icon" type="image/png" href="icons/icon-192.png">
+<!-- The tab favicon renders at 16-32px, where the 192 downscales into grey
+     mush. icon-64 is the stripped variant (no tail, eye or nostrils) drawn
+     at a heavier nib, so the silhouette and the coin survive. -->
+<link rel="icon" type="image/png" sizes="64x64" href="icons/icon-64.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <!-- Pure core (dates, weeks, recurrence, reconcile merge, escaping). Must load
      BEFORE the inline script below, which calls into it at module scope — so no

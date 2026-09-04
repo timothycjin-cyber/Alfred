@@ -17,8 +17,10 @@ Two things that differ between the two homes: the **loader has no ground shadow*
 so it inverts into a pale puddle on dark) and the **maskable icon is a separate file** at 76%
 scale (one file cannot serve both purposes — the full-bleed art clips under Android's circular
 mask). `--loader-ink` is a new light/dark pair, deliberately not `--on-surface`. The serif did
-NOT come along: Newsreader is still the masthead's alone. **Same day, second pass:** the capture
-sheet's parse wait now prints a **receipt** from the same nib (§3.8) — a different subject on
+NOT come along: Newsreader is still the masthead's alone. **Same day, further passes:** the app icon is now the **piggy bank taking a
+coin**, not the bars — the tile's job is to say *money* to someone who has never opened the app,
+and the loader keeps the bars (§3.15 has the table; do not unify them back). The capture
+sheet's parse wait prints a **receipt** from the same nib (§3.8) — a different subject on
 purpose, since it names what is being waited on. It **replaces** the send-arrow spinner;
 reduced motion stills the receipt and brings the spinner back, so there is always exactly one
 busy indicator and never two. Previous banner (median daily,
@@ -419,12 +421,12 @@ the GViz month-correction so optimistic and reconciled rows format identically.
 ### 3.11 PWA shell (push retired — Phase F)
 
 `manifest.json` is now the **entire** PWA shell and carries installability on its own.
-**Four icon entries, two art files per size:** `icon-<n>.png` is `purpose: "any"` (full-bleed
-art), `icon-maskable-<n>.png` is `purpose: "maskable"` and holds the SAME art scaled to **76%**
-about centre. ⚠️ **One file cannot serve both.** A maskable icon is cropped to a centred circle
-of 80% diameter, and the bar mark's corners sit ~229 units from centre in a 512 box against a
-205-unit safe radius — declaring the full-bleed art as maskable clips the tallest bar and the
-ticks on Android. `background_color` is the paper `#FFFCF8`, matching the loader's ground.
+**Five icon entries, three framings of one drawing:** `icon-<n>.png` is `purpose: "any"`,
+`icon-maskable-<n>.png` is `purpose: "maskable"` and holds the SAME art at a smaller scale, and
+`icon-64.png` is the tab favicon (stripped variant, also `any`). ⚠️ **One file cannot serve both
+purposes.** A maskable icon is cropped to a centred circle of 80% diameter, so full-bleed art
+declared as maskable loses its edges on Android. The two scales and why they differ are in
+§3.15. `background_color` is the paper `#FFFCF8`.
 **No service worker** (`firebase-messaging-sw.js` and its registration are deleted; it only did
 push display + PWA presence, no fetch handler). **No push client** — bell, `togglePush()`,
 `initPushUI()`, the Firebase SDK import, `FIREBASE_CONFIG`, `FCM_VAPID_KEY` and
@@ -498,11 +500,18 @@ A series is a **definition** in the `Recurring` tab (§1); its **occurrences** a
 
 ### 3.15 The marker mark — loader and app icon
 
-One nib, three places: the pre-dashboard loader (`#main-loader .loader-mark`), the app icon
-(`icons/*.png`), and the capture sheet's parse-busy mark (`#capture-parse .capture-receipt`,
-§3.8). The first two are the same drawing — three bars on a baseline, tallest one sienna. The
-third is a receipt printing itself, from the same exploration; **it is a different subject on
-purpose**, because it says what is being waited on, which the bars cannot.
+One nib, **three subjects, one per job** — a small cast, not one logo stretched across the app:
+
+| Where | Subject | Why that one |
+|---|---|---|
+| App icon (`icons/*.png`) | **Piggy bank taking a coin** | The tile has to say *money* to someone who has never opened the app. Bars do not. |
+| Loader (`#main-loader .loader-mark`) | **Three bars on a baseline** | It is the app's own data grammar (§3.2, length = money), and it is what the loader always was. |
+| Capture parse (`#capture-parse .capture-receipt`, §3.8) | **A receipt printing** | It names *what* is being waited on, which a generic busy mark cannot. |
+
+⚠️ **The icon and the loader are deliberately NOT the same drawing.** They were for one commit;
+the icon's job is recognition in a grid of other apps, the loader's is continuity with the
+charts underneath it, and one mark served the second better than the first. Do not "unify" them
+back — that argument has been had and this table is the answer.
 
 - ⚠️ **Every mark is a FILLED, tapered path. Nothing in it is stroked.** A felt-tip changes width
   as it moves; a `stroke` of constant width is exactly what makes a hand-drawn mark read as clip
@@ -528,7 +537,21 @@ purpose**, because it says what is being waited on, which the bars cannot.
   leaves the receipt complete and still.
 - **Copy is `Adding it up`** (loader) and **`Reading it`** (capture), both in the body face. ⚠️ **Not Newsreader** — the serif is the
   masthead's alone (§3.2), and the design draft that used it there was not carried over.
-- **Icons:** four manifest entries, two art files per size (§3.11). The tile ground is the paper
+- **Icon framing — two scales, neither of them round or interchangeable** (`FRAME` in
+  `tools/ink/emit.mjs`). The pig's bbox is 298 × 321 about **(259, 261)**, so its furthest point
+  is ~225 units from centre in a 512 box.
+  - `any` is full-bleed at **1.22** → art at ~71% × 77% of the tile. ⚠️ At 1.0 the pig floats in
+    a large empty square and becomes a dot on a home screen; the art's own bounds are not the
+    tile's composition.
+  - `maskable` is **0.86** → furthest point ~193 against the 205-unit safe radius. ⚠️ **Not
+    0.76** — that was the bar mark's number, and the pig is a rounder silhouette that can sit
+    larger. Copying it across would have shrunk the art for nothing.
+- **The coin never simplifies away.** It is the only colour and the only reason the tile reads
+  as money rather than as an animal.
+- **`icon-64.png` is the tab favicon**, drawn at `d: 1` (no tail, eye or nostrils; heavier nib).
+  ⚠️ **Downscaling the 192 for a 16–32px tab renders grey mush** — the detail that reads at 192
+  is exactly what cannot survive there.
+- **Icons:** five manifest entries plus the favicon link (§3.11). The tile ground is the paper
   `#FFFCF8`; ink is the literal `#12100E` (a PNG has no tokens).
 
 ---
@@ -719,7 +742,12 @@ recorded here so they are not re-proposed as new.
 6. **The serif did not come with the mark.** Newsreader stays the masthead's alone.
 7. **The path data is generated by a nib model and committed as data** — regenerate, never
    hand-edit.
-8. **The capture sheet's parse wait got the receipt** (2026-09-04, same day). A different
+8. **The icon is the pig, and the loader stays the bars** (2026-09-04, third pass). Three
+   subjects, one per job — see the table in §3.15. The two scales (`any` 1.22, `maskable` 0.86)
+   are derived from the pig's own bounds and are not reusable constants.
+9. **`icon-64.png` exists because the tab favicon is 16–32px**, where the 192 downscales into
+   mush.
+10. **The capture sheet's parse wait got the receipt** (2026-09-04, same day). A different
    subject from the loader's bars, deliberately: it names what is being waited on. It
    **replaces** the send-arrow spinner rather than joining it, and reduced motion swaps them
    back the other way — one indicator either way.

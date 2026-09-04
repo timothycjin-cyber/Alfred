@@ -25,21 +25,72 @@ function art({ ink, accent, anim, ground = true }) {
   ].join('');
 }
 
+
+/* The app icon: a piggy bank taking a coin. A different subject from the
+   loader's bars on purpose — the tile has to say "money" to someone who has
+   never opened the app, which three bars do not (CLAUDE.md §3.15).
+   d = 1 strips the detail that turns to mush below ~48px and fattens what is
+   left, so the silhouette survives instead of going grey. */
+function pig({ ink, accent, d = 2 }) {
+  const P = (dd, f) => `<path d="${dd}" fill="${f}"/>`;
+  const w = d > 1 ? 1 : 1.45;          // one nib size for the whole small variant
+  const out = [
+    P(blob(254, 412, 112, 10, 5), ink),
+    P(stroke([[184, 358], [182, 402]], { w0: 17 * w, w1: 15 * w, seed: 21, wob: .6 }), ink),
+    P(stroke([[308, 360], [310, 402]], { w0: 17 * w, w1: 15 * w, seed: 25, wob: .6 }), ink),
+    P(ring(250, 284, 116, 84, { w0: 16 * w, w1: 14 * w, seed: 31, a0: -2.4 }), ink),
+    P(stroke([[272, 210], [288, 164], [330, 194], [298, 216]], { w0: 14 * w, w1: 11 * w, seed: 35 }), ink),
+    P(ring(370, 288, 31, 27, { w0: 13 * w, w1: 11 * w, seed: 41, a0: -1.2 }), ink),
+    P(stroke([[228, 206], [288, 200]], { w0: 15 * w, w1: 13 * w, seed: 45, wob: .5 }), ink),
+  ];
+  if (d > 1) {
+    out.push(P(stroke([[142, 316], [120, 310], [116, 332], [138, 338], [142, 324]], { w0: 12, w1: 8, seed: 51 }), ink));
+    out.push(P(blob(312, 244, 9, 10, 55), ink));
+    out.push(P(blob(362, 284, 6, 7, 59), ink), P(blob(380, 286, 6, 7, 61), ink));
+  }
+  // The coin is the only colour, and the only reason the tile reads as money
+  // rather than as an animal. It never simplifies away.
+  out.push(P(blob(258, 132, 31, 31, 67), accent));
+  out.push(P(ring(258, 132, 31, 31, { w0: 10 * w, w1: 8 * w, seed: 71 }), ink));
+  if (d > 1) out.push(...sparkle(340, 128, 26, 8, 77, 2, 1.1).map((x) => P(x, ink)));
+  return out.join('');
+}
+
 const VB = '84 116 344 296';   // tight to the art, so it scales without dead margin
 fs.writeFileSync('loader-markup.txt',
   `<svg class="loader-mark" viewBox="${VB}" width="132" height="114" aria-hidden="true">`
   + art({ ink: 'var(--loader-ink)', accent: 'var(--sienna)', anim: true, ground: false }) + '</svg>');
 
-const page = (size, maskable) => `<!doctype html><meta charset="utf-8">
+/* Two framings of the same drawing.
+   ⚠️ The scales are NOT interchangeable and neither is a round number.
+   The pig's bbox is 298 x 321 about (259, 261) in a 512 box, so its furthest
+   point sits ~225 units from centre.
+   - `any` is full-bleed: 1.22 puts the art at ~71% x 77% of the tile. Left at
+     1.0 the pig floats in a large empty square and turns into a dot on a
+     home screen.
+   - `maskable` is cropped to a centred circle of 80% diameter — a 205-unit
+     safe radius. 0.86 lands the furthest point at ~193. (The bar mark needed
+     0.76; the pig is a rounder silhouette and can sit larger. Copying the old
+     number here would have shrunk it for no reason.) */
+const FRAME = { any: 1.22, maskable: 0.86 };
+const page = (size, maskable, detail) => {
+  const k = maskable ? FRAME.maskable : FRAME.any;
+  return `<!doctype html><meta charset="utf-8">
 <body style="margin:0"><svg width="${size}" height="${size}" viewBox="0 0 512 512" style="display:block;background:#FFFCF8">
-${maskable ? '<g transform="translate(256 256) scale(0.76) translate(-256 -256)">' : ''}
-${art({ ink: '#12100E', accent: '#C2542D', anim: false })}
-${maskable ? '</g>' : ''}
+<g transform="translate(256 256) scale(${k}) translate(-259 -261)">
+${pig({ ink: '#12100E', accent: '#C2542D', d: detail })}
+</g>
 </svg></body>`;
+};
+
 for (const s of [192, 512]) {
-  fs.writeFileSync(`icon-${s}.html`, page(s, false));
-  fs.writeFileSync(`icon-maskable-${s}.html`, page(s, true));
+  fs.writeFileSync(`icon-${s}.html`, page(s, false, 2));
+  fs.writeFileSync(`icon-maskable-${s}.html`, page(s, true, 2));
 }
+// The browser tab renders at 16-32px. Downscaling the 192 there mushes the
+// tail, eye and nostrils into grey; the stripped variant (d=1) keeps the
+// silhouette and the coin, which is all that survives at that size anyway.
+fs.writeFileSync('icon-64.html', page(64, false, 1));
 console.log('emitted');
 
 /* The capture sheet's parse-busy mark: the receipt from the same exploration,
