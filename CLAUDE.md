@@ -18,7 +18,8 @@ so it inverts into a pale puddle on dark) and the **maskable icon is a separate 
 scale (one file cannot serve both purposes — the full-bleed art clips under Android's circular
 mask). `--loader-ink` is a new light/dark pair, deliberately not `--on-surface`. The serif did
 NOT come along: Newsreader is still the masthead's alone. **Same day, further passes:** the app icon is now the **piggy bank taking a
-coin**, not the bars — the tile's job is to say *money* to someone who has never opened the app,
+coin** — `$` on the coin, a spring tail, and a pink wash inside the body (one `userSpaceOnUse`
+gradient across body and snout, or the overlap seams) — not the bars — the tile's job is to say *money* to someone who has never opened the app,
 and the loader keeps the bars (§3.15 has the table; do not unify them back). The capture
 sheet's parse wait prints a **receipt** from the same nib (§3.8) — a different subject on
 purpose, since it names what is being waited on. It **replaces** the send-arrow spinner;
@@ -537,17 +538,28 @@ back — that argument has been had and this table is the answer.
   leaves the receipt complete and still.
 - **Copy is `Adding it up`** (loader) and **`Reading it`** (capture), both in the body face. ⚠️ **Not Newsreader** — the serif is the
   masthead's alone (§3.2), and the design draft that used it there was not carried over.
-- **Icon framing — two scales, neither of them round or interchangeable** (`FRAME` in
-  `tools/ink/emit.mjs`). The pig's bbox is 298 × 321 about **(259, 261)**, so its furthest point
-  is ~225 units from centre in a 512 box.
-  - `any` is full-bleed at **1.22** → art at ~71% × 77% of the tile. ⚠️ At 1.0 the pig floats in
+- **Icon framing — `FRAME` and `ART_CENTRE` in `tools/ink/emit.mjs` are MEASURED, not chosen.**
+  ⚠️ **Re-derive both after any change to the drawing** — ask the browser for the art group's
+  `getBBox()`, don't estimate. The spring tail moved the left edge from 110 to **70.6** and took
+  the centre with it. Current: bbox **336.1 × 325.8** about **(238.7, 259.3)**, furthest bbox
+  corner **234** units from that centre.
+  - `any` is full-bleed at **1.22** → art at ~80% × 78% of the tile. ⚠️ At 1.0 the pig floats in
     a large empty square and becomes a dot on a home screen; the art's own bounds are not the
     tile's composition.
-  - `maskable` is **0.86** → furthest point ~193 against the 205-unit safe radius. ⚠️ **Not
-    0.76** — that was the bar mark's number, and the pig is a rounder silhouette that can sit
-    larger. Copying it across would have shrunk the art for nothing.
-- **The coin never simplifies away.** It is the only colour and the only reason the tile reads
-  as money rather than as an animal.
+  - `maskable` is **0.85** → furthest corner ~199 inside the 205-unit safe radius. ⚠️ It is
+    `200 / maxR` for **this** drawing, not a constant: the bar mark's was 0.76, the pig's earlier
+    silhouette 0.86.
+- **The coin never simplifies away.** It carries a drawn **`$`** (S plus bar, same nib) and is
+  the only saturated colour — the only reason the tile reads as money rather than as an animal.
+  ⚠️ The `$` is **ink on sienna** (~4.3:1), not a knockout in the paper colour (~3.9:1), which
+  also keeps the drawing to two inks. It is `d: 2` only; at 64px the coin is ~20px and a glyph
+  inside it is mush.
+- **The pink wash is ICON-ONLY, and it is a tint of the sienna, not a new hue** — a true pink
+  would be the drawing's third colour. ⚠️ **One `linearGradient` in `userSpaceOnUse` spans BOTH
+  the body and the snout.** Two `objectBoundingBox` gradients each restart inside their own
+  shape, so the overlap shows a seam. ⚠️ The fill shapes are inset 6 units at jitter **0.02**,
+  not `blob()`'s default 0.05 — at 5% the fill's own wobble pushes past the outline's inner edge
+  and fringes pink outside the drawing. The loader and the capture receipt stay two-colour.
 - ⚠️ **The body arc STOPS either side of the snout** (`GAP = 0.36` rad in `pig()`), it does not
   run behind it. Drawn as a full ring, the body's right edge cuts a chord straight across the
   snout; the snout has no fill to hide it, and giving it one would tie the drawing to a single
@@ -558,8 +570,10 @@ back — that argument has been had and this table is the answer.
   merged into one black mass at 40px; and their tops sit at the body's **outline** (y ≈ 358 at
   those x), not inside it, because the body has no fill and a leg starting in the belly shows
   through as a black skirt.
-- **The tail is a spiral, not a loop** — an Archimedean curl tightening over ~2.15 turns, drawn
-  as one tapering stroke. Its first two points sit inside the body so it reads as attached.
+- **The tail is a spring** — a prolate cycloid, which is what a coil looks like from the side.
+  ⚠️ **The loops only close while `PITCH × 2π < 2 × RAD`** (3.4 and 12: 21 < 24, three crossings).
+  Raise the pitch and the curve silently relaxes into a wave with no error and no visual warning
+  beyond "the tail looks wrong". Its first point sits inside the body so it reads as attached.
 - **`icon-64.png` is the tab favicon**, drawn at `d: 1` (no tail, eye or nostrils; heavier nib).
   ⚠️ **Downscaling the 192 for a 16–32px tab renders grey mush** — the detail that reads at 192
   is exactly what cannot survive there.
@@ -759,10 +773,15 @@ recorded here so they are not re-proposed as new.
    are derived from the pig's own bounds and are not reusable constants.
 9. **`icon-64.png` exists because the tab favicon is 16–32px**, where the 192 downscales into
    mush.
-9a. **The pig's anatomy is fixed by three rules, not by taste** (2026-09-04, fourth pass): the
-   body arc stops either side of the snout rather than cutting through it; the legs are filled
-   wedges starting at the outline; the tail is a spiral. All three are in §3.15 with the
-   reasoning, because each one is a thing that looks arbitrary until it is broken.
+9a. **The pig's anatomy is fixed by rules, not by taste** (2026-09-04, fourth and fifth passes):
+   the body arc stops either side of the snout rather than cutting through it; the legs are
+   filled wedges starting at the outline; the tail is a **spring** whose loops close only while
+   `PITCH × 2π < 2 × RAD`; the coin carries a drawn `$` in ink; and a **pink wash** — one
+   `userSpaceOnUse` gradient across body and snout — fills the body. All in §3.15, because each
+   one looks arbitrary until it is broken.
+9b. **`FRAME` and `ART_CENTRE` are measured from `getBBox()`, every time the drawing changes.**
+   The spring tail moved the art's left edge by 40 units; scales carried over by eye would have
+   been wrong in a way nothing tests.
 10. **The capture sheet's parse wait got the receipt** (2026-09-04, same day). A different
    subject from the loader's bars, deliberately: it names what is being waited on. It
    **replaces** the send-arrow spinner rather than joining it, and reduced motion swaps them
@@ -829,7 +848,9 @@ validation suite.
 - `defer` on the Chart.js tag or the `lib/alfred-core.js` tag — both are called into at module scope by the inline script, which runs first
 - Parsing a row's date with `new Date(row.Date)` or `new Date(row.Date + 'T00:00:00')` (§1, §3.12)
 - Interpolating sheet text into `innerHTML` without `escapeHtml()` (§3.6)
-- Stroking any part of the marker mark, hand-editing its path data, giving it a second accent colour, or adding the ground shadow back to the loader or the capture receipt (§3.15)
+- Stroking any part of the marker mark, hand-editing its path data, or adding the ground shadow back to the loader or the capture receipt (§3.15)
+- Giving the loader or the capture receipt a second colour, or spreading the icon's pink wash to either of them — the wash is icon-only and is a tint of the sienna, not a third hue (§3.15)
+- Reusing `FRAME`'s numbers after changing the drawing without re-measuring `getBBox()` (§3.15)
 - Running the send-arrow spinner and the capture receipt at the same time, or giving the receipt a paper fill (§3.8, §3.15)
 - Declaring the full-bleed `any` icon as `maskable`, or dropping the separate maskable files (§3.11)
 - Any new backend endpoints, LLM calls, or paid services

@@ -34,7 +34,7 @@ function art({ ink, accent, anim, ground = true }) {
 function pig({ ink, accent, d = 2 }) {
   const P = (dd, f) => `<path d="${dd}" fill="${f}"/>`;
   const w = d > 1 ? 1 : 1.45;          // one nib size for the whole small variant
-  const lw = d > 1 ? 1 : 1.15;   // legs are a shape; they do not take the nib scale
+  const lw = d > 1 ? 1 : 1.15;         // legs are a shape; they do not take the nib scale
   const R = rnd(919);
   const j = (a) => (R() - .5) * a;
 
@@ -50,35 +50,62 @@ function pig({ ink, accent, d = 2 }) {
       + ` Q ${x - wBot / 2 - wTop / 5 + j(2)} ${my} ${x - wTop / 2 + j(4)} ${y0 + j(3)} Z`;
   };
 
-  // A curl, not a loop: an Archimedean spiral tightening as it goes, drawn as
-  // one tapering stroke off the body's back edge.
-  const curl = () => {
-    const pts = [[146, 296], [132, 288]];
-    const cx = 108, cy = 296, turns = 2.15;
-    const steps = 30;
+  // A spring, not a flat spiral: a prolate cycloid, which is what a coil looks
+  // like from the side. ⚠️ The loops only close when the advance per turn is
+  // less than the loop's own width — PITCH * 2π < 2 * RAD. At PITCH 4 / RAD 12
+  // that is 25 < 24... so PITCH is 3.4: 21 < 24, and the curve crosses itself
+  // three times. Raise the pitch and it silently relaxes into a wave.
+  const spring = () => {
+    const PITCH = 3.4, RAD = 12, TURNS = 3, x0 = 144, y0 = 296;
+    const pts = [[152, 298]];
+    const steps = 54;
     for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const a = -0.9 + Math.PI * 2 * turns * t;
-      const r = 27 - 21 * t;
-      pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.92]);
+      const a = (Math.PI * 2 * TURNS * i) / steps;
+      pts.push([x0 - (PITCH * a - RAD * Math.sin(a)), y0 - RAD * Math.cos(a) * 0.92]);
     }
-    return stroke(pts, { w0: 13, w1: 4, belly: 0, seed: 51, wob: .5 });
+    return stroke(pts, { w0: 12, w1: 4.5, belly: 0, seed: 51, wob: .35 });
   };
+
+  // The $ on the coin, drawn with the same nib: the S in one stroke, the bar
+  // through it in another. Ink, not paper — ink on sienna clears ~4.3:1 where
+  // a knockout in the paper colour clears ~3.9:1, and it keeps the drawing to
+  // two colours.
+  const dollar = () => [
+    stroke([[271, 117], [252, 114], [248, 125], [262, 130], [268, 140], [252, 148], [243, 143]],
+      { w0: 7, w1: 5.5, belly: .06, seed: 83, wob: .4 }),
+    stroke([[259, 108], [258, 155]], { w0: 5.5, w1: 5, belly: 0, seed: 87, wob: .3 }),
+  ];
 
   // ⚠️ The body arc STOPS either side of the snout instead of running behind
   // it. Drawn as a full ring, the body's right edge cuts a chord straight
-  // across the snout — the snout has no fill to hide it, and filling it would
-  // tie the drawing to one background colour. The gap (±0.36 rad) is where the
-  // ellipse meets the snout circle, so the two ends land ON it and read as a
-  // join rather than a hole. Re-derive this if either shape moves.
+  // across the snout. The gap (±0.36 rad) is where the ellipse meets the snout
+  // circle, so the two ends land ON it and read as a join rather than a hole.
+  // Re-derive this if either shape moves.
   const GAP = 0.36;
+
+  // Pink undertone. ONE gradient in userSpaceOnUse across both shapes, so the
+  // body and the snout share a single ramp and their overlap has no seam —
+  // two objectBoundingBox gradients would each restart and show the join. It
+  // is a tint of the sienna, not a new hue: a true pink would be the icon's
+  // third colour. Inset 4 units so it never peeks past the ink outline.
+  const wash = `<defs><linearGradient id="pigWash" gradientUnits="userSpaceOnUse" x1="250" y1="196" x2="278" y2="372">
+      <stop offset="0" stop-color="#FBE9E3"/><stop offset="0.55" stop-color="#F6D4C8"/><stop offset="1" stop-color="#F0C0B1"/>
+    </linearGradient></defs>`;
+
   const out = [
+    wash,
     P(blob(254, 412, 112, 10, 5), ink),
+    // ⚠️ Inset 6 and jitter 0.02, not the blob default 0.05 — at 5% the fill's
+    // own wobble can push past the ink outline's inner edge and show a pink
+    // fringe outside the drawing.
+    P(blob(250, 284, 110, 78, 33, 26, .02), 'url(#pigWash)'),
+    P(blob(370, 288, 26, 22, 43, 26, .02), 'url(#pigWash)'),
     // ⚠️ The wedges start at the body's OUTLINE (y ~358 at these x), not
-    // inside it. The body has no fill, so a leg whose top sits in the belly
-    // shows through as a black skirt rather than as two legs. And the width is
-    // a shape, not a stroke — it takes its own small-size bump (1.15), not the
-    // nib's 1.45, which turned them into a single black mass at 40px.
+    // inside it. The body has no ink fill, so a leg whose top sits in the
+    // belly shows through as a black skirt rather than as two legs. And the
+    // width is a shape, not a stroke — it takes its own small-size bump
+    // (1.15), not the nib's 1.45, which turned them into a single black mass
+    // at 40px.
     P(leg(198, 350, 406, 32 * lw, 10 * lw), ink),
     P(leg(306, 350, 406, 32 * lw, 10 * lw), ink),
     P(ring(250, 284, 116, 84, { w0: 16 * w, w1: 14 * w, seed: 31, a0: GAP, turns: 1 - GAP / Math.PI }), ink),
@@ -87,14 +114,15 @@ function pig({ ink, accent, d = 2 }) {
     P(stroke([[228, 206], [288, 200]], { w0: 15 * w, w1: 13 * w, seed: 45, wob: .5 }), ink),
   ];
   if (d > 1) {
-    out.push(P(curl(), ink));
+    out.push(P(spring(), ink));
     out.push(P(blob(312, 244, 9, 10, 55), ink));
     out.push(P(blob(362, 284, 6, 7, 59), ink), P(blob(380, 286, 6, 7, 61), ink));
   }
-  // The coin is the only colour, and the only reason the tile reads as money
-  // rather than as an animal. It never simplifies away.
+  // The coin is the only saturated colour, and the only reason the tile reads
+  // as money rather than as an animal. It never simplifies away.
   out.push(P(blob(258, 132, 31, 31, 67), accent));
   out.push(P(ring(258, 132, 31, 31, { w0: 10 * w, w1: 8 * w, seed: 71 }), ink));
+  if (d > 1) out.push(...dollar().map((x) => P(x, ink)));
   if (d > 1) out.push(...sparkle(340, 128, 26, 8, 77, 2, 1.1).map((x) => P(x, ink)));
   return out.join('');
 }
@@ -105,22 +133,26 @@ fs.writeFileSync('loader-markup.txt',
   + art({ ink: 'var(--loader-ink)', accent: 'var(--sienna)', anim: true, ground: false }) + '</svg>');
 
 /* Two framings of the same drawing.
-   ⚠️ The scales are NOT interchangeable and neither is a round number.
-   The pig's bbox is 298 x 321 about (259, 261) in a 512 box, so its furthest
-   point sits ~225 units from centre.
-   - `any` is full-bleed: 1.22 puts the art at ~71% x 77% of the tile. Left at
-     1.0 the pig floats in a large empty square and turns into a dot on a
-     home screen.
+   ⚠️ These are MEASURED, not chosen, and they are not round numbers by
+   accident. Ask the browser for the art's bbox (getBBox on the group) after
+   any change to the drawing and re-derive both — the spring tail moved the
+   left edge from 110 to 71 and shifted the centre with it.
+   Current: bbox 336.1 x 325.8 about (238.7, 259.3); furthest bbox corner
+   234 units from that centre.
+   - `any` is full-bleed at 1.22 -> art at ~80% x 78% of the tile. At 1.0 the
+     pig floats in a large empty square and turns into a dot on a home screen.
    - `maskable` is cropped to a centred circle of 80% diameter — a 205-unit
-     safe radius. 0.86 lands the furthest point at ~193. (The bar mark needed
-     0.76; the pig is a rounder silhouette and can sit larger. Copying the old
-     number here would have shrunk it for no reason.) */
-const FRAME = { any: 1.22, maskable: 0.86 };
+     safe radius. 0.85 lands the furthest corner at ~199, inside it with a
+     little margin. ⚠️ Not a constant to copy: it is 200/maxR for THIS
+     drawing. */
+const FRAME = { any: 1.22, maskable: 0.85 };
+const ART_CENTRE = { x: 238.7, y: 259.3 };
+
 const page = (size, maskable, detail) => {
   const k = maskable ? FRAME.maskable : FRAME.any;
   return `<!doctype html><meta charset="utf-8">
 <body style="margin:0"><svg width="${size}" height="${size}" viewBox="0 0 512 512" style="display:block;background:#FFFCF8">
-<g transform="translate(256 256) scale(${k}) translate(-259 -261)">
+<g transform="translate(256 256) scale(${k}) translate(${-ART_CENTRE.x} ${-ART_CENTRE.y})">
 ${pig({ ink: '#12100E', accent: '#C2542D', d: detail })}
 </g>
 </svg></body>`;
