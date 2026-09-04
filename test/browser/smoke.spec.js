@@ -308,7 +308,11 @@ test.describe('loader mark', () => {
           if (rule.type === CSSRule.KEYFRAMES_RULE && rule.name === 'loaderBounce') {
             const at = (k) => [...rule.cssRules].find((r) => r.keyText.split(',')
               .map((s) => s.trim()).includes(k));
-            return { start: at('0%')?.style.transform, end: at('100%')?.style.transform };
+            return {
+              start: at('0%')?.style.transform,
+              mid: at('50%')?.style.transform,
+              end: at('100%')?.style.transform,
+            };
           }
         }
       }
@@ -317,12 +321,19 @@ test.describe('loader mark', () => {
     expect(kf).not.toBeNull();
     expect(kf.start).toBeTruthy();
     expect(kf.start).toBe(kf.end);
+    // ⚠️ The bars LIFT, they never squash. scaleY thins the mark's own 13-unit
+    // outline and, because every bar scales by the same factor while their
+    // heights differ, flattens the ascending silhouette into four equal stubs
+    // halfway through the cycle. Both are invisible to a DOM assertion and
+    // both are what "the bounce looks wrong" meant.
+    for (const t of [kf.start, kf.mid]) expect(t).not.toMatch(/scale/i);
+    expect(kf.mid).toMatch(/translate/i);
   });
 
-  test('reduced motion stops the bars growing rather than hiding them', async ({ page }) => {
-    // Clearing .lb's animation is what drops its scaleY, so the bars must sit
-    // at full height — a reduced-motion loader that renders 8%-tall stubs
-    // would read as a broken chart, not a calm one.
+  test('reduced motion parks the bars instead of hiding them', async ({ page }) => {
+    // Clearing .lb's animation is what drops its translate, so the bars must
+    // sit back down on the baseline — a reduced-motion loader with its bars
+    // stranded in mid-air would read as broken, not as calm.
     await openApp(page);
     const reduced = await page.evaluate(() =>
       matchMedia('(prefers-reduced-motion: reduce)').matches);
