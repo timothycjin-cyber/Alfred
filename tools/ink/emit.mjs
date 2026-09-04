@@ -31,7 +31,7 @@ function art({ ink, accent, anim, ground = true }) {
    never opened the app, which three bars do not (CLAUDE.md §3.15).
    d = 1 strips the detail that turns to mush below ~48px and fattens what is
    left, so the silhouette survives instead of going grey. */
-function pig({ ink, accent, d = 2 }) {
+function pig({ ink, accent, d = 2, ground = true, wash = true }) {
   const P = (dd, f) => `<path d="${dd}" fill="${f}"/>`;
   const w = d > 1 ? 1 : 1.45;          // one nib size for the whole small variant
   const lw = d > 1 ? 1 : 1.15;         // legs are a shape; they do not take the nib scale
@@ -88,18 +88,22 @@ function pig({ ink, accent, d = 2 }) {
   // two objectBoundingBox gradients would each restart and show the join. It
   // is a tint of the sienna, not a new hue: a true pink would be the icon's
   // third colour. Inset 4 units so it never peeks past the ink outline.
-  const wash = `<defs><linearGradient id="pigWash" gradientUnits="userSpaceOnUse" x1="250" y1="196" x2="278" y2="372">
+  const washDefs = `<defs><linearGradient id="pigWash" gradientUnits="userSpaceOnUse" x1="250" y1="196" x2="278" y2="372">
       <stop offset="0" stop-color="#FBE9E3"/><stop offset="0.55" stop-color="#F6D4C8"/><stop offset="1" stop-color="#F0C0B1"/>
     </linearGradient></defs>`;
 
   const out = [
-    wash,
-    P(blob(254, 412, 112, 10, 5), ink),
+    // Both the ground shadow and the pink wash are ICON-only. The shadow is
+    // ink-coloured and inverts into a pale puddle on the dark theme; the wash
+    // is a fixed tint that would be the only non-two-colour mark in the app's
+    // chrome. In-app the pig is drawn without either (CLAUDE.md §3.15).
+    wash ? washDefs : '',
+    ground ? P(blob(254, 412, 112, 10, 5), ink) : '',
     // ⚠️ Inset 6 and jitter 0.02, not the blob default 0.05 — at 5% the fill's
     // own wobble can push past the ink outline's inner edge and show a pink
     // fringe outside the drawing.
-    P(blob(250, 284, 110, 78, 33, 26, .02), 'url(#pigWash)'),
-    P(blob(370, 288, 26, 22, 43, 26, .02), 'url(#pigWash)'),
+    wash ? P(blob(250, 284, 110, 78, 33, 26, .02), 'url(#pigWash)') : '',
+    wash ? P(blob(370, 288, 26, 22, 43, 26, .02), 'url(#pigWash)') : '',
     // ⚠️ The wedges start at the body's OUTLINE (y ~358 at these x), not
     // inside it. The body has no ink fill, so a leg whose top sits in the
     // belly shows through as a black skirt rather than as two legs. And the
@@ -186,3 +190,13 @@ fs.writeFileSync('capture-receipt-markup.txt',
   '<svg class="capture-receipt" viewBox="138 80 240 300" width="94" height="118" aria-hidden="true">'
   + receipt({ ink: 'var(--loader-ink)', accent: 'var(--sienna)' }) + '</svg>');
 console.log('capture receipt emitted');
+
+/* The Today masthead's brand mark. d:1 (no tail, eye, nostrils or $ — at 34px
+   the coin is ~9px and a glyph inside it is mush), no ground shadow and no
+   pink wash, so it is the same two inks as the loader and the receipt.
+   viewBox is tight to the art WITHOUT the shadow. */
+fs.writeFileSync('masthead-brand-markup.txt',
+  '<svg class="masthead-pig" viewBox="86 90 326 326" width="38" height="38" aria-hidden="true" focusable="false">'
+  + pig({ ink: 'var(--loader-ink)', accent: 'var(--sienna)', d: 1, ground: false, wash: false })
+  + '</svg>');
+console.log('masthead brand emitted');
