@@ -8,7 +8,20 @@ rule and the consequence, not the story.** A trap gets one sentence saying what 
 decision gets one line. If an entry needs three paragraphs of reasoning, the reasoning belongs
 in the history skill and the rule belongs here.*
 
-*Shipped 2026-09-05: **seven marker marks for the app's empty states** (§3.15). Every blank
+*Shipped 2026-09-05: **the piggy bank's coin is gold** (`#E3A21C`, §3.15), in both the app icon
+PNGs and the Today masthead. Sienna read as a copper disc; gold is what makes the drawing say
+*money* without being told. It is the app's one hue that is not sienna or a tint of it, and it is
+representational — **sienna is still the only primary**, and nothing about buttons or charts
+changes. ⚠️ **The coin's ink had to stop flipping with the theme.** `--coin-ink` draws the `$` and
+the coin's outline ON the gold, so its ground never changes; the page's ink inverts to warm-white
+on dark, which on gold is ~1.8:1 and blanks the one element that says money. Fixed dark ink is
+~8.4:1 in both themes, so `--coin`/`--coin-ink` have **no dark override** — the deliberate mirror
+of "a token that reads on two grounds needs two values" (§8). The regression is invisible in the
+light theme, so the suite resolves the token and runs in both projects; the negative control
+failed in the dark run only. Same day, earlier: **the loader retune** (nib 10.5, 110px, 36-unit
+lift, 800ms) and **seven marker marks for the app's empty states**; both are in §3.15 and §6.*
+
+*Previously 2026-09-05: **seven marker marks for the app's empty states** (§3.15). Every blank
 moment that was one line of grey text — failed load, no `?user=` link, no rows yet, no expenses
 this month, too few spending days, the end of the ledger, no recurring series — now carries a
 drawn mark from the same nib. They live in `INK_MARKS` and are reached through `inkMark(name)`.
@@ -162,6 +175,7 @@ passes with the serif never loading.
 
 **Colour:**
 - **Light and dark semantic tokens are separate values.** Light `--semantic-income`/`--semantic-expense` = **#007A52 / #C62828**; dark = **#2ECC71 / #FF4D4D**. One pair tuned on dark cleared only 2.9:1 / 4.1:1 on white. **`--loader-ink` is a third such pair** (#12100E / #F2EDE7): warm-black on paper, warm-white on near-black. It is deliberately not `--on-surface` — that token is a cool grey tuned for text, and a marker stroke in cool grey reads as a widget instead of a drawn line.
+- ⚠️ **`--coin` / `--coin-ink` are the deliberate EXCEPTION to that rule — one value each, no dark override.** They colour the pig's gold coin and the `$` drawn on it, and the coin's ground is its own fill rather than the surface, so a second value would be wrong rather than missing (§3.15).
 - **Good news is stated, not coloured.** `.tile-chip.good`, `.today-good` and the on-track pace strip are **neutral ink**. Only bad states (`.tile-chip.bad`, `.income-bar-status.over`) keep semantic colour and solid fill.
 - **Sienna is the only primary** (FAB, `.btn-primary`, `.capture-send`); `--primary` (near-black/near-white ink) is **not** a button fill, so two things never both claim primary. Red is **not a selection state** — `.type-toggle` active segment is `--on-surface`.
 
@@ -570,8 +584,9 @@ back — that argument has been had and this table is the answer.
 - **The geometry is generated, not hand-written.** A nib model (tapered + bellied + wobbled
   centreline) emits the outlines; the committed artefact is the resulting path data. Regenerating
   is a design task, not a code one — do not hand-edit the `d` attributes.
-- **Ink is `--loader-ink`, not `--on-surface`** (§3.2), and the sienna bar is `var(--sienna)`.
-  Exactly **one** element is sienna; a second would make the accent decorative.
+- **Ink is `--loader-ink`, not `--on-surface`** (§3.2). Each mark carries **exactly one**
+  accent path; a second would make the accent decorative. The loader's bar and the empty-state
+  marks use `var(--sienna)`; the **pig's accent is the coin, in `var(--coin)` gold** (below).
 - ⚠️ **The loader has NO ground shadow; the icon does.** The shadow is ink-coloured, so on the
   dark theme it inverts into a pale puddle under the mark. The icon always sits on paper and
   keeps it. Do not "restore" the shadow to the loader for consistency — the two grounds differ.
@@ -616,9 +631,18 @@ back — that argument has been had and this table is the answer.
   bounds twice.
 - **The coin never simplifies away.** It carries a drawn **`$`** (S plus bar, same nib) and is
   the only saturated colour — the only reason the tile reads as money rather than as an animal.
-  ⚠️ The `$` is **ink on sienna** (~4.3:1), not a knockout in the paper colour (~3.9:1), which
-  also keeps the drawing to two inks. It is `d: 2` only; at 64px the coin is ~20px and a glyph
-  inside it is mush.
+  It is `d: 2` only; at 64px the coin is ~20px and a glyph inside it is mush.
+- **The coin is GOLD (`#E3A21C`), not sienna** (2026-09-05). Sienna read as a copper disc; a
+  gold coin is what makes the drawing say *money* without being told. This is the one place the
+  app carries a hue that is not sienna or a tint of it, and it is representational, not a UI
+  accent — **sienna is still the only primary** (§3.2).
+- ⚠️ **The coin's ink is `--coin-ink` and it does NOT flip with the theme.** Every other line in
+  the drawing sits on the page, so it inverts to warm-white on dark. The `$` and the coin's
+  outline sit on the **coin** — a saturated fill the drawing carries with it — so their ground
+  never changes. Inverting them puts warm-white on gold at ~1.8:1 and blanks the one element
+  that says money; dark ink on this gold is **~8.4:1 in both themes**. There is deliberately no
+  dark override for `--coin`/`--coin-ink`. **The regression is invisible in the light theme**,
+  so the suite asserts the resolved value and runs in both projects (§3.12).
 - **The in-app pig IS the icon's drawing** — `d: 2` at **44px**, so the tail, eye, nostrils and
   the `$` all come across, over the pink wash. It is `aria-hidden`, not a button, and takes no
   tab stop; it states nothing and does nothing. Two things differ from the tile, both forced:
@@ -845,7 +869,7 @@ three-way exploration (marker bars / piggy bank / receipt slip); the two unchose
 recorded here so they are not re-proposed as new.
 
 1. **Filled tapered paths, never strokes.** This is the whole style, and it is asserted (§3.12).
-2. **One sienna element per mark**, never two.
+2. **One accent element per mark**, never two. *(Sienna for every mark except the pig, whose accent coin went gold 2026-09-05 — §3.15.)*
 3. **The loader carries no ground shadow, the icon does** — the shadow inverts on dark.
 4. **`--loader-ink` is its own light/dark pair**, not `--on-surface`.
 5. ~~Maskable icons are a separate file~~ — **REVERSED on device evidence (2026-09-04, sixth
@@ -913,6 +937,24 @@ symmetric.
 4. **The lift is 36 units, up from 26**, and the cycle is **800ms, down from 1s** (a fifth
    faster) with the stagger following it to **200ms**. Verified on a filmstrip, not on the
    numbers: the tallest bar peaks 33 units clear of the viewBox top, so nothing clips.
+
+### The coin goes gold ✅ (2026-09-05)
+
+The piggy bank's coin was sienna, which read as a copper disc. Gold (`#E3A21C`) is what makes
+the drawing say *money* without being told. Both homes: the icon PNGs and the Today masthead.
+
+1. **The coin is the drawing's one hue that is not sienna or a tint of it** — and it is
+   representational, not a UI accent. **Sienna is still the only primary** (§3.2); nothing about
+   buttons or charts changes.
+2. ⚠️ **The coin's ink stopped flipping with the theme, and had to.** `--coin-ink` draws the `$`
+   and the coin's outline ON the gold, so its ground never changes; the page's ink inverts to
+   warm-white on dark, which on gold is ~1.8:1. Fixed dark ink is ~8.4:1 in both themes.
+3. **`--coin` and `--coin-ink` have no dark override, deliberately** — the mirror of "a token
+   that reads on two grounds needs two values" (§8).
+4. **The gold was picked by rendering five candidates at both sizes on both grounds**, not from
+   a contrast table: the 44px masthead size is what ruled out the paler and the browner ones.
+5. **Nothing geometric changed, so `FRAME`/`ART_CENTRE` were not re-derived.** That rule is
+   about the drawing's bounds; a colour cannot move them.
 
 ### Brand mark in the Today masthead ✅ (2026-09-04, seventh pass)
 
@@ -999,6 +1041,7 @@ validation suite.
 - Reinstating the masthead chevrons, any month stepper, the Trends archive shelf, or the binary `.condensed` condense-on-scroll (§3.4, §3.7)
 - Reinstating the Logs toolbar row, or putting a *figure* in the masthead's right slot (§3.4, §3.6) — the Today brand mark is not a figure and does not reopen this
 - Giving the in-app pig the icon's ground shadow, hard-coding its wash stops as literal pinks, or making it a button (§3.15)
+- Adding a dark override for `--coin` or `--coin-ink`, or drawing the coin's `$` in `--loader-ink` — the coin's ground travels with it, so its ink is fixed (§3.15)
 - Setting `.pill { pointer-events: auto }` — the resting value must stay `none` (§3.4, §8)
 - Adding `viewport-fit=cover` casually — every `env(safe-area-inset-*)` is currently inert, so turning it on shifts the FAB cluster's geometry and both top offsets at once (§3.3)
 - Spreading `--font-display` beyond the masthead month (§3.2)
@@ -1058,6 +1101,7 @@ phase name referenced in an `index.html` comment.
 - **A scroll timeline on an unscrollable document is INACTIVE, and an inactive timeline's keyframes do not apply at all.** Any property an animation gates falls back to the base rule — which makes the *base rule* the value that has to be safe. Write the gate so the un-animated state is the **closed** one: turning something **on** in keyframes works; turning it **off** only works while the timeline happens to be live.
 - **A scroll-driven animation of a custom property is not off the main thread.** Only transform/opacity/filter/backdrop-filter get the compositor. The win is "no JS", not "no work" — and the cost scales with the number of `var()` consumers.
 - **In a variable font, `font-variation-settings` beats `font-weight` — and hides it.** `getComputedStyle().fontWeight` reports the declared value either way, so the DOM agrees with the CSS and only the pixels disagree. Assertions about weight must measure rendered ink, with the real variable font loaded.
+- **An element whose GROUND travels with it needs one value, not two — the mirror of the two-grounds rule.** The pig's `$` and coin outline are drawn on the coin, a saturated fill the drawing carries everywhere; every other line in the same drawing sits on the page and must invert on dark. Flipping the coin's ink along with the rest puts warm-white on gold at ~1.8:1 and blanks the one element that says *money*, while the light theme stays perfect — so the check has to resolve the token and run in both themes, not just read the markup.
 - **A token that has to read on two grounds needs two values.** Its sharpest form: a *fill* and the *ink drawn on top of it* are one such pair. Porting the icon's pale-pink body into the app kept the light theme perfect and, on dark, put warm-white ink on pale pink — the outline vanished into its own fill and the drawing became a blob. **A shadow is the case with no solution:** it must be darker than its ground, and on a near-black surface no value is, so it is dropped rather than re-tinted.
 - **`env(safe-area-inset-*)` does nothing without `viewport-fit=cover`.** Without that meta every `env()` resolves to `0px`, so a stylesheet can be full of inset arithmetic that has never once been evaluated — and the check passes because both sides are zero.
 - **A compositing layer that nothing invalidates never repaints.** When the browser won't invalidate a layer, ask it to: drop the filter for one frame and put it back.
