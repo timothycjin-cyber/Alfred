@@ -219,3 +219,177 @@ fs.writeFileSync('masthead-brand-markup.txt',
           washStops: ['var(--pig-wash-1)', 'var(--pig-wash-2)', 'var(--pig-wash-3)'] })
   + '</svg>');
 console.log('masthead brand emitted');
+
+/* ── The empty-state marks ───────────────────────────────────────────────────
+   Seven subjects for the app's blank moments — the places that used to be one
+   line of grey text. They are a different job from the three marks above: the
+   loader, the receipt and the pig all say "something is happening" or "this is
+   Alfred", and these say "there is nothing here". So they are STILL, with no
+   animation at all. Nothing to stagger, no keyframes to keep symmetric.
+
+   Same nib rules as everything else (CLAUDE.md §3.15): filled tapered paths,
+   never a stroke; exactly one sienna path per mark, and it is always the part
+   that carries the meaning (the arrow, the seal, the sand) rather than a
+   decorative tint. No ground shadow — these sit in both themes, and the
+   shadow is ink-coloured, so it inverts into a pale puddle on dark. No pink
+   wash either: that is the icon's and the masthead pig's alone. */
+function emptyMarks() {
+  const INK = 'var(--loader-ink)', ACC = 'var(--sienna)';
+  const P = (d, f) => `<path d="${d}" fill="${f}"/>`;
+
+  // A triangle with bowed sides. blob() only makes rounded lumps and stroke()
+  // only makes lines, so an arrowhead — the one shape both of those miss —
+  // gets its own primitive here rather than a fourth case inside ink.mjs.
+  const tri = (a, b, c, seed = 1) => {
+    const R = rnd(seed * 733), j = (m) => (R() - .5) * m;
+    const mid = (p, q) => [(p[0] + q[0]) / 2 + j(7), (p[1] + q[1]) / 2 + j(7)];
+    const m1 = mid(a, b), m2 = mid(b, c), m3 = mid(c, a);
+    const f = (p) => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`;
+    return `M ${f(a)} Q ${f(m1)} ${f(b)} Q ${f(m2)} ${f(c)} Q ${f(m3)} ${f(a)} Z`;
+  };
+
+  const marks = {};
+
+  /* Failed load. A cloud that could not deliver — and the mark that finally
+     retires the ⚠️ emoji, which was the last one left in the DOM. An emoji is
+     coloured by the OS font, so it was the one glyph in the app the theme
+     could not reach (CLAUDE.md §3.2). */
+  marks.cloud = {
+    vb: '110 172 290 248',
+    body: [
+      P(stroke([[168, 300], [136, 294], [124, 270], [142, 248], [168, 244],
+        [172, 214], [200, 192], [236, 194], [256, 212],
+        [278, 186], [318, 186], [344, 210], [346, 242],
+        [372, 250], [384, 272], [372, 294], [344, 302],
+        [280, 305], [212, 304], [172, 301], [152, 298]], { w0: 15, w1: 13, seed: 201 }), INK),
+      // One path, not a shaft plus a head: two sienna paths would read as two
+      // accents, and the accent here is the arrow as a single thing.
+      P('M 244 312 Q 256 310 269 312 L 268 358 Q 284 356 300 355 '
+        + 'Q 278 382 257 406 Q 235 381 214 356 Q 229 357 245 358 Z', ACC),
+    ].join(''),
+  };
+
+  /* First run, no personal link. A sealed letter addressed to one person —
+     which is what a ?user= link is. The seal is the sienna. */
+  marks.envelope = {
+    vb: '126 184 262 182',
+    body: [
+      P(box(140, 196, 372, 344, { w0: 15, seed: 211 }), INK),
+      P(stroke([[140, 198], [190, 232], [256, 278], [322, 232], [372, 198]],
+        { w0: 14, w1: 12, seed: 215, wob: .6 }), INK),
+      P(blob(256, 278, 19, 19, 223), ACC),
+    ].join(''),
+  };
+
+  /* No expenses logged this month (Trends donut). An empty shopping bag.
+     ⚠️ This was a wallet for two drafts and the wallet did not survive: a
+     rectangle with a band and a clasp dot is the ENVELOPE's silhouette with
+     the flap flattened, and at 60px the two were the same drawing. The arch
+     handle is a shape nothing else in the set has. A bag is also the better
+     noun — a wallet is about holding money, a bag is about having spent it,
+     and this mark stands in for "nothing spent". */
+  marks.bag = {
+    vb: '150 172 214 230',
+    body: [
+      P(stroke([[210, 250], [212, 206], [244, 188], [288, 192], [302, 222], [304, 250]],
+        { w0: 12, w1: 11, seed: 237, wob: .5 }), ACC),
+      P(box(166, 248, 346, 384, { w0: 15, seed: 231 }), INK),
+      P(stroke([[168, 284], [346, 280]], { w0: 11, w1: 9, seed: 235, wob: .5 }), INK),
+    ].join(''),
+  };
+
+  /* Nothing logged — the day sheet, and the first-run ledger. An open box with
+     its flaps up and nothing in it. Shared by two states on purpose: both mean
+     "no entries", one for a day and one for the whole ledger, and inventing a
+     second subject for the same sentence is how a small cast turns into a
+     clip-art set. */
+  /* ⚠️ The tub is box(), NOT a four-point stroke(). stroke() runs its points
+     through chaikin twice, which rounds every corner away — the first draft's
+     tub smoothed into a U and the whole mark read as a cereal bowl. box()
+     exists precisely because a drawn rectangle needs corners that survive. */
+  marks.box = {
+    vb: '134 194 244 194',
+    body: [
+      P('M 226 300 L 292 297 L 295 338 L 229 341 Z', ACC),
+      P(box(180, 262, 332, 374, { w0: 14, seed: 241 }), INK),
+      P(stroke([[184, 262], [148, 208]], { w0: 13, w1: 8, belly: 0, seed: 247, wob: .5 }), INK),
+      P(stroke([[328, 262], [364, 208]], { w0: 13, w1: 8, belly: 0, seed: 249, wob: .5 }), INK),
+    ].join(''),
+  };
+
+  /* Not enough spending days to draw the distribution curve. An hourglass —
+     the card is not empty because there is no data, it is empty because not
+     enough time has passed yet, and those are different sentences. The sand is
+     one path: the falling stream and the heap it lands in are the same sand,
+     so splitting them would be two accents for one idea. */
+  marks.hourglass = {
+    vb: '138 134 238 264',
+    body: [
+      P('M 250 258 Q 256 256 262 258 L 266 306 Q 292 336 314 362 '
+        + 'Q 256 368 198 362 Q 220 336 246 306 Z', ACC),
+      P(stroke([[152, 152], [360, 148]], { w0: 17, w1: 15, seed: 251 }), INK),
+      P(stroke([[152, 380], [360, 376]], { w0: 17, w1: 15, seed: 253 }), INK),
+      P(stroke([[178, 154], [248, 262], [178, 378]], { w0: 13, w1: 12, seed: 255, wob: .6 }), INK),
+      P(stroke([[334, 154], [264, 262], [334, 378]], { w0: 13, w1: 12, seed: 257, wob: .6 }), INK),
+    ].join(''),
+  };
+
+  /* The bottom of the Logs ledger — "Nothing logged before March." Closed
+     boxes, stacked and put away: the months that exist but hold nothing, not
+     an invitation to load more (the .logs-tail button above it is that). */
+  marks.stack = {
+    vb: '126 142 262 242',
+    body: [
+      P('M 214 176 L 300 173 L 303 207 L 217 210 Z', ACC),
+      P(box(140, 296, 372, 368, { w0: 14, seed: 261 }), INK),
+      P(box(154, 226, 358, 296, { w0: 14, seed: 265 }), INK),
+      P(box(168, 156, 344, 226, { w0: 14, seed: 269 }), INK),
+    ].join(''),
+  };
+
+  /* Nothing recurring yet. Two arcs chasing each other — the only mark here
+     that describes an action rather than an absence, because a recurring
+     series is a thing that repeats and the empty state has to say what the
+     user would be creating. */
+  const CX = 256, CY = 262, RAD = 92;
+  const head = (a, seed) => {
+    const px = CX + Math.cos(a) * RAD, py = CY + Math.sin(a) * RAD;
+    const tx = -Math.sin(a), ty = Math.cos(a);      // tangent, direction of travel
+    const nx = -ty, ny = tx;
+    // ⚠️ Sized against the mark's RENDERED size, not its user units. At tip 30
+    // / base 21 these were geometrically correct and invisible at 60px, which
+    // left two arcs that could have been a broken ring. A head has to out-weigh
+    // the 15-unit arc it caps or it reads as the end of the line.
+    return tri([px + tx * 44, py + ty * 44],
+      [px + nx * 30 - tx * 8, py + ny * 30 - ty * 8],
+      [px - nx * 30 - tx * 8, py - ny * 30 - ty * 8], seed);
+  };
+  const A0 = 0.45, TURNS = 0.38, SWEEP = Math.PI * 2 * TURNS;
+  marks.cycle = {
+    vb: '132 138 248 248',
+    body: [
+      P(ring(CX, CY, RAD, RAD, { w0: 15, w1: 12, seed: 271, a0: A0, turns: TURNS }), INK),
+      P(ring(CX, CY, RAD, RAD, { w0: 15, w1: 12, seed: 275, a0: A0 + Math.PI, turns: TURNS }), INK),
+      P(head(A0 + SWEEP, 277), INK),
+      P(head(A0 + Math.PI + SWEEP, 279), ACC),
+    ].join(''),
+  };
+
+  return marks;
+}
+
+/* Normalised on the LARGER viewBox dimension, so a wide mark (the envelope)
+   and a tall one (the hourglass) take up the same amount of room instead of
+   the wide one dominating. CSS can still override; these are the defaults. */
+const MARK_BOX = { cloud: 76, envelope: 76, bag: 60, box: 60, hourglass: 60, stack: 60, cycle: 60 };
+const emitted = emptyMarks();
+const lines = Object.entries(emitted).map(([name, m]) => {
+  const [, , vw, vh] = m.vb.split(' ').map(Number);
+  const target = MARK_BOX[name];
+  const s = target / Math.max(vw, vh);
+  const w = Math.round(vw * s), h = Math.round(vh * s);
+  return `  ${name}: '<svg class="ink-mark" viewBox="${m.vb}" width="${w}" height="${h}" `
+    + `aria-hidden="true" focusable="false">${m.body}</svg>',`;
+});
+fs.writeFileSync('empty-marks.txt', 'const INK_MARKS = {\n' + lines.join('\n') + '\n};\n');
+console.log('empty-state marks emitted');
