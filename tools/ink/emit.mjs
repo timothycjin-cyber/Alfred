@@ -3,10 +3,19 @@ import fs from 'fs';
 
 // Same nib as the canvas, emitted twice: once with CSS-variable inks for
 // index.html, once with literal inks for the PNG render.
-function art({ ink, accent, anim, ground = true }) {
+// NIB is the bar outline's width, and everything else in the mark is derived
+// from it so the whole drawing thins together — a thinner bar beside an
+// unchanged baseline reads as two different pens.
+// ⚠️ The sienna fill's inset is derived, not a constant. box() centres its
+// stroke on the rectangle, so the outline's INNER edge sits NIB/2 inside the
+// path; a fixed inset that cleared a 13-unit nib leaves a bare sliver of
+// background between fill and outline once the nib is thinner.
+function art({ ink, accent, anim, ground = true, nib = 10.5 }) {
   const P = (d, f, cls) => `<path d="${d}" fill="${f}"${cls ? ` class="${cls}"` : ''}/>`;
+  const pad = nib / 2 + 0.5;
   const bar = (cls, x1, y1, x2, y2, seed, fill) => {
-    const inner = (fill ? P(slab(x1 + 7, y1 + 8, x2 - 7, y2 - 6), fill) : '') + P(box(x1, y1, x2, y2, { w0: 13, seed }), ink);
+    const inner = (fill ? P(slab(x1 + pad, y1 + pad + 1, x2 - pad, y2 - pad), fill) : '')
+      + P(box(x1, y1, x2, y2, { w0: nib, seed }), ink);
     return anim ? `<g class="${cls}">${inner}</g>` : inner;
   };
   const slab = (x1, y1, x2, y2) => `M ${x1} ${y1} L ${x2} ${y1 - 1} L ${x2 + 1} ${y2} L ${x1 - 1} ${y2 + 1} Z`;
@@ -15,7 +24,7 @@ function art({ ink, accent, anim, ground = true }) {
     // pale puddle. The icon always sits on paper and keeps it; the loader,
     // which has to work in both themes, is grounded by the baseline alone.
     ground ? P(blob(252, 416, 104, 9, 5), ink) : '',
-    P(stroke([[98, 392], [252, 396], [414, 390]], { w0: 18, w1: 12, seed: 2 }), ink),
+    P(stroke([[98, 392], [252, 396], [414, 390]], { w0: nib * 1.42, w1: nib * 0.95, seed: 2 }), ink),
     // FOUR bars, as the CSS loader this replaced always had. 56 wide on a
     // 24 gap, ascending, sienna on the last — the same arrangement, redrawn.
     // ⚠️ Resting heights are 110/150/190/230, not 88/142/184/230. A DRAWN bar
@@ -26,9 +35,9 @@ function art({ ink, accent, anim, ground = true }) {
     bar('lb lb2', 190, 238, 246, 388, 7),
     bar('lb lb3', 270, 198, 326, 388, 11, null),
     bar('lb lb4', 350, 158, 406, 388, 17, accent),
-    ...sparkle(398, 112, 26, 8, 4, 2, 1.05).map((d) => P(d, ink, anim ? 'lt' : '')),
-    P(blob(92, 252, 7, 7, 9), ink),
-    P(blob(112, 206, 5, 5, 13), ink),
+    ...sparkle(398, 112, 26, nib * 0.62, 4, 2, 1.05).map((d) => P(d, ink, anim ? 'lt' : '')),
+    P(blob(92, 252, nib * 0.57, nib * 0.57, 9), ink),
+    P(blob(112, 206, nib * 0.42, nib * 0.42, 13), ink),
   ].join('');
 }
 
@@ -146,8 +155,11 @@ function pig({ ink, accent, d = 2, ground = true, wash = true,
 }
 
 const VB = '79 83 341 328';   // measured from getBBox() + 6 units of air   // tight to the art, so it scales without dead margin
+// ⚠️ The viewBox does NOT change with the rendered size — the art keeps its
+// coordinates and the svg box scales it. That is also why the bounce's
+// translate stays in user units and needs no adjustment here.
 fs.writeFileSync('loader-markup.txt',
-  `<svg class="loader-mark" viewBox="${VB}" width="132" height="127" aria-hidden="true">`
+  `<svg class="loader-mark" viewBox="${VB}" width="110" height="106" aria-hidden="true">`
   + art({ ink: 'var(--loader-ink)', accent: 'var(--sienna)', anim: true, ground: false }) + '</svg>');
 
 /* ONE framing, and it is circle-safe.

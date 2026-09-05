@@ -321,7 +321,7 @@ test.describe('loader mark', () => {
     expect(kf).not.toBeNull();
     expect(kf.start).toBeTruthy();
     expect(kf.start).toBe(kf.end);
-    // ⚠️ The bars LIFT, they never squash. scaleY thins the mark's own 13-unit
+    // ⚠️ The bars LIFT, they never squash. scaleY thins the mark's own drawn
     // outline and, because every bar scales by the same factor while their
     // heights differ, flattens the ascending silhouette into four equal stubs
     // halfway through the cycle. Both are invisible to a DOM assertion and

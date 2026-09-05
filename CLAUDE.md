@@ -187,7 +187,7 @@ linear(...))` these become sampled damped-spring curves (wobble 320/ζ0.62 ~632m
 - **Mount-then-spring:** elements born at final state never animate — mount at the previous state, apply the real value one frame later.
 - **Shared-axis tab slide:** `.axis-in-left/right` in `switchView()`. ⚠️ **`.container` must keep `overflow-x: clip`** — the transient `translateX` widens the document, then `position:fixed; right:0` bars size to the widened viewport and *sustain* it, which mobile zooms to fit. `clip`, not `hidden` (that kills vertical scroll/sticky).
 - **`prefers-reduced-motion`:** zeroes motion tokens + stagger; the JS `REDUCED_MOTION` flag makes counters instant, sets `Chart.defaults.animation = false`, skips the typewriter, disables smooth scroll.
-- **Loader:** the marker mark — **four** drawn bars on a baseline, tallest one sienna, **lifting** in sequence (1s, `translateY(-26px)`, a **250ms** quarter-cycle stagger — §3.15, which is where the two traps behind both numbers live). Reduced motion pulses the whole mark and clears `.lb`'s animation, which is what drops its `translateY` so the bars sit back down on the baseline.
+- **Loader:** the marker mark — **four** drawn bars on a baseline, tallest one sienna, **lifting** in sequence (0.8s, `translateY(-36px)`, a **200ms** quarter-cycle stagger — §3.15, which is where the two traps behind both numbers live). Reduced motion pulses the whole mark and clears `.lb`'s animation, which is what drops its `translateY` so the bars sit back down on the baseline.
 
 ### 3.3 Navigation — Today · Logs · Trends + detached FAB
 
@@ -575,18 +575,19 @@ back — that argument has been had and this table is the answer.
 - ⚠️ **The loader has NO ground shadow; the icon does.** The shadow is ink-coloured, so on the
   dark theme it inverts into a pale puddle under the mark. The icon always sits on paper and
   keeps it. Do not "restore" the shadow to the loader for consistency — the two grounds differ.
-- **Animation:** `.lb` groups **LIFT** in sequence (`loaderBounce`, **1s, `translateY(-26px)`,
-  `ease-in-out`, a 250ms stagger**); `.lt` ticks pulse. Reduced motion moves the pulse to the
+- **Animation:** `.lb` groups **LIFT** in sequence (`loaderBounce`, **0.8s, `translateY(-36px)`,
+  `ease-in-out`, a 200ms stagger**); `.lt` ticks pulse. Reduced motion moves the pulse to the
   whole mark and sets `.lb`/`.lt` to `animation: none` — which is also what sets the bars back
   down on the baseline.
 - ⚠️ **The bars TRANSLATE; they are never scaled.** Two separate breakages, both invisible to a
-  DOM assertion: `scaleY` thins the mark's own 13-unit outline (the shortest bar closes into a
+  DOM assertion: `scaleY` thins the mark's own outline (the shortest bar closes into a
   blob), **and** because every bar scales by the same *factor* while their heights differ
   (110/150/190/230), the tall bar travels twice as far as the short one and the ascending
   silhouette flattens into four equal stubs halfway through each cycle. A translate moves all
   four the same distance and leaves the drawing untouched at every frame. The offset is in user
   units, so it scales with the mark. Asserted (§3.12); check the frames, not the numbers.
-- ⚠️ **The stagger is a QUARTER-CYCLE (250ms), not 120ms.** At 120ms all four phases sat in the
+- ⚠️ **The stagger is a QUARTER-CYCLE (200ms at the 800ms duration), not 120ms.** It is DERIVED
+  from the duration — retune one and the three `animation-delay`s move with it. At 120ms all four phases sat in the
   first third of the loop, so the bars rose together and fell together with a dead stretch
   after — the lump that reads as "not seamless". A quarter apart, one bar is always rising and
   one always falling.
@@ -885,12 +886,30 @@ recorded here so they are not re-proposed as new.
    like a filled rect. *(Superseded the same day, ninth pass: **the bars are not squashed at
    all.** See below.)*
 
+### Loader retune — thinner, smaller, higher, faster ✅ (2026-09-05)
+
+Four numbers moved, on the user's read of the shipped motion. Nothing structural changed:
+the bars still lift, the phases are still a quarter-cycle apart, the keyframes are still
+symmetric.
+
+1. **The nib is 10.5, down from 13, and every other width in the mark derives from it** —
+   baseline, ticks and dots included. A thinner bar beside an unchanged baseline reads as two
+   different pens.
+2. ⚠️ **The sienna fill's inset is DERIVED from the nib, not a constant.** `box()` centres its
+   stroke, so the outline's inner edge sits at `nib/2`; the old fixed inset cleared a 13-unit
+   nib and would have left a bare sliver of background at 10.5.
+3. **The mark renders at 110px, down from 132.** The viewBox is unchanged — the art keeps its
+   coordinates and the svg box scales it, which is also why the lift needs no rescaling.
+4. **The lift is 36 units, up from 26**, and the cycle is **800ms, down from 1s** (a fifth
+   faster) with the stagger following it to **200ms**. Verified on a filmstrip, not on the
+   numbers: the tallest bar peaks 33 units clear of the viewBox top, so nothing clips.
+
 ### Loader bounce — lift, not squash ✅ (2026-09-04, ninth pass)
 
 1. **The bounce is a `translateY`, never a `scaleY`.** A shared scale factor over four different
    bar heights flattens the ascending silhouette mid-cycle, on top of thinning the drawn
    outline. Both are why the motion read as "loafing" rather than bouncing.
-2. **The stagger is a quarter-cycle (250ms).** Evenly spread phases, no clump and no dead
+2. **The stagger is a quarter-cycle.** Evenly spread phases, no clump and no dead
    stretch. This supersedes the "original 1s / 120ms rhythm" decision above.
 3. **The keyframe check now also asserts the transform is a translate**, with a negative control
    proved against the old `scaleY` rule.
@@ -1053,7 +1072,7 @@ phase name referenced in an `index.html` comment.
 - **Two nouns that share a silhouette are one drawing, whatever you name them in the source.** An envelope is a rectangle with a V and a dot; a wallet is a rectangle with a line and a dot. At 60px the difference was a single stroke's angle, and the variable was called `wallet` so nothing in the code disagreed. Marks in a set have to be told apart by SHAPE — the arch handle that made it a bag is the kind of difference that survives — and the check is to render them side by side, which is also the only place the collision is visible.
 - **A geometry helper that smooths is not a geometry helper that draws.** `stroke()` runs its points through chaikin twice, so a four-point rectangle comes out as a lozenge; `box()` exists because a drawn rectangle needs corners that survive. Reaching for the general primitive produced a cereal bowl where an open box was intended, with correct path data and a passing suite.
 - **Size a detail against the RENDERED mark, not its user units.** The cycle mark's arrowheads were geometrically right and invisible at 60px, leaving two arcs that read as a broken ring. Anything that has to be *seen* — an arrowhead, a tick, a glyph — is sized by looking, at the size it ships at.
-- **A drawn mark cannot be transformed as freely as a solid one.** `scaleY(0.25)` on a filled rounded rect is a squash; on a 13-unit outline it closes the interior and reads as a blob. Any transform on generated line art has to be judged on rendered frames, not on the transform's numbers. **The fix is usually a different transform, not a gentler one** — the loader's bars translate, which distorts nothing at any amplitude and left the squash-floor tuning with nothing to tune.
+- **A drawn mark cannot be transformed as freely as a solid one.** `scaleY(0.25)` on a filled rounded rect is a squash; on a drawn ~10-unit outline it closes the interior and reads as a blob. Any transform on generated line art has to be judged on rendered frames, not on the transform's numbers. **The fix is usually a different transform, not a gentler one** — the loader's bars translate, which distorts nothing at any amplitude and left the squash-floor tuning with nothing to tune.
 - **A shared scale factor over elements of different sizes is not a shared motion.** Scaling four bars of 110/150/190/230 by the same 0.5→1 moves the tall one twice as far as the short one, so the shape the mark exists to show — an ascending chart — flattens to four equal stubs halfway through every cycle and springs back. Every keyframe is correct; the silhouette *between* them is the defect. Equal-distance motion (a translate) is the shape-preserving choice.
 - **A stagger shorter than a cycle divided by the number of elements makes a lump, not a wave.** Four bars 120ms apart in a 1000ms loop all move in the first third and then nothing moves — read as a stutter even though the timing function is perfectly smooth. Spread phases evenly across the cycle.
 - **Reading `.cssRules` on a cross-origin stylesheet throws, and one bad sheet kills the whole `page.evaluate`.** The app links Google Fonts, so any probe that walks `document.styleSheets` must `try/catch` per sheet — otherwise it fails against perfectly correct CSS and looks like a real finding.
