@@ -458,8 +458,20 @@ test.describe('masthead brand mark', () => {
         // Same style rule as every other mark from this nib.
         stroked: svg.querySelectorAll('[stroke], [stroke-width]').length
           + (svg.hasAttribute('stroke') || svg.hasAttribute('stroke-width') ? 1 : 0),
+        // The coin is the accent, and it is GOLD rather than sienna — a gold
+        // coin is what makes the drawing read as money at a glance.
         accent: [...svg.querySelectorAll('path')]
-          .filter((p) => p.getAttribute('fill') === 'var(--sienna)').length,
+          .filter((p) => p.getAttribute('fill') === 'var(--coin)').length,
+        // ⚠️ The coin's own ink must NOT be the page's ink. --loader-ink
+        // inverts to warm-white on dark; on a light gold coin that is ~1.8:1
+        // and the `$` disappears. This spec runs in a light project AND a
+        // dark one, so asserting the resolved value here catches a dark
+        // override being added later — the light theme would still look
+        // perfect and only the dark run would fail.
+        coinInk: getComputedStyle(document.documentElement)
+          .getPropertyValue('--coin-ink').trim().toLowerCase(),
+        coinInkPaths: [...svg.querySelectorAll('path')]
+          .filter((p) => p.getAttribute('fill') === 'var(--coin-ink)').length,
         // The mark IS the icon's drawing now — full detail plus the wash.
         washed: svg.innerHTML.includes('pigWash'),
         // ⚠️ ...but the wash stops must be TOKENS, not the icon's literal
@@ -480,6 +492,10 @@ test.describe('masthead brand mark', () => {
     expect(info.ariaHidden).toBe('true');
     expect(info.stroked).toBe(0);
     expect(info.accent).toBe(1);
+    // Fixed in both projects — the coin's ground travels with it.
+    expect(info.coinInk).toBe('#12100e');
+    // The coin's outline plus the two strokes of the `$`.
+    expect(info.coinInkPaths).toBe(3);
     expect(info.washed).toBe(true);
     expect(info.washLiteral).toBe(false);
     // Full detail: the stripped variant draws 7 paths, the icon's drawing 13+

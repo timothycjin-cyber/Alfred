@@ -47,7 +47,15 @@ function art({ ink, accent, anim, ground = true, nib = 10.5 }) {
    never opened the app, which three bars do not (CLAUDE.md §3.15).
    d = 1 strips the detail that turns to mush below ~48px and fattens what is
    left, so the silhouette survives instead of going grey. */
-function pig({ ink, accent, d = 2, ground = true, wash = true,
+/* ⚠️ The coin takes its OWN ink, and that ink does not flip with the theme.
+   Everywhere else in the drawing the ink sits on the page, so it has to invert
+   to warm-white on dark. The coin's `$` and outline sit on the COIN — a
+   saturated fill the drawing carries with it — so their ground never changes,
+   and inverting them would put warm-white on gold at about 1.8:1. The rest of
+   the pig would look right and the one element that says "money" would go
+   blank. Same rule as the tokens that read on two grounds, applied backwards:
+   an element whose ground travels with it needs ONE value, not two. */
+function pig({ ink, coin, coinInk, d = 2, ground = true, wash = true,
   washStops = ['#FBE9E3', '#F6D4C8', '#F0C0B1'] }) {
   const P = (dd, f) => `<path d="${dd}" fill="${f}"/>`;
   const w = d > 1 ? 1 : 1.45;          // one nib size for the whole small variant
@@ -147,9 +155,11 @@ function pig({ ink, accent, d = 2, ground = true, wash = true,
   }
   // The coin is the only saturated colour, and the only reason the tile reads
   // as money rather than as an animal. It never simplifies away.
-  out.push(P(blob(258, 132, 31, 31, 67), accent));
-  out.push(P(ring(258, 132, 31, 31, { w0: 10 * w, w1: 8 * w, seed: 71 }), ink));
-  if (d > 1) out.push(...dollar().map((x) => P(x, ink)));
+  out.push(P(blob(258, 132, 31, 31, 67), coin));
+  out.push(P(ring(258, 132, 31, 31, { w0: 10 * w, w1: 8 * w, seed: 71 }), coinInk));
+  if (d > 1) out.push(...dollar().map((x) => P(x, coinInk)));
+  // The ticks sit BESIDE the coin, on the page — so they keep the page's ink
+  // and flip with the theme like everything else.
   if (d > 1) out.push(...sparkle(340, 128, 26, 8, 77, 2, 1.1).map((x) => P(x, ink)));
   return out.join('');
 }
@@ -181,7 +191,7 @@ const ART_CENTRE = { x: 248.5, y: 259 };
 const page = (size, detail) => `<!doctype html><meta charset="utf-8">
 <body style="margin:0"><svg width="${size}" height="${size}" viewBox="0 0 512 512" style="display:block;background:#FFFCF8">
 <g transform="translate(256 256) scale(${FRAME}) translate(${-ART_CENTRE.x} ${-ART_CENTRE.y})">
-${pig({ ink: '#12100E', accent: '#C2542D', d: detail })}
+${pig({ ink: '#12100E', coin: '#E3A21C', coinInk: '#12100E', d: detail })}
 </g>
 </svg></body>`;
 
@@ -227,7 +237,8 @@ console.log('capture receipt emitted');
    viewBox is therefore tight to the art WITHOUT the shadow. */
 fs.writeFileSync('masthead-brand-markup.txt',
   '<svg class="masthead-pig" viewBox="86 90 326 326" width="44" height="44" aria-hidden="true" focusable="false">'
-  + pig({ ink: 'var(--loader-ink)', accent: 'var(--sienna)', d: 2, ground: false, wash: true,
+  + pig({ ink: 'var(--loader-ink)', coin: 'var(--coin)', coinInk: 'var(--coin-ink)',
+          d: 2, ground: false, wash: true,
           washStops: ['var(--pig-wash-1)', 'var(--pig-wash-2)', 'var(--pig-wash-3)'] })
   + '</svg>');
 console.log('masthead brand emitted');
