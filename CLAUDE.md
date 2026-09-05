@@ -8,36 +8,27 @@ rule and the consequence, not the story.** A trap gets one sentence saying what 
 decision gets one line. If an entry needs three paragraphs of reasoning, the reasoning belongs
 in the history skill and the rule belongs here.*
 
-*Shipped 2026-09-04: **the marker loader and a new app icon** (§3.15, §3.11). The four CSS
-bouncing bars and the sienna "A" tile are gone; both are now one drawn mark — three bars on a
-baseline, tallest one sienna. **Every mark is a filled tapered path and nothing in it is
-stroked**, which is the entire style: a constant-width stroke is what makes a hand-drawn mark
-read as clip art, and the browser suite fails if a `stroke` appears on the mark OR on its root.
-Two things that differ between the two homes: the **loader has no ground shadow** (ink-coloured,
-so it inverts into a pale puddle on dark) and the **maskable icon is a separate file** at 76%
-scale (one file cannot serve both purposes — the full-bleed art clips under Android's circular
-mask). `--loader-ink` is a new light/dark pair, deliberately not `--on-surface`. The serif did
-NOT come along: Newsreader is still the masthead's alone. **Same day, further passes:** the app icon is now the **piggy bank taking a
-coin** — `$` on the coin, a spring tail, and a pink wash inside the body (one `userSpaceOnUse`
-gradient across body and snout, or the overlap seams) — not the bars — the tile's job is to say *money* to someone who has never opened the app,
-and the loader keeps the bars (§3.15 has the table; do not unify them back). The capture
-sheet's parse wait prints a **receipt** from the same nib (§3.8) — a different subject on
-purpose, since it names what is being waited on. It **replaces** the send-arrow spinner;
-reduced motion stills the receipt and brings the spinner back, so there is always exactly one
-busy indicator and never two. **Corrected on device evidence:** the icon is **one circle-safe file per size**, `purpose:
-"any maskable"` — a launcher masks a `purpose: "any"` icon too, so the earlier full-bleed/maskable
-split shipped a clipped home-screen icon with a correctly-sized file sitting unused beside it.
-The scale comes from the furthest **ink pixel** (192.1), never the bbox corner (226.7).
-**Also 2026-09-04:** the loader's bars now **lift (`translateY`) instead of squashing
-(`scaleY`)**, a quarter-cycle apart rather than 120ms — a shared scale factor over four different
-bar heights flattened the ascending silhouette mid-cycle, and the clustered phases made the four
-move as one lump (§3.15). The pig now appears **in-app**, in the Today masthead's right slot (§3.4,
-§3.15) — `d: 1`, no ground shadow, no pink wash, two themed inks. It is decoration and is
-labelled as such: not a button, `aria-hidden`, no tab stop.
-Previous banner (median daily,
-calibrated forecast and the distribution curve, §3.5a) is in the history skill. **One banner: the
-current change only**; superseded ones move to the history skill, not into a queue. Two facts
-that live nowhere else: earlier roadmap files were folded into §6 (2026-07-19), and `index.html`
+*Shipped 2026-09-05: **seven marker marks for the app's empty states** (§3.15). Every blank
+moment that was one line of grey text — failed load, no `?user=` link, no rows yet, no expenses
+this month, too few spending days, the end of the ledger, no recurring series — now carries a
+drawn mark from the same nib. They live in `INK_MARKS` and are reached through `inkMark(name)`.
+Three rules are new and each is asserted: **they never animate** (the loader and the receipt move
+because something is in flight; an empty state is the absence of anything happening, and a moving
+mark there reads as a spinner that never resolves), **each carries exactly one sienna path** — and
+it is always the part holding the meaning, the arrow or the seal or the sand, never a tint — and
+**no literal hex appears in any of them**, since they sit on both grounds. Two of the seven were
+also open roadmap items and both are now closed: the failed load is a card with a **Try again**
+button instead of bare red text, which retires the ⚠️ that was **the last emoji in the app**; and
+the first-run state **split in two** — a person who has already opened a valid `?user=` link is no
+longer told to go and open their `?user=` link. `init()` gave up its body to `loadAndRender()` so
+the retry re-runs the load without re-wiring the pill's gestures a second time. Two traps worth
+the ink: **a drawn rectangle needs `box()`, never a four-point `stroke()`** (chaikin rounds the
+corners away and the open box read as a cereal bowl), and **the `bag` was a wallet for two drafts**
+— a rectangle with a band and a clasp dot is the envelope with its flap flattened, and at 60px
+they were the same drawing. Previous banner (the marker loader and the pig app icon, §3.15, §3.11)
+is in the history skill.*
+
+*Two facts that live nowhere else: earlier roadmap files were folded into §6 (2026-07-19), and `index.html`
 comments still reference roadmap phase names — §6 and the history skill keep those resolvable.*
 
 ---
@@ -178,7 +169,9 @@ passes with the serif never loading.
 the OS font, so a `CAT_COLORS`-tinted chip carried a clashing glyph. Both call sites
 (`categoryBreakdownHtml`, `txnRowHtml`) pass **`color:` as well as the background tint**.
 ⚠️ `CAT_ICONS` holds an **`"Income"`** key — income rows look it up by name rather than falling
-through to `"Other"`. The only emoji reaching the DOM is the ⚠️ in the failed-load state.
+through to `"Other"`. **No emoji reaches the DOM at all** — the failed-load ⚠️ was the last one
+and the cloud mark replaced it (§3.15); the browser suite asserts the failure state is
+emoji-free.
 ⚠️ **The loader mark is the one inline SVG that does NOT inherit `currentColor`** — it names
 `var(--loader-ink)` and `var(--sienna)` directly, because it is two-colour by design and
 `currentColor` would flatten the sienna bar into the ink (§3.15).
@@ -468,7 +461,7 @@ test/run.sh                the same suite in four timezones
 
 test/browser/helpers/app.js   openApp() — mocks the sheet, stubs Chart.js, pins the clock
 test/browser/fixtures/        GViz mock (deliberate month gap) + Chart.js stub
-test/browser/smoke.spec.js    63 checks, 2 projects (390 light-reduced / 900 dark-motion)
+test/browser/smoke.spec.js    71 checks, 2 projects (390 light-reduced / 900 dark-motion)
 ```
 
 **`test/` (pure logic):**
@@ -519,7 +512,7 @@ A series is a **definition** in the `Recurring` tab (§1); its **occurrences** a
 
 ### 3.15 The marker mark — loader and app icon
 
-One nib, **three subjects, one per job** — a small cast, not one logo stretched across the app:
+One nib, **a subject per job** — a small cast, not one logo stretched across the app:
 
 | Where | Subject | Why that one |
 |---|---|---|
@@ -527,6 +520,42 @@ One nib, **three subjects, one per job** — a small cast, not one logo stretche
 | Loader (`#main-loader .loader-mark`) | **Four bars on a baseline** | It is the app's own data grammar (§3.2, length = money), and four is what the loader always had. |
 | Capture parse (`#capture-parse .capture-receipt`, §3.8) | **A receipt printing** | It names *what* is being waited on, which a generic busy mark cannot. |
 | Today masthead (`#masthead-brand .masthead-pig`, §3.4) | **The icon's pig, in-app, at full detail** | The one place the tile's mark appears inside the app. Decoration, and the only decoration. |
+| **Empty states** (`INK_MARKS`, `.ink-mark`) | **Seven, one per blank moment** — see the table below | Each one names *which* nothing this is. |
+
+**The empty-state marks** are `INK_MARKS` in `index.html`, reached through `inkMark(name)`:
+
+| Mark | State | Sienna path |
+|---|---|---|
+| `cloud` | Failed load (§3.5's `showLoadError()`) | the down arrow |
+| `envelope` | No `?user=` link at all | the wax seal |
+| `box` | Nothing logged yet — **two callers**: the first-run card and the day drill-in (§3.14) | the label |
+| `bag` | No expenses this month (Trends donut, §3.7) | the handle |
+| `hourglass` | Too few spending days to draw the curve (§3.7) | the sand |
+| `stack` | `Nothing logged before <month>` (Logs end, §3.6) | the label |
+| `cycle` | Nothing recurring yet (§3.13) | one arrowhead |
+
+- ⚠️ **They are STILL — no animation, ever.** The loader and the receipt move because something
+  is in flight; an empty state is the absence of anything happening, and a moving mark over that
+  sentence reads as a spinner that will never resolve. Asserted, with a negative control.
+- ⚠️ **`box` is shared by two states on purpose.** Both say "no entries" — one for a day, one for
+  the whole ledger. Inventing a second subject for the same sentence is how a small cast turns
+  into a clip-art set.
+- ⚠️ **The `bag` was a wallet for two drafts and the wallet did not survive.** A rectangle with a
+  band and a clasp dot is the `envelope`'s silhouette with the flap flattened; at 60px they were
+  the same drawing. The arch handle is a shape nothing else in the set has. A bag is also the
+  better noun — a wallet is about holding money, a bag about having spent it.
+- ⚠️ **A drawn rectangle uses `box()`, never a four-point `stroke()`.** `stroke()` runs its points
+  through chaikin twice, which rounds every corner away — the first `box` mark smoothed into a U
+  and read as a cereal bowl.
+- **Size is baked into each SVG's `width`/`height`, normalised on the LARGER viewBox dimension**
+  by `emit.mjs`, so the wide envelope and the tall hourglass take the same room. `.ink-mark` only
+  places them. **`.logs-end .ink-mark` is the one override** (46px): that mark closes a scroll
+  above an 11px italic footnote, and must stay quieter than the `.logs-tail` button above it.
+- **Held back with `opacity`, not a paler ink.** Each mark carries a sienna path as well as its
+  ink, so a "quiet" variant would need a second token pair in both themes, kept in step with the
+  accent. Opacity dims the whole drawing at once and cannot drift.
+- **No literal hex anywhere in them** — they sit on both grounds, so they are drawn only in
+  `--loader-ink` and `--sienna`. Asserted.
 
 ⚠️ **The icon and the loader are deliberately NOT the same drawing.** They were for one commit;
 the icon's job is recognition in a grid of other apps, the loader's is continuity with the
@@ -882,6 +911,29 @@ recorded here so they are not re-proposed as new.
    variant was not what was wanted. It keeps the wash but as **themed tokens**, and still drops
    the ground shadow, which cannot survive a dark ground at any tint.
 
+### Empty-state marks ✅ (2026-09-05)
+
+Seven more subjects from the same nib, for the app's blank moments (§3.15). Direction came from
+a doodle-icon reference sheet; roughly a third of it was celebration art (trophies, medals,
+flags, confetti hands) and none of that was drawn — it is barred by the ledger voice and by the
+out-of-scope list, and that is not reopened by having a house illustration style.
+
+1. **Empty states are where art earns its place.** Not beside figures, not on repeating rows
+   (a week row, a pace bar), and not in the masthead — those are dense or ruled already. A
+   place that was one line of grey text is a hole; a place next to a number is not.
+2. **The marks never animate.** Movement means something is in flight. Asserted with a negative
+   control, because a `.ink-mark { animation: … }` rule is invisible to every DOM assertion.
+3. **One sienna path per mark, and it carries the meaning** — the arrow, the seal, the sand.
+   A second would make the accent decorative; a tint would make it noise.
+4. **`box` serves two states**, and that is the rule rather than the exception: one subject per
+   *sentence*, not per call site.
+5. **Two roadmap items closed as a side effect** (items 10 and 11 below): the failed load became
+   a card with a way out, and the first-run state split on `activeUser`. Both were flagged as
+   wrong before this pass and were cheap to fix while the markup was already open.
+6. **The app now contains no emoji at all.** The ⚠️ in the failed-load state was the last one.
+7. **`init()` split into `init()` + `loadAndRender()`** so a retry re-runs the load without
+   re-wiring the pill's gestures. A second `wirePillGestures()` binds duplicate listeners.
+
 ### Design fix spec ✅ (2026-08-10, second pass)
 
 1. **`body` never pins the `wght` axis** (§3.2).
@@ -902,8 +954,8 @@ Each needs a decision before it is a task.
 7. **The category palette** — seven saturated hues, identical hex in both themes, no dark-mode chroma adjustment, sienna doing double duty.
 8. **Drill sheet sort order** — rows sort by amount while displaying dates, and nothing says so.
 9. **Desktop.** At 1280 the app is a centred phone column with very wide, short cards.
-10. **First run for a real user** — a valid `?user=` link with zero rows shows *"Open your personal link (?user=…)"*, the wrong message for someone who just did that.
-11. **Failed load** — bare centred red text with a ⚠️ (the app's last rendered emoji), no card, no retry, and the FAB stays live over an empty ledger.
+10. ✅ *(Resolved 2026-09-05.)* **First run** now splits on `activeUser`: no link reads *"No personal link"*, a valid link with zero rows reads *"Nothing logged yet"* and points at the FAB.
+11. ◐ *(Half-resolved 2026-09-05.)* **Failed load** is now a card with the cloud mark, neutral ink and a **Try again** button, and the ⚠️ is gone. **Still open: the FAB stays live over the failed state**, so `+` opens a capture sheet whose save will also fail. Decide whether a failed load should suppress the FAB, or whether the write path's own toast is enough.
 12. **Date input locale** — the manual modal's `type="date"` rendered `MM/DD/YYYY` in Chromium; that follows browser locale, so verify on a real phone.
 
 *(Resolved: "three doors onto the same month change" — the chevrons and archive shelf are deleted;
@@ -945,6 +997,9 @@ validation suite.
 - Parsing a row's date with `new Date(row.Date)` or `new Date(row.Date + 'T00:00:00')` (§1, §3.12)
 - Interpolating sheet text into `innerHTML` without `escapeHtml()` (§3.6)
 - Stroking any part of the marker mark, hand-editing its path data, or adding the ground shadow back to the loader or the capture receipt (§3.15)
+- Animating an empty-state mark, giving one a second sienna path, or drawing any of them in literal hex instead of the two tokens (§3.15)
+- Drawing celebration subjects in the marker style — trophies, medals, badges, flags, confetti hands. The house illustration style does not reopen the ledger voice or the streak/badge/confetti ban above (§3.2, §6)
+- Putting a mark beside a figure, on a repeating row (a week row, a day column, a pace bar), or anywhere that is not a blank moment (§3.15)
 - Scaling the loader's bars instead of translating them, or clustering their phases back into the first third of the cycle (§3.15)
 - Giving the loader or the capture receipt a second colour, or spreading the icon's pink wash to either of them — the wash is icon-only and is a tint of the sienna, not a third hue (§3.15)
 - Reusing `FRAME`'s numbers after changing the drawing without re-measuring `getBBox()` (§3.15)
@@ -995,6 +1050,9 @@ phase name referenced in an `index.html` comment.
 - **A horizontal transform + `position:fixed; right:0` = a mobile zoom trap** (§3.2). Caught by measuring `scrollWidth`, not by eye.
 - **Chart.js custom canvas draws must be gated by `canvas.id`** — ungated plugins bleed onto every chart on the page.
 - **A looping animation whose first and last keyframe differ stutters once per cycle, and nothing reports it.** The markup is identical, the computed styles are identical, every DOM assertion passes; the defect exists only between the last frame and the first. Write loops symmetric, and assert it by reading the keyframe rule itself — that is the one place the discontinuity is visible to a test.
+- **Two nouns that share a silhouette are one drawing, whatever you name them in the source.** An envelope is a rectangle with a V and a dot; a wallet is a rectangle with a line and a dot. At 60px the difference was a single stroke's angle, and the variable was called `wallet` so nothing in the code disagreed. Marks in a set have to be told apart by SHAPE — the arch handle that made it a bag is the kind of difference that survives — and the check is to render them side by side, which is also the only place the collision is visible.
+- **A geometry helper that smooths is not a geometry helper that draws.** `stroke()` runs its points through chaikin twice, so a four-point rectangle comes out as a lozenge; `box()` exists because a drawn rectangle needs corners that survive. Reaching for the general primitive produced a cereal bowl where an open box was intended, with correct path data and a passing suite.
+- **Size a detail against the RENDERED mark, not its user units.** The cycle mark's arrowheads were geometrically right and invisible at 60px, leaving two arcs that read as a broken ring. Anything that has to be *seen* — an arrowhead, a tick, a glyph — is sized by looking, at the size it ships at.
 - **A drawn mark cannot be transformed as freely as a solid one.** `scaleY(0.25)` on a filled rounded rect is a squash; on a 13-unit outline it closes the interior and reads as a blob. Any transform on generated line art has to be judged on rendered frames, not on the transform's numbers. **The fix is usually a different transform, not a gentler one** — the loader's bars translate, which distorts nothing at any amplitude and left the squash-floor tuning with nothing to tune.
 - **A shared scale factor over elements of different sizes is not a shared motion.** Scaling four bars of 110/150/190/230 by the same 0.5→1 moves the tall one twice as far as the short one, so the shape the mark exists to show — an ascending chart — flattens to four equal stubs halfway through every cycle and springs back. Every keyframe is correct; the silhouette *between* them is the defect. Equal-distance motion (a translate) is the shape-preserving choice.
 - **A stagger shorter than a cycle divided by the number of elements makes a lump, not a wave.** Four bars 120ms apart in a 1000ms loop all move in the first third and then nothing moves — read as a stutter even though the timing function is perfectly smooth. Spread phases evenly across the cycle.
@@ -1004,6 +1062,8 @@ phase name referenced in an `index.html` comment.
 
 - **A term the reader can look up, paired with a sentence that explains it, beats a euphemism that teaches nothing.** Renaming the distribution card's lines to "Typical day" and "Average" dodged the jargon and left the reader with two vague words and no way to learn the real ones. `Median`/`Mean` plus one sentence saying how to read them is both more precise and more teachable. The judgement call is per-term, not blanket: `P90` still goes, because a percentile can't be explained in half a clause.
 - **A label nudged off its own reference line labels the wrong value.** Clamping a label's position to keep it on the card silently moves it away from the mark it names. Change which END of the label is pinned instead — the anchor moves, the position doesn't.
+- **An empty state is a sentence, and a state that shows the same sentence for two different situations is telling one of them a lie.** Alfred's first-run card told a person who had just opened a valid `?user=` link to go and open their `?user=` link. The tell is that the copy was written for the *cause* the author had in mind rather than derived from the flag that distinguishes the cases — here, `activeUser`, which was already sitting there.
+- **A state with no way out is not a state, it is a dead end.** The failed load offered bare red text: no retry, no explanation, and semantic red doing alarm duty for a connection problem when it is reserved for money. A card, a sentence and a button cost three lines.
 - **If everything is reassuring, nothing is an alert.** Reserve semantic colour and solid fills for what has gone wrong; state the ordinary case in words.
 - **Emoji are a third colour system** — an emoji glyph in a tinted chip carries the OS font's palette alongside the app's ink and the category's hue. Inline SVG inheriting `currentColor` makes the chip one hue and themeable for free.
 - **A control that must be tapped should look like a slot, not a mark.** Seven bars on a card read as a chart; seven bars in seven tinted slots read as buttons.

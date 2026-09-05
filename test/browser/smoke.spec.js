@@ -487,3 +487,109 @@ test.describe('masthead brand mark', () => {
     expect(info.detail.tail).toBeGreaterThan(11);
   });
 });
+
+test.describe('empty-state marks', () => {
+  // The seven drawn stand-ins for the app's blank moments. They are held to
+  // the same nib rules as the loader, the capture receipt and the masthead
+  // pig (CLAUDE.md §3.15) — and to one more that only applies to them: they
+  // never animate, because an empty state is the absence of anything
+  // happening and a moving mark would claim otherwise.
+  test('every mark is filled paths with one sienna accent, and none is stroked', async ({ page }) => {
+    await openApp(page);
+    const marks = await page.evaluate(() => {
+      // Read them out of the source table rather than hunting the eight call
+      // sites: a mark that is drawn but never wired in is still a mark that
+      // must not carry a stroke, and this way a new subject is covered the
+      // moment it is added to INK_MARKS.
+      const host = document.createElement('div');
+      return Object.entries(INK_MARKS).map(([name, html]) => {
+        host.innerHTML = html;
+        const svg = host.querySelector('svg');
+        return {
+          name,
+          // ⚠️ The ROOT counts too. querySelectorAll searches descendants
+          // only, so a stroke on the <svg> itself — inherited by every child,
+          // the worst form of this regression — sails past a descendant-only
+          // probe. That mistake shipped a false pass once already.
+          stroked: svg.querySelectorAll('[stroke], [stroke-width]').length
+            + (svg.hasAttribute('stroke') || svg.hasAttribute('stroke-width') ? 1 : 0),
+          paths: svg.querySelectorAll('path').length,
+          accent: [...svg.querySelectorAll('path')]
+            .filter((p) => p.getAttribute('fill') === 'var(--sienna)').length,
+          ariaHidden: svg.getAttribute('aria-hidden'),
+          hasViewBox: svg.hasAttribute('viewBox'),
+          // The pink wash is the icon's and the masthead pig's alone. A
+          // literal hex here would also be a theme bug: these sit on both
+          // grounds and must be drawn only in tokens.
+          literalInk: /(fill|stop-color)="#/.test(svg.innerHTML),
+        };
+      });
+    });
+    expect(marks.length).toBe(7);
+    for (const m of marks) {
+      expect(m.stroked, `${m.name} must not be stroked`).toBe(0);
+      expect(m.paths, `${m.name} should be drawn`).toBeGreaterThan(1);
+      expect(m.accent, `${m.name} carries exactly one sienna path`).toBe(1);
+      expect(m.ariaHidden, `${m.name} is decoration`).toBe('true');
+      expect(m.hasViewBox, `${m.name} must scale`).toBe(true);
+      expect(m.literalInk, `${m.name} must use tokens, not literal hex`).toBe(false);
+    }
+  });
+
+  test('a link with no rows says so, instead of asking for the link again', async ({ page }) => {
+    // ⚠️ This is the regression the split fixes. Both branches of the empty
+    // state used to print "Open your personal link (?user=…)", so a person
+    // who HAD opened their link was told to go and open it — the one thing
+    // they had already done. activeUser is what separates the two.
+    await openApp(page);
+    const copy = await page.evaluate(() => {
+      activeUser = '99999';           // a valid link whose ledger is empty
+      dataStamp++;
+      calculateAndRender();
+      const el = document.getElementById('empty-state');
+      return { text: el.innerText, marks: el.querySelectorAll('.ink-mark').length };
+    });
+    expect(copy.text).toMatch(/Nothing logged yet/i);
+    expect(copy.text).not.toMatch(/\?user=/);
+    expect(copy.marks).toBe(1);
+  });
+
+  test('a failed load offers a way out and drops the last emoji', async ({ page }) => {
+    await openApp(page);
+    const state = await page.evaluate(() => {
+      showLoadError();
+      const el = document.getElementById('main-loader');
+      return {
+        marks: el.querySelectorAll('.ink-mark').length,
+        retry: el.querySelectorAll('button.load-retry').length,
+        // The ⚠️ this replaced was the last emoji reaching the DOM. An emoji
+        // is painted by the OS font, so it was also the one glyph the app's
+        // theme could not colour (CLAUDE.md §3.2).
+        emoji: /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/u.test(el.innerText),
+        // Red is reserved for expense and overspend figures. A connection
+        // failure is not a money state.
+        red: el.innerHTML.includes('--semantic-expense'),
+      };
+    });
+    expect(state.marks).toBe(1);
+    expect(state.retry).toBe(1);
+    expect(state.emoji).toBe(false);
+    expect(state.red).toBe(false);
+  });
+
+  test('the marks are still — no animation on any of them', async ({ page }) => {
+    // The loader and the receipt animate because something is in flight.
+    // These say "there is nothing here", and a bouncing mark over that
+    // sentence reads as a spinner that never resolves.
+    await openApp(page);
+    const moving = await page.evaluate(() => {
+      const host = document.getElementById('drill-body') || document.body;
+      host.innerHTML = `<div class="drill-empty">${inkMark('box')}Nothing</div>`;
+      const svg = host.querySelector('.ink-mark');
+      return [svg, ...svg.querySelectorAll('*')]
+        .map((el) => getComputedStyle(el).animationName)
+        .filter((n) => n && n !== 'none');
+    });
+    expect(moving).toEqual([]);
+  });
+});

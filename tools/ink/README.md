@@ -12,9 +12,14 @@ the ground shadow and the little radiating ticks.
 
 - `loader-markup.txt` — the `<svg class="loader-mark">` block pasted into `index.html`, inks as
   CSS custom properties, animation hooks (`.lb`, `.lb2`, `.lb3`, `.lt`) in place.
-- `icon-{192,512}.html` and `icon-maskable-{192,512}.html` — pages screenshotted at exact size
-  to produce `icons/*.png`. The maskable pair scales the art to 76% about centre; see §3.11 for
-  why one file cannot serve both purposes.
+- `capture-receipt-markup.txt` and `masthead-brand-markup.txt` — the same, for the capture
+  sheet's parse-busy receipt (§3.8) and the Today masthead's pig (§3.4).
+- `empty-marks.txt` — the `INK_MARKS` object pasted into `index.html`: seven still marks for the
+  app's empty states (§3.15). `MARK_BOX` normalises each one on the LARGER viewBox dimension, so
+  a wide mark and a tall one take the same room on screen.
+- `icon-{192,512}.html` and `icon-64.html` — pages screenshotted at exact size to produce
+  `icons/*.png`. One `FRAME` serves both purposes; see §3.11 for why there is no separate
+  maskable file.
 
 ```sh
 node tools/ink/emit.mjs          # writes the four pages + the loader markup

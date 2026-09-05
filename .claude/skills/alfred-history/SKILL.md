@@ -218,6 +218,59 @@ tall. Day columns are a locked seventh-of-the-track design (§3.6) and meet the 
 rule they were written to; the archive shelf chips were **not** part of this pass and are
 listed below as an open item.
 
+### Empty-state marks (2026-09-05)
+
+The brief was open: "jazz up the design", with a reference sheet of ~50 hand-drawn doodle icons
+and a request to plan where more of the marker style could go. Two things settled the scope
+before any drawing started.
+
+**Where art earns its place.** The three existing marks each hold a job — the loader says
+"wait", the receipt says "reading your photo", the pig says "this is Alfred". A fourth home had
+to have a job too, and the one left was the app's blank moments: eight places where the app
+showed a single line of grey text. Everywhere else was ruled out on existing rules rather than
+taste — beside a figure the mark competes with the number, on a repeating row (a week row, a day
+column) it multiplies into noise, and the masthead is governed by "names the period, never
+measures it" plus a height invariant.
+
+**What was NOT drawn.** Roughly a third of the reference sheet is celebration art: trophies,
+medals, rosettes, flags on mountains, confetti hands. None of it was drawn, and the out-of-scope
+list grew a line saying so. Alfred's ledger voice ("no emoji, no exclamation marks, quiet
+verdicts") and the standing ban on streak counters, badges and confetti are not reopened by the
+app acquiring a house illustration style — a drawn trophy is still a trophy.
+
+**The wallet that became a bag.** The first draft of the "no expenses this month" mark was a
+wallet: a rectangle, a fold band, a clasp dot. Rendered next to the envelope it was the same
+drawing with the flap flattened — and the source called one `envelope` and the other `wallet`,
+so nothing in the code disagreed. Only a side-by-side render showed it. The shopping bag's arch
+handle is a silhouette nothing else in the set has, and it is the better noun anyway: a wallet
+is about holding money, a bag about having spent it, and the state means "nothing spent".
+
+**The box that was a cereal bowl.** The open box was first built from a four-point `stroke()`.
+`stroke()` chaikin-smooths its polyline twice, so all four corners rounded off and the tub came
+out as a U. `box()` exists for exactly this and the fix was to use it. The path data was correct
+throughout; only the render disagreed.
+
+**Two roadmap items closed on the way past.** Items 10 and 11 in "Recorded but undecided" were
+both about states this pass was already rewriting. The first-run card had one message for two
+situations, so a person who had just opened a valid `?user=` link was told to open their
+`?user=` link — `activeUser` already distinguished them and now does. The failed load was bare
+centred red text carrying a ⚠️, with no card and no way out; it became a card with the cloud
+mark, neutral ink (red is reserved for money states, not connection failures) and a **Try again**
+button. That retired the last emoji in the app. Item 11 is only half closed: the FAB still sits
+live over the failed state, which is a separate decision and stays on the list.
+
+`init()` was split into `init()` + `loadAndRender()` so the retry re-runs the load alone —
+calling `init()` again would have bound a second set of pointer listeners to the pill.
+
+**Verification.** 8 new browser checks (71 total, from 63), and three negative controls run
+before the checks were trusted: a `stroke` on an SVG **root** (the form that beat the first
+draft of the loader's probe — `querySelectorAll` searches descendants only), the pre-split
+single-message empty state, and an `animation` on `.ink-mark`. All three failed as intended,
+then the tree was restored. The stillness check earns its place: an animated empty-state mark is
+invisible to every DOM assertion, since the markup is identical either way.
+
+---
+
 ---
 
 ## 7. History (compact)
@@ -226,6 +279,13 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 (Today · Logs · Trends, numbered Phases 0–7), **v3 / lettered phases** = the refinement
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
+
+- **2026-09-05 — Empty-state marks (§3.15, §6).** Seven more subjects from the nib, for the app's
+  blank moments. Also closed roadmap item 10 (the first-run card told a person who had opened
+  their `?user=` link to open their `?user=` link) and half of item 11 (the failed load became a
+  card with a retry, retiring the app's last emoji). The two design lessons: two nouns that share
+  a silhouette are one drawing however you name them in the source, and `stroke()` is not
+  `box()` — chaikin rounds a four-point rectangle into a lozenge.
 
 - **2026-08-20 — Committed browser smoke suite (§3.12, §6).** Prompted by a user asking why a
   small change (the icons-into-masthead move, above) took as long and cost as much as it did.
