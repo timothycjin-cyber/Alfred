@@ -886,6 +886,16 @@ recorded here so they are not re-proposed as new.
    like a filled rect. *(Superseded the same day, ninth pass: **the bars are not squashed at
    all.** See below.)*
 
+### Loader bounce — lift, not squash ✅ (2026-09-04, ninth pass)
+
+1. **The bounce is a `translateY`, never a `scaleY`.** A shared scale factor over four different
+   bar heights flattens the ascending silhouette mid-cycle, on top of thinning the drawn
+   outline. Both are why the motion read as "loafing" rather than bouncing.
+2. **The stagger is a quarter-cycle.** Evenly spread phases, no clump and no dead
+   stretch. This supersedes the "original 1s / 120ms rhythm" decision above.
+3. **The keyframe check now also asserts the transform is a translate**, with a negative control
+   proved against the old `scaleY` rule.
+
 ### Loader retune — thinner, smaller, higher, faster ✅ (2026-09-05)
 
 Four numbers moved, on the user's read of the shipped motion. Nothing structural changed:
@@ -903,16 +913,6 @@ symmetric.
 4. **The lift is 36 units, up from 26**, and the cycle is **800ms, down from 1s** (a fifth
    faster) with the stagger following it to **200ms**. Verified on a filmstrip, not on the
    numbers: the tallest bar peaks 33 units clear of the viewBox top, so nothing clips.
-
-### Loader bounce — lift, not squash ✅ (2026-09-04, ninth pass)
-
-1. **The bounce is a `translateY`, never a `scaleY`.** A shared scale factor over four different
-   bar heights flattens the ascending silhouette mid-cycle, on top of thinning the drawn
-   outline. Both are why the motion read as "loafing" rather than bouncing.
-2. **The stagger is a quarter-cycle.** Evenly spread phases, no clump and no dead
-   stretch. This supersedes the "original 1s / 120ms rhythm" decision above.
-3. **The keyframe check now also asserts the transform is a translate**, with a negative control
-   proved against the old `scaleY` rule.
 
 ### Brand mark in the Today masthead ✅ (2026-09-04, seventh pass)
 
