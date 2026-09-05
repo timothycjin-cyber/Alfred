@@ -370,6 +370,36 @@ function emptyMarks() {
     ].join(''),
   };
 
+  /* The Logs view early in a month (§3.6). NOT an empty state — the ledger has
+     content, it is just short, so this mark says nothing and is the only one
+     with no sentence under it. An open book, mostly blank: ruled lines on the
+     left page and none on the right, which is what a young month IS.
+     ⚠️ Page edges use stroke(), and here the chaikin smoothing is WANTED — a
+     book's pages are curved, so the rounding that ruined the open box is the
+     correct behaviour for this subject. */
+  /* ⚠️ BOTH the top and bottom edges sag toward the spine, and that one rule
+     is what makes it a book rather than a folded card. The first draft had the
+     top edge highest at the centre and lowest at the outer corners, which is a
+     card being creased; an open book's pages rise away from the gutter at both
+     ends. The ribbon also has to clear the bottom edge by a visible margin —
+     drawn inside the page it just reads as a second spine. */
+  marks.ledger = {
+    vb: '134 182 244 214',
+    body: [
+      P(stroke([[272, 244], [281, 318], [274, 384]], { w0: 12, w1: 8, belly: .05, seed: 281, wob: .4 }), ACC),
+      P(stroke([[256, 224], [200, 200], [152, 198], [148, 312], [202, 330], [256, 352]],
+        { w0: 13, w1: 12, seed: 283 }), INK),
+      P(stroke([[256, 224], [312, 200], [360, 198], [364, 312], [310, 330], [256, 352]],
+        { w0: 13, w1: 12, seed: 285 }), INK),
+      P(stroke([[256, 226], [253, 290], [256, 350]], { w0: 11, w1: 10, seed: 287, wob: .4 }), INK),
+      // Three ruled lines, LEFT page only — the right page is still blank,
+      // which is the whole point of the subject.
+      P(stroke([[176, 244], [234, 242]], { w0: 7, w1: 6, belly: 0, seed: 289, wob: .4 }), INK),
+      P(stroke([[172, 272], [236, 270]], { w0: 7, w1: 6, belly: 0, seed: 291, wob: .4 }), INK),
+      P(stroke([[176, 300], [224, 298]], { w0: 7, w1: 6, belly: 0, seed: 293, wob: .4 }), INK),
+    ].join(''),
+  };
+
   /* Nothing recurring yet. Two arcs chasing each other — the only mark here
      that describes an action rather than an absence, because a recurring
      series is a thing that repeats and the empty state has to say what the
@@ -404,7 +434,7 @@ function emptyMarks() {
 /* Normalised on the LARGER viewBox dimension, so a wide mark (the envelope)
    and a tall one (the hourglass) take up the same amount of room instead of
    the wide one dominating. CSS can still override; these are the defaults. */
-const MARK_BOX = { cloud: 76, envelope: 76, bag: 60, box: 60, hourglass: 60, stack: 60, cycle: 60 };
+const MARK_BOX = { cloud: 76, envelope: 76, bag: 60, box: 60, hourglass: 60, stack: 60, cycle: 60, ledger: 96 };
 const emitted = emptyMarks();
 const lines = Object.entries(emitted).map(([name, m]) => {
   const [, , vw, vh] = m.vb.split(' ').map(Number);

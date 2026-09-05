@@ -541,7 +541,7 @@ test.describe('empty-state marks', () => {
         };
       });
     });
-    expect(marks.length).toBe(7);
+    expect(marks.length).toBe(8);
     for (const m of marks) {
       expect(m.stroked, `${m.name} must not be stroked`).toBe(0);
       expect(m.paths, `${m.name} should be drawn`).toBeGreaterThan(1);
@@ -550,6 +550,42 @@ test.describe('empty-state marks', () => {
       expect(m.hasViewBox, `${m.name} must scale`).toBe(true);
       expect(m.literalInk, `${m.name} must use tokens, not literal hex`).toBe(false);
     }
+  });
+
+  test('the young-month mark appears only when the ledger is short', async ({ page }) => {
+    // The one mark with no copy under it, and the one that is NOT an empty
+    // state — the ledger has content, it is just short. Its whole justification
+    // is the gap it fills, so a full month must not get it: there it would be
+    // decoration under the fold with nothing to fill.
+    await openApp(page, { view: 'logs' });
+    const full = await page.evaluate(() =>
+      document.querySelectorAll('#logs-ledger .logs-quiet').length);
+    expect(full).toBe(0);
+
+    const young = await page.evaluate(() => {
+      // Three days into the month: one week row plus a boundary clip.
+      allRows = allRows.filter((r) => !r.Date || r.Date <= '2026-08-03');
+      dataStamp++;
+      renderLogsLedger();
+      const led = document.getElementById('logs-ledger');
+      const q = led.querySelector('.logs-quiet');
+      return {
+        blocks: led.querySelectorAll('.logs-quiet').length,
+        weeks: led.querySelectorAll('.week-row').length,
+        // ⚠️ It must carry no words. A sentence here either restates Today's
+        // day count or goes stale by the 10th.
+        text: q ? q.innerText.trim() : null,
+        marks: q ? q.querySelectorAll('.ink-mark').length : 0,
+        // Quieter than every other mark — it stands in for nothing, so it has
+        // to read as atmosphere, not as content competing with .logs-tail.
+        opacity: q ? parseFloat(getComputedStyle(q.querySelector('.ink-mark')).opacity) : null,
+      };
+    });
+    expect(young.blocks).toBe(1);
+    expect(young.weeks).toBeLessThanOrEqual(2);
+    expect(young.text).toBe('');
+    expect(young.marks).toBe(1);
+    expect(young.opacity).toBeLessThan(0.4);
   });
 
   test('a link with no rows says so, instead of asking for the link again', async ({ page }) => {

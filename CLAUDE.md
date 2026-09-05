@@ -8,7 +8,16 @@ rule and the consequence, not the story.** A trap gets one sentence saying what 
 decision gets one line. If an entry needs three paragraphs of reasoning, the reasoning belongs
 in the history skill and the rule belongs here.*
 
-*Shipped 2026-09-05: **the piggy bank's coin is gold** (`#E3A21C`, §3.15), in both the app icon
+*Shipped 2026-09-05: **a quiet mark for the Logs view early in a month** (§3.6, §3.15). Two week
+rows and the page stopped, leaving ~350px of nothing; an eighth subject — an open book, ruled on
+the left page and blank on the right — now sits in it. ⚠️ **It carries no copy, the only mark that
+does not**: the ledger there is not empty, it is *young*, and any sentence about that either
+restates Today's day count or reads stale by the 10th. It is **gated on the week-row count (≤ 2),
+never on measured height** — a row count is data, while height moves with the viewport, the fonts
+and which tail is showing — and it is the **quietest mark in the app** (`.28`), so it never
+competes with the `.logs-tail` button above it, which is the screen's real next action. A full
+month must not get it, and the negative control against the ungated version fails as it should.
+Same day, earlier: **the piggy bank's coin is gold** (`#E3A21C`, §3.15), in both the app icon
 PNGs and the Today masthead. Sienna read as a copper disc; gold is what makes the drawing say
 *money* without being told. It is the app's one hue that is not sienna or a tint of it, and it is
 representational — **sienna is still the only primary**, and nothing about buttons or charts
@@ -547,7 +556,19 @@ One nib, **a subject per job** — a small cast, not one logo stretched across t
 | `hourglass` | Too few spending days to draw the curve (§3.7) | the sand |
 | `stack` | `Nothing logged before <month>` (Logs end, §3.6) | the label |
 | `cycle` | Nothing recurring yet (§3.13) | one arrowhead |
+| `ledger` | **Not an empty state** — the Logs view early in a month (§3.6) | the ribbon |
 
+- ⚠️ **`ledger` is the exception to everything below, and the only mark with NO copy.** The
+  Logs ledger early in a month is not empty, it is *young* — two week rows and then ~350px of
+  nothing above the nav cluster. A drawing of a mostly-blank open book is true on every day it
+  shows; any sentence about it either restates Today's day count or reads stale by the 10th.
+  It is also the quietest (`opacity: .28` against every other mark's `.75`), because it stands
+  in for nothing and must not compete with the `.logs-tail` button just above it.
+  ⚠️ **Gated on the WEEK-ROW COUNT (≤ 2), never on measured layout** — height depends on the
+  viewport, the fonts and whether the tail is a button or the end note, while a row count is
+  data and cannot disagree with itself between renders. A full month must not get it: there it
+  is decoration under the fold with nothing to fill. Asserted both ways, with a negative
+  control against the ungated version.
 - ⚠️ **They are STILL — no animation, ever.** The loader and the receipt move because something
   is in flight; an empty state is the absence of anything happening, and a moving mark over that
   sentence reads as a spinner that will never resolve. Asserted, with a negative control.
@@ -995,6 +1016,24 @@ out-of-scope list, and that is not reopened by having a house illustration style
 7. **`init()` split into `init()` + `loadAndRender()`** so a retry re-runs the load without
    re-wiring the pill's gestures. A second `wirePillGestures()` binds duplicate listeners.
 
+### The young-month mark on Logs ✅ (2026-09-05)
+
+Early in a month the Logs ledger is two rows and the page stops, leaving ~350px of nothing above
+the nav cluster. An eighth subject (`ledger`, an open book) fills it (§3.15).
+
+1. **It carries no copy, and it is the only mark that does not.** The ledger is not empty here,
+   it is young. A drawing of a mostly-blank book is true on every day it shows; a sentence
+   either restates Today's day count or reads stale by the 10th.
+2. **Gated on the week-row count (≤ 2), never on measured height.** A row count is data; height
+   depends on the viewport, the fonts and which tail is showing.
+3. **It is the quietest mark in the app** (`.28`), because it must not compete with the
+   `.logs-tail` button directly above it — that button is the screen's actual next action.
+4. **A full month must not get it.** There it is decoration under the fold with nothing to
+   fill. Asserted both ways, with a negative control against the ungated version.
+5. **This is a stated exception to "marks go only where a blank moment is"**, and it stays an
+   exception: the gate is the whole justification, so anything that removes the gate removes
+   the mark.
+
 ### Design fix spec ✅ (2026-08-10, second pass)
 
 1. **`body` never pins the `wght` axis** (§3.2).
@@ -1061,7 +1100,8 @@ validation suite.
 - Stroking any part of the marker mark, hand-editing its path data, or adding the ground shadow back to the loader or the capture receipt (§3.15)
 - Animating an empty-state mark, giving one a second sienna path, or drawing any of them in literal hex instead of the two tokens (§3.15)
 - Drawing celebration subjects in the marker style — trophies, medals, badges, flags, confetti hands. The house illustration style does not reopen the ledger voice or the streak/badge/confetti ban above (§3.2, §6)
-- Putting a mark beside a figure, on a repeating row (a week row, a day column, a pace bar), or anywhere that is not a blank moment (§3.15)
+- Putting a mark beside a figure, on a repeating row (a week row, a day column, a pace bar), or anywhere that is not a blank moment — the Logs `ledger` mark is the one exception and it is gated on the row count, not added freely (§3.15)
+- Giving the `ledger` mark a caption, or showing it on a month with more than two week rows (§3.6, §3.15)
 - Scaling the loader's bars instead of translating them, or clustering their phases back into the first third of the cycle (§3.15)
 - Giving the loader or the capture receipt a second colour, or spreading the icon's pink wash to either of them — the wash is icon-only and is a tint of the sienna, not a third hue (§3.15)
 - Reusing `FRAME`'s numbers after changing the drawing without re-measuring `getBBox()` (§3.15)
