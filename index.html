@@ -5711,6 +5711,16 @@ async function deleteTxn() {
 }
 
 init();
+
+/* Register the service worker (sw.js). It caches nothing — it exists so an
+   Android install is a real PWA install and not a badged browser shortcut
+   (§3.11). Non-blocking and failure-tolerant: file:// and any browser without
+   SW support simply skip it, and the app is unchanged either way. */
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
