@@ -1,4 +1,6 @@
 {
+  "id": "./",
+  "lang": "en",
   "name": "Project Alfred",
   "short_name": "Alfred",
   "description": "Personal finance — capture, charts, trends and breakdowns.",

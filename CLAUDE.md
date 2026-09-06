@@ -443,7 +443,8 @@ the GViz month-correction so optimistic and reconciled rows format identically.
 
 ### 3.11 PWA shell (push retired — Phase F)
 
-`manifest.json` is now the **entire** PWA shell and carries installability on its own.
+`manifest.json` plus **`sw.js`** are the whole PWA shell. The manifest carries the identity and
+the icons; the worker (below) carries installability.
 **Three icon entries, ONE framing.** `icon-192.png` and `icon-512.png` are
 `purpose: "any maskable"`; `icon-64.png` is the tab favicon (stripped variant, `any`).
 ⚠️ **A launcher masks whatever icon it picks, INCLUDING a `purpose: "any"` one.** This was found
@@ -453,8 +454,26 @@ There is therefore **no full-bleed framing to be had** — the art is scaled onc
 mask and both purposes are declared on the one file. Separate `icon-maskable-*.png` files are
 **deleted**; do not reintroduce them for this drawing. The scale and how to re-derive it are in
 §3.15. `background_color` is the paper `#FFFCF8`.
-**No service worker** (`firebase-messaging-sw.js` and its registration are deleted; it only did
-push display + PWA presence, no fetch handler). **No push client** — bell, `togglePush()`,
+**`sw.js` — one service worker, and it caches NOTHING** (added 2026-09-06). It exists for one
+reason: **an Android install that is not a real PWA install becomes a bookmark shortcut, and a
+shortcut is drawn with the installing browser's badge over the icon's corner.** A registered
+worker with a real fetch handler is the one install-criteria box a static page does not tick by
+itself. ⚠️ **The fetch handler is a deliberate pass-through (`respondWith(fetch(e.request))`) and
+must stay one** — a cache here would pin the user to whatever `index.html` they installed on, and
+the app has no version handshake to break that with. Adding a cache means also adding a version
+and an activate-time cleanup; half a caching strategy is worse than none. Registration is
+guarded on `location.protocol === 'https:'` and swallows its own failure, so `file://` and any
+browser without SW support are unaffected — and so a pass-through worker never sits between
+`page.route` and the GViz mock in the localhost browser harness (§3.12), which is why those
+checks read the files rather than registering one. Offline is **out of scope** — the ledger is a Google
+Sheet, so an offline shell would render its own error state. ⚠️ **The badge is a BROWSER
+question first.** On Android only Chrome reliably mints the WebAPK that makes a home-screen icon
+badge-free; Brave and most other engines install the same manifest as a badged shortcut. The
+worker removes the app's half of the problem, not the launcher's. **`manifest.json` carries
+`"id": "./"`**, which resolves to `start_url` — set explicitly so a future `start_url` change
+cannot silently re-identify the app and orphan every existing install.
+(`firebase-messaging-sw.js` is still deleted — that one did push display and PWA presence with
+**no** fetch handler, which is exactly why it never solved this.) **No push client** — bell, `togglePush()`,
 `initPushUI()`, the Firebase SDK import, `FIREBASE_CONFIG`, `FCM_VAPID_KEY` and
 `localStorage('alfred_push_token')` are all gone. How push worked is preserved in §8.
 
@@ -995,6 +1014,24 @@ out-of-scope list, and that is not reopened by having a house illustration style
 7. **`init()` split into `init()` + `loadAndRender()`** so a retry re-runs the load without
    re-wiring the pill's gestures. A second `wirePillGestures()` binds duplicate listeners.
 
+### Install as an app, not a shortcut ✅ (2026-09-06)
+
+The home-screen icon carried the installing browser's badge in its corner. Cause: the install was
+a **bookmark shortcut**, not a PWA install — the page met every manifest criterion and none of the
+service-worker one.
+
+1. **`sw.js` exists for installability, and caches nothing.** Its fetch handler is a pass-through
+   and stays one; a cache without a version and an activate-time cleanup pins users to the
+   `index.html` they installed on (§3.11).
+2. **Offline stays out of scope.** The ledger is a Google Sheet; an offline shell would render an
+   error state, so there is nothing to cache that is worth the staleness risk.
+3. **The badge is a browser question first.** On Android only Chrome reliably mints the WebAPK
+   that makes the icon badge-free. The worker removes the app's half; installing from Chrome
+   removes the launcher's half. Reversing decision 5 of Phase F ("no service worker") on this
+   evidence only — **no push, no Firebase, nothing of that stack returns.**
+4. **`manifest.json` declares `"id": "./"`** — it already resolved to `start_url`, and stating it
+   means a later `start_url` change cannot re-identify the app and orphan existing installs.
+
 ### Design fix spec ✅ (2026-08-10, second pass)
 
 1. **`body` never pins the `wght` axis** (§3.2).
@@ -1068,6 +1105,10 @@ validation suite.
 - Running the send-arrow spinner and the capture receipt at the same time, or giving the receipt a paper fill (§3.8, §3.15)
 - Reintroducing separate `icon-maskable-*.png` files, or giving the `any` icon a full-bleed framing — a launcher masks whatever it picks, so both purposes ride one circle-safe file (§3.11)
 - Deriving an icon scale from `getBBox()` — measure the furthest ink pixel (§3.15)
+- Adding a cache to `sw.js` without a version string and an activate-time cleanup, or growing it
+  into an offline shell (§3.11)
+- Bringing back push, Firebase, or `firebase-messaging-sw.js` — `sw.js` is an installability
+  worker and is not a foothold for any of that (§3.11)
 - Any new backend endpoints, LLM calls, or paid services
 
 ---

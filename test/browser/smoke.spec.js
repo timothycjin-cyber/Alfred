@@ -609,3 +609,40 @@ test.describe('empty-state marks', () => {
     expect(moving).toEqual([]);
   });
 });
+
+test.describe('PWA install shell', () => {
+  // An Android install that is not a real PWA install becomes a bookmark
+  // shortcut, and a shortcut is drawn with the installing browser's badge over
+  // the icon. A registered service worker with a real fetch handler is the one
+  // install-criteria box a static page does not tick by itself (CLAUDE.md
+  // §3.11). These are file-level checks rather than a live registration: the
+  // registration is deliberately gated on https:, which keeps a pass-through
+  // worker from sitting between page.route and the GViz mock in this harness.
+  test('index.html registers sw.js', async ({ page }) => {
+    const res = await page.request.get('/index.html');
+    const html = await res.text();
+    expect(html).toContain("navigator.serviceWorker.register('sw.js')");
+  });
+
+  test('sw.js has a real fetch handler and caches nothing', async ({ page }) => {
+    const res = await page.request.get('/sw.js');
+    expect(res.status()).toBe(200);
+    const js = await res.text();
+    expect(js).toContain("addEventListener('fetch'");
+    expect(js).toContain('respondWith(fetch(e.request))');
+    // A cache without a version and an activate-time cleanup pins the user to
+    // whatever index.html they installed on. If one is ever added, this check
+    // is the place that has to be updated deliberately.
+    expect(js).not.toMatch(/caches\s*\./);
+  });
+
+  test('manifest declares an explicit id and maskable icons', async ({ page }) => {
+    const res = await page.request.get('/manifest.json');
+    const m = await res.json();
+    expect(m.id).toBe('./');
+    expect(m.start_url).toBe('./');
+    expect(m.display).toBe('standalone');
+    const maskable = m.icons.filter((i) => i.purpose.includes('maskable'));
+    expect(maskable.map((i) => i.sizes).sort()).toEqual(['192x192', '512x512']);
+  });
+});
