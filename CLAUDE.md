@@ -23,6 +23,21 @@ suite's lifted-pill check moved to Trends (§3.12). Rows for every month are sti
 tail reads `_logsMonthKeys` to name the next month back **holding data**, so the picker, the swipe
 and the tail still agree about what a month is.*
 
+*Shipped 2026-09-22: **a receipt photo is ONE transaction at its total** (§2, §3.8). The base
+`EXTRACT_PROMPT`'s multi-transaction rule read a receipt's line items as a list of transactions, so
+a photo came back split by item when the total was wanted. **`RECEIPT_PROMPT` is a photo-only
+rider** appended in `handleParse`'s image branch alone — the TEXT path's multi-entry behaviour
+("lunch RM15, grab RM9") is deliberately untouched. It pins amount to the grand total, description
+to the merchant, one category for the whole receipt, and allows several elements only for several
+separate receipts or when the caption asks for a split. ⚠️ **This is an Apps Script change and needs
+a REDEPLOY** (§4) — until then the live script still splits. So the client also carries the escape
+hatch, which works today: **`Combine into one entry`** in the review sheet (`#review-combine-btn`),
+offered **only on `web-image`, only for 2+ rows, only when every row is the same type**. It sums the
+amounts and hands one entry to the ordinary confirm modal — the only place every field is editable.
+⚠️ **Category comes from the LARGEST row**, not the first, or a RM 90 grocery run files under its
+RM 2 plastic bag. Four browser checks; three negative controls (category source, the photo-only
+gate, and the `[hidden]` override) were each proved to fail.*
+
 *Shipped 2026-09-22: **the capture sheet survives the soft keyboard** (§3.8). With the keyboard up,
 the send arrow took two taps — the first only dismissed it. **Two causes, two fixes.** (1) The
 viewport meta now carries **`interactive-widget=resizes-content`**, so the keyboard shrinks the
@@ -155,6 +170,7 @@ In-repo `apps-script/Code.gs` is the source of truth.
 - `add`/`edit`/`delete` — row writes; both write User col H. `handleAdd` honors a client `uid`, and **refuses a `uid` it already holds** (`{success:true, uid, duplicate:true}`, no append) — the sheet arbitrates recurring idempotency, since the client can't see a row the GViz cache hasn't surfaced. Helpers: `findRowByUID()`, `generateUID()`, `backfillUIDs()`.
 - `recurring` — series definitions only. Three ops via `data.op` (`add`/`edit`/`delete`). Helpers: `getRecurringSheet()`, `findRecurringRowById()`. Occurrences are written by the *client* via the ordinary `add`, so there is exactly one row-writing path.
 - `parse` — `{user, text | image_b64[, mime][, caption]}` → `{transactions:[…], dropped, note?}`. `EXTRACT_PROMPT` (array-return schema) + `validate_transactions()`. **Extract only — never writes.** Guarded by `ALLOWED_USERS` + input size caps.
+  ⚠️ **`RECEIPT_PROMPT` is appended in the IMAGE branch only.** A receipt is one purchase; the base prompt's multi-transaction rule reads its line items as a list of transactions. The rider pins **one element at the grand total** (after tax, service charge, rounding, discount), merchant as description, one category for the whole receipt. Several elements are correct only for **several separate receipts**, or when the **caption** asks for a split. **Never fold it into `EXTRACT_PROMPT`** — the text path's multi-entry behaviour (`lunch RM15, grab RM9`) depends on the rule the rider overrides.
 - `insights` — LLM phrasing of client-computed facts (`max_completion_tokens` 160).
 
 **Model: `gpt-5.6-luna`** (upgraded from `gpt-4o-mini`, 2026-08-31), on the same
@@ -462,6 +478,7 @@ closes on the 1.5rem section break.
 - **`setCaptureBusy()` is the single hook** for both halves, and `parseCapture()`'s `finally` already covers success, error and the 25s abort — so the receipt cannot be left printing behind an error message.
 - **`Enter manually instead` is styled as a fallback** (`.capture-manual`) — an underlined text button, not a `.btn`, which outranked the capture field the sheet exists for. Still a 44px target. ⚠️ It **replaced** its `.modal-actions` wrapper rather than sitting inside it (the rule carries its own `margin-top`).
 - **Confirm flow:** 1 txn → the normal txn modal pre-filled ("Confirm entry", saves via untouched `saveTxn()`); N txns → `#review-overlay` (editable amounts, removable rows, sequential "Save all"; saved rows leave the list so retry can't duplicate).
+- **A receipt photo should come back as ONE entry at its total** — enforced server-side by `RECEIPT_PROMPT` (§2), which **needs a redeploy** (§4). The client carries the fallback for when the model still splits: **`Combine into one entry`** (`#review-combine-btn`, `combineReviewRows()`) in the review sheet. ⚠️ **Offered on `web-image` only, 2+ rows, all rows the same type** — a text capture's several entries are distinct purchases and summing them would be wrong, and a mixed Expense/Income set sums to nothing meaningful. The gate is re-evaluated in `renderReviewList()`, so removing rows down to one withdraws the offer. ⚠️ `.review-combine[hidden] { display: none }` is **load-bearing** (base `display: block` beats the UA sheet's `[hidden]` — same trap as `.masthead-actions`, §3.4). It **closes the review sheet and hands one entry to `openTxnModalPrefilled()`** — the only place amount, category, date and description are all editable, and the one-trap rule (§3.9) requires the close anyway. ⚠️ **Category comes from the LARGEST row, not the first** — a RM 90 grocery run must not file under its RM 2 plastic bag. Styled `.review-combine` (underlined text, like `.capture-manual`), never a `.btn`: `Save all` is still the sheet's primary action.
 - **Sources:** capture-confirmed adds carry `'web'`/`'web-image'`; plain FAB adds send `'dashboard'` (`pendingSource` resets on every plain modal open — `openManualFromCapture()` preserves it).
 
 ### 3.9 Modals (txn, review, export)
@@ -769,6 +786,8 @@ it shipped.
 - **Phase F** — delete the `sendDailyDigestPush` time-driven trigger, and drop the `FIREBASE_SA_JSON` / `FCM_PROJECT_ID` Script Properties. Harmless if left, but the trigger fails silently in the execution log nightly.
 - ⚠️ **REDEPLOY REQUIRED (2026-08-31, model upgrade).** `OPENAI_MODEL` is now `gpt-5.6-luna` with the request-shape changes in §2. **Until the owner redeploys, the live script is still calling `gpt-4o-mini` and nothing changes** — the two halves are inseparable, so a redeploy carrying the new model without the new parameters would 400 every `parse` (capture dies, falling back to manual entry) and every `insights` (silent, deterministic text ships). Verify after redeploying by capturing one text expense and one receipt photo.
 - ⚠️ **REDEPLOY REQUIRED (2026-08-31).** `INSIGHTS_PROMPT` was widened to 3–4 sentences / ~60 words with a "keep every observation" rule, so the LLM phrasing layer stops compressing four chart observations back into two. **This ends the front-end-only run that held from 2026-08-08.** Until the owner redeploys, the deterministic narrative (which is already correct and covers all four charts) is what ships — the live one will read short. **Deploy → Manage deployments → Edit → new version. NEVER a new deployment** — that issues a different URL and `APPS_SCRIPT_URL` would silently fall through to the deterministic path forever.
+
+- ⚠️ **REDEPLOY REQUIRED (2026-09-22, receipt totals).** `RECEIPT_PROMPT` is new and is appended in `handleParse`'s image branch (§2). **Until the owner redeploys, receipt photos still come back split by line item** — the client's `Combine into one entry` (§3.8) is the workaround in the meantime, and stays useful afterwards. Safe to ship alongside the two redeploys above; it is a prompt string, not a request-shape change. Verify after redeploying by photographing one multi-item receipt: it should confirm as a single entry at the grand total.
 
 **Pending work:** the candidate features and open questions in §6.
 
@@ -1137,6 +1156,26 @@ never involved**. Reverting the model would not have touched it.
    double-bill one capture.
 4. **Latency is a separate question from this error** and is still open — a temporary probe now measures it (§6 item 13). It is scaffolding in both `index.html` and `apps-script/Code.gs`, marked TEMPORARY, and comes out with the decision.
 
+### Receipt photos log the total, not the line items ✅ (2026-09-22)
+
+A photographed receipt came back split by item more often than not. Cause: the base
+`EXTRACT_PROMPT`'s "several distinct purchases → one element each" rule, applied to a list of
+line items. **Nothing about the model, the vision path or the parse transport was involved.**
+
+1. **A receipt is one purchase, and the rule is PHOTO-ONLY.** `RECEIPT_PROMPT` is a separate
+   string appended in the image branch. Folding it into `EXTRACT_PROMPT` would break the text
+   path's multi-entry behaviour, which is correct and wanted.
+2. **The amount is the grand total** — after tax, service charge, rounding and discount. Item
+   prices, subtotals, cash tendered and change are ignored.
+3. **Several elements need a reason**: several separate receipts in one photo, or a caption
+   asking for a split. The caption stays the override, so nothing is lost.
+4. **The client keeps an escape hatch, and keeps it after the redeploy.** `Combine into one
+   entry` is offered on a photo only, for 2+ same-type rows, and hands off to the confirm modal
+   rather than merging in place — the review row edits amounts alone.
+5. **The combined category comes from the largest row.** First-row category is the obvious
+   implementation and the wrong one; it was the first negative control.
+6. **Four browser checks, three proved to fail** against a deliberately broken build.
+
 ### Capture sheet survives the soft keyboard ✅ (2026-09-22)
 
 With the keyboard up, the send arrow took two taps: the first only dismissed it. **Two independent
@@ -1227,6 +1266,8 @@ validation suite.
   into an offline shell (§3.11)
 - Bringing back push, Firebase, or `firebase-messaging-sw.js` — `sw.js` is an installability
   worker and is not a foothold for any of that (§3.11)
+- Merging `RECEIPT_PROMPT` into `EXTRACT_PROMPT`, or applying its one-transaction rule to the text path — a text capture's several entries are distinct purchases (§2)
+- Offering `Combine into one entry` on a text capture, or auto-combining a photo's rows without the user asking (§3.8)
 - Any new backend endpoints, LLM calls, or paid services
 
 ---

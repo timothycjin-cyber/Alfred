@@ -132,6 +132,27 @@ var EXTRACT_PROMPT = 'You are a personal finance assistant for a Malaysian user.
 'single-element array containing a query object:\n' +
 '[{"query": true, "message": "your helpful reply here"}]\n';
 
+// Photo-only rider on EXTRACT_PROMPT. A receipt is ONE purchase, but the base
+// prompt's multi-transaction rule reads a list of line items as a list of
+// transactions — so a photo came back split by item when the total was wanted.
+// Kept separate from EXTRACT_PROMPT so the TEXT path's multi-entry behaviour
+// ("lunch RM15, grab RM9") is untouched: only handleParse's image branch
+// appends this.
+var RECEIPT_PROMPT = '\n\nRECEIPT PHOTOS — ONE RECEIPT IS ONE TRANSACTION:\n' +
+'- A receipt photo is a SINGLE purchase. Return ONE array element whose amount is the\n' +
+'  receipt GRAND TOTAL — the amount actually paid, after tax, service charge, rounding\n' +
+'  and any discount. NEVER return one element per line item.\n' +
+'- Ignore item prices, quantities, subtotals, tax lines, cash tendered and change given.\n' +
+'  If both a total and a rounded/cash total appear, use the final amount paid.\n' +
+'- description: the merchant or shop name (e.g. "Village Park", "99 Speedmart"). If the\n' +
+'  name is unreadable, use a short label for what was bought.\n' +
+'- category: ONE category for the whole receipt, chosen from what it is mostly made of.\n' +
+'- date: the date printed on the receipt; if none is readable, use today.\n' +
+'- Return more than one element ONLY if the photo shows SEVERAL SEPARATE receipts (one\n' +
+'  element per receipt), or if the caption asks for a split (e.g. "split by item",\n' +
+'  "list each item separately"). A caption naming a share still applies the bill-split\n' +
+'  rule above to the grand total.\n';
+
 var INSIGHTS_PROMPT = 'You are a calm, precise personal-finance analyst writing a short "what I noticed" note for a Malaysian user\'s spending dashboard.\n' +
 '\n' +
 'You are given a JSON list of already-computed factual observations about their spending. Rewrite them into one flowing note.\n' +
@@ -490,7 +511,7 @@ function handleParse(data) {
     messages = [{
       role: 'user',
       content: [
-        { type: 'text', text: EXTRACT_PROMPT + '\n\nToday is ' + todayIso + '. Extract the transaction(s) from this receipt image.' + captionNote },
+        { type: 'text', text: EXTRACT_PROMPT + RECEIPT_PROMPT + '\n\nToday is ' + todayIso + '. Extract the transaction from this receipt image.' + captionNote },
         { type: 'image_url', image_url: { url: 'data:' + (data.mime || 'image/jpeg') + ';base64,' + data.image_b64 } }
       ]
     }];
