@@ -1241,12 +1241,10 @@
      44px band of chrome directly under a 31px title, pushing the ledger down
      for two controls that the masthead already had empty space for. */
 
-  /* Logs week index — Mon–Sun week rows under month headers, current month
-     first and older months appended on demand from the tail below. Bars for
-     money on this tab (no cell grids). */
-  .month-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 1.5rem 0.25rem 0.6rem; }
-  #logs-ledger .month-header:first-child { margin-top: 0.25rem; }
-  .month-name { font-size: 13px; font-weight: 700; letter-spacing: -0.2px; color: var(--on-surface); }
+  /* Logs week index — Mon–Sun week rows for ONE month, the one the selector is
+     on; the tail below steps to the month before it. There is no in-ledger
+     month header: the masthead names the month (2026-09-22). Bars for money on
+     this tab (no cell grids). */
 
   .week-row {
     border: 1px solid var(--outline-variant); border-radius: var(--shape-lg);
@@ -1330,9 +1328,9 @@
      ledger it is the end of. The .logs-tail button above is the loud element
      here; the end note must stay quieter than it. */
   .logs-end .ink-mark { width: 46px; height: auto; margin-bottom: 8px; }
-  /* Only a month the tail just revealed animates; everything already on screen
-     holds still, so the append reads as growth rather than a redraw. */
-  .month-header.logs-new, .week-row.logs-new {
+  /* A month CHANGE animates its weeks in; an optimistic re-render of the month
+     already on screen holds still, so a save doesn't read as a redraw. */
+  .week-row.logs-new {
     animation: logsAppendIn var(--motion-wobble) backwards;
     animation-delay: var(--d, 0ms);
   }
@@ -1818,7 +1816,7 @@
     :root { --motion-wobble: 0ms; --motion-wobble-nav: 0ms; --motion-snap: 0ms; --motion-standard: 0ms; }
     .hero-card, .tile-block, .tile-row .tile-block:nth-child(1), .tile-row .tile-block:nth-child(2),
     .txn-row, .txn-icon-chip, .hm-cell,
-    .month-header.logs-new, .week-row.logs-new { animation-delay: 0ms; }
+    .week-row.logs-new { animation-delay: 0ms; }
     /* The receipt goes still — a printing animation is the whole point of it,
        so with the motion gone it would be a static drawing claiming nothing.
        The send-arrow spinner comes back to carry the status instead; it is
@@ -2254,9 +2252,9 @@ let activeMonth = new Date().getMonth();
 let activeYear = new Date().getFullYear();
 
 // The shared view-month state (roadmap v2 Phase 5, generalized in refinement
-// Phase B, and the readout on Logs since 2026-08-11b). Two doors move it: the
-// month picker and a swipe on the pill. Trends renders it; on Logs it follows
-// the scroll instead of driving it; Today ignores it.
+// Phase B). Two doors move it: the month picker and a swipe on the pill.
+// Trends and Logs both RENDER it — since 2026-09-22 Logs filters to it instead
+// of following the scroll, so one selector drives both tabs. Today ignores it.
 // Never persisted — every launch opens on the real current month, so a stale
 // month can't be misread as now.
 let viewMonth = new Date().getMonth();
@@ -2283,24 +2281,18 @@ let paceBarMemory = null;
 // which is unique per week per month. There is no expand/collapse state — Logs
 // has no accordion; the day sheet is the only drill-in.
 //
-// SCOPE (2026-08-09): Logs opens on the CURRENT MONTH ONLY and grows on demand
-// from the "Earlier months" tail — it is not a full-history scroll and NOT a
-// month filter. Older months are APPENDED, never swapped in, so the ledger
-// stays one continuous scroll. logsMonthsShown counts months HOLDING DATA
-// (newest first), which is what makes the tail able to name the month it will
-// actually reveal; a calendar-months-back count would name empty months and
-// give a dead tap. It only ever grows within a session — a dataStamp bump or a
-// tab switch must not collapse the ledger, so it lives out here with the other
-// render state, and only a page reload resets it.
-// (This supersedes roadmap v3 decision 2 / Phase B step 3, and retired the
-// scroll-sentinel auto-append that shipped with them.)
-let logsMonthsShown = 1;
+// SCOPE (2026-09-22): Logs shows ONE MONTH — whichever month viewMonth/viewYear
+// name. The picker, the pill's swipe and the "Earlier months" tail all set that
+// month and the ledger is rebuilt for it; nothing accumulates. This REVERSES the
+// append-only scope of 2026-08-09, on owner report: months already visited stayed
+// on the page, so going back to a month you had already seen showed it stacked
+// under everything else and the ledger never answered "show me just this month".
+// The month is shared state with Trends, so one selector drives both tabs.
 let _logsWeeks = {};         // weekKey → { y, m, startIso, endIso, rows, days }
-let _logsMonthKeys = [];     // "y-m" of every month holding data, newest first
-let _logsTotalMonths = 0;    // = _logsMonthKeys.length — bounds both the tail
-                             // and the header chip's reach
-let _logsAppendedYm = null;  // "y-m" of a month appended by the tail this
-                             // render, so ONLY that block plays an entrance
+let _logsMonthKeys = [];     // "y-m" of every month holding data, newest first —
+                             // what the tail reads to name the next month back
+let _logsEnterYm = null;     // "y-m" whose block should play an entrance on the
+                             // next render (set by a month change, one render only)
 // Day-column heights from the previous render, so an optimistic write springs
 // the columns from where they were instead of replaying from empty. Same idiom
 // as counterMemory / paceBarMemory.
@@ -2625,22 +2617,30 @@ function renderLogsLedger() {
     monthsMap.get(key).weeks.push(wk);
   });
   const months = [...monthsMap.values()];
-  // One derivation of the month order, published for the tail and the chip —
-  // neither re-walks the week index to work out "which month comes next".
+  // One derivation of the month order, published for the tail — it does not
+  // re-walk the week index to work out "which month comes next".
   _logsMonthKeys = months.map(mo => `${mo.y}-${mo.m}`);
-  _logsTotalMonths = months.length;
-  // Clamp here rather than at every ++ site: the row set can shrink under an
-  // optimistic delete, and a scope pointing past the end would drop the tail.
-  logsMonthsShown = Math.max(1, Math.min(logsMonthsShown, months.length));
-  const shown = months.slice(0, logsMonthsShown);
 
+  // ONE month renders: the one the selector is on. Every other month's rows are
+  // still bucketed above (the tail needs to know which months exist), they are
+  // simply not drawn.
+  const ym = `${viewYear}-${viewMonth}`;
+  const mo = monthsMap.get(ym) || null;
+  // A month change plays an entrance; an optimistic write re-render must not.
+  const isNew = _logsEnterYm === ym;
+  const newCls = isNew ? ' logs-new' : '';
+
+  // ⚠️ NO in-ledger month header. The masthead directly above names the month
+  // (§3.4) and there is only one block to separate, so a header here is the
+  // same words twice. The month the ledger is drawing lives on the container
+  // as data-ym instead — a marker for the suite, nothing visual.
+  el.dataset.ym = ym;
   let html = '';
-  shown.forEach(mo => {
-    // Only a month the tail just revealed animates in — the blocks already on
-    // screen must stay put, or an append reads as the whole page redrawing.
-    const isNew = _logsAppendedYm === `${mo.y}-${mo.m}`;
-    const newCls = isNew ? ' logs-new' : '';
-    html += `<div class="month-header${newCls}" data-ym="${mo.y}-${mo.m}"><span class="month-name">${MONTHS_FULL[mo.m]} ${mo.y}</span></div>`;
+  if (!mo) {
+    // The picker only offers months holding data plus the current one, so the
+    // only way here is the current month before its first entry.
+    html += `<div class="empty">${inkMark('box')}Nothing logged in ${MONTHS_FULL[viewMonth]}.</div>`;
+  } else {
     mo.weeks.forEach((wk, i) => {
       const w = _logsWeeks[wk];
       const spend = _weekSpend(wk);
@@ -2660,29 +2660,37 @@ function renderLogsLedger() {
           ${zero ? '' : weekDaysHtml(wk)}
         </div>`;
     });
-  });
-  html += logsTailHtml(months);
-  _logsAppendedYm = null;   // one render's worth of entrance, then it's settled
+  }
+  html += logsTailHtml();
+  _logsEnterYm = null;      // one render's worth of entrance, then it's settled
 
   el.innerHTML = html;
   bindDayColClicks(el);
   paintDayColumns(el);
-  // One site covers every way the header set changes: the tail, the scroll-to
-  // growth loop and optimistic re-renders all land here.
-  wireLogsSpy();
 }
 
-// The ledger's footer: either the one control that grows the scope, or a note
-// that there is nothing older. Deliberately quiet — a dashed boundary at the
-// end of the ledger, not a primary action competing with the FAB.
-function logsTailHtml(months) {
-  if (months.length > logsMonthsShown) {
-    const next = months[logsMonthsShown];   // the month the tap will reveal
-    return `<button type="button" class="logs-tail" onclick="loadOlderMonths()">Earlier months — show ${logsMonthLabel(next.y, next.m)}</button>`;
+// The ledger's footer: either the step back to the previous month holding data,
+// or a note that there is nothing older. Deliberately quiet — a dashed boundary
+// at the end of the ledger, not a primary action competing with the FAB.
+//
+// ⚠️ It steps to the next month BACK HOLDING DATA, not the previous calendar
+// month — the same list the picker offers and the swipe steps through, so the
+// three doors onto a month cannot disagree (§3.4). The month in view may hold
+// no data at all (the current month before its first entry), so the step is
+// computed from the view's position in time, not from an index lookup.
+function logsTailHtml() {
+  const cur = viewYear * 12 + viewMonth;
+  const older = _logsMonthKeys
+    .map(k => k.split('-').map(Number))
+    .filter(([y, m]) => y * 12 + m < cur);      // _logsMonthKeys is newest-first
+  if (older.length) {
+    const [y, m] = older[0];
+    return `<button type="button" class="logs-tail" onclick="applyViewMonth(${y}, ${m})">Earlier months — show ${logsMonthLabel(y, m)}</button>`;
   }
-  const oldest = months[months.length - 1];
-  if (!oldest) return '';
-  return `<div class="logs-end">${inkMark('stack')}Nothing logged before ${logsMonthLabel(oldest.y, oldest.m)}.</div>`;
+  const oldestKey = _logsMonthKeys[_logsMonthKeys.length - 1];
+  if (!oldestKey) return '';
+  const [oy, om] = oldestKey.split('-').map(Number);
+  return `<div class="logs-end">${inkMark('stack')}Nothing logged before ${logsMonthLabel(oy, om)}.</div>`;
 }
 
 // Month names in the tail follow the header chip's convention: bare in the
@@ -2690,19 +2698,6 @@ function logsTailHtml(months) {
 // ambiguous the moment the ledger crosses a year boundary.
 function logsMonthLabel(y, m) {
   return y === new Date().getFullYear() ? MONTHS_FULL[m] : `${MONTHS_FULL[m]} ${y}`;
-}
-
-// The tail's one job: reveal exactly one more month, then take the reader to
-// it. Scope grows, never shrinks — a month stays loaded for the session.
-function loadOlderMonths() {
-  if (logsMonthsShown >= _logsTotalMonths) return;
-  logsMonthsShown++;
-  // Name the block that is about to appear so the renderer can scope the
-  // entrance to it. renderLogsLedger() clears this after one render.
-  const target = _logsMonthKeys[logsMonthsShown - 1] || null;
-  _logsAppendedYm = target;
-  renderLogsLedger();
-  if (target) logsScrollToYm(target);
 }
 
 // One transaction row. Logs itself no longer lists transactions inline (the
@@ -2874,118 +2869,12 @@ function earliestDataMonth() {
   return best; // year*12+month, or null with no data
 }
 
-// ── The Logs month readout ──────────────────────────────────────────────────
-// On Logs there is no selected month, only a position: the pill relabels itself
-// as you cross month headers. It is a FOLLOWER, not a door — it never scrolls,
-// never filters and never re-renders the ledger; it only ever agrees with where
-// the ledger already is.
-//
-// Nothing is sticky at the top of the page any more — the masthead scrolls away
-// and the pill floats over it — so stickyTopOffset() is gone and a jump parks a
-// header at a fixed distance from the top instead.
-//
-// ⚠️ THESE TWO NUMBERS ARE A PAIR. SPY_LINE is the reference line the readout
-// resolves against: the month is whichever header is the LAST one above it.
-// LOGS_PARK is where a programmatic jump leaves a header. LOGS_PARK must stay
-// ≤ SPY_LINE, or a picker pick or a swipe parks the header below the line and
-// the readout names the month *before* the one you just asked for. The 8px of
-// slack absorbs smooth-scroll landing rounding. Change one, re-check the other.
-//
-// 56 also clears the pill (top 12px, 38px tall), so a parked header never sits
-// beside it.
-const SPY_LINE  = 64;
-const LOGS_PARK = 56;
-
-// Resolved geometrically rather than from the observer's entry list. The
-// obvious "topmost intersecting entry" rule is directionally asymmetric: when
-// you scroll UP out of July, July's header leaves the band and nothing
-// intersects, so the readout latches on July while August fills the screen.
-// The observer is only a trigger; this decides.
-function spyResolve() {
-  if (_spySuppressed || currentView !== 'logs') return;
-  const now = new Date();
-  const curKey = now.getFullYear() * 12 + now.getMonth();
-  // ⚠️ Future months are skipped. A future-dated row makes its own block in the
-  // ledger, but pickerMonths() refuses to offer such a month and the swipe
-  // clamps at the current one — so a readout that named it would be the one
-  // surface in the app claiming a month the other two say does not exist.
-  // (The model for future-dated entries is an open question; this only keeps
-  // the three doors agreeing in the meantime.)
-  const hs = [...document.querySelectorAll('#logs-ledger .month-header')]
-    .filter(h => {
-      const [y, m] = h.dataset.ym.split('-').map(Number);
-      return y * 12 + m <= curKey;
-    });
-  if (!hs.length) return;
-
-  // The month is whichever header is the LAST one above the line. Resolving
-  // geometrically rather than from the observer's entry list is what makes it
-  // symmetric: "topmost intersecting entry" reports nothing when you scroll up
-  // out of a month, and the readout latches on the month you just left.
-  let pick = null, best = -Infinity;
-  hs.forEach(h => {
-    const t = h.getBoundingClientRect().top;
-    if (t <= SPY_LINE && t > best) { best = t; pick = h; }
-  });
-  if (!pick) pick = hs[0];     // above the first header: the newest month
-
-  const [y, m] = pick.dataset.ym.split('-').map(Number);
-  if (y === viewYear && m === viewMonth) return;
-  viewYear = y;
-  viewMonth = m;
-  renderMasthead();            // label and state ONLY — never calculateAndRender()
-}
-
-// A programmatic scroll passes through every month between here and there, and
-// the readout must not narrate the journey.
-let _spySuppressed = false, _spyTimer = null;
-
-// Set when a jump could not park its target because the document ran out of
-// scroll — the oldest months can never reach the line, the page bottoms out
-// first. The jump is then AUTHORITATIVE: the month you asked for is on screen
-// and named, even though the line is pointing at an older one. The readout
-// resumes following the line the moment you scroll again.
-let _jumpClamped = false;
-
-function suppressSpy(ms = 1200) {
-  _spySuppressed = true;
-  clearTimeout(_spyTimer);
-  _spyTimer = setTimeout(releaseSpy, ms);
-  // ⚠️ Not { once: true }: if the timeout wins the race, a stale listener would
-  // survive and release the NEXT suppression early. Explicit removal is
-  // idempotent, and removing a listener that already fired is a no-op.
-  window.addEventListener('scrollend', releaseSpy);
-}
-
-function releaseSpy() {
-  clearTimeout(_spyTimer);
-  window.removeEventListener('scrollend', releaseSpy);
-  _spySuppressed = false;
-  if (_jumpClamped) { _jumpClamped = false; return; }
-  // A jump to a month whose header is already parked scrolls nothing, so it
-  // fires neither scrollend nor an observer callback. Resolve once on release
-  // or the label can stay on a month the ledger has left.
-  spyResolve();
-}
-
-let _spyObserver = null;
-
-function wireLogsSpy() {
-  if (_spyObserver) { _spyObserver.disconnect(); _spyObserver = null; }
-  // Off-tab #logs-view is display:none, so every header rect is 0 — a live
-  // observer would rewrite viewMonth while you scroll Trends.
-  if (currentView !== 'logs') return;
-
-  // Top margin exactly on SPY_LINE, so every crossing of the line produces a
-  // callback. Band SIZE is irrelevant — spyResolve() does the deciding — which
-  // is why this isn't the percentage-based band the spec proposed: a percentage
-  // bottom margin inverts the band on a short viewport.
-  _spyObserver = new IntersectionObserver(spyResolve, {
-    rootMargin: `-${SPY_LINE}px 0px 0px 0px`,
-    threshold: 0
-  });
-  document.querySelectorAll('#logs-view .month-header').forEach(el => _spyObserver.observe(el));
-}
+// ── The Logs month selector ─────────────────────────────────────────────────
+// Logs renders ONE month and the pill names it, exactly as on Trends. The
+// scroll-position readout that used to live here (an IntersectionObserver
+// resolved geometrically against a 64px line, plus a suppression window around
+// every programmatic scroll) went with the append-only scope on 2026-09-22 —
+// with one month on the page there is no position to read, only a selection.
 
 // Step to the adjacent month. The pill's swipe is the only caller since the
 // chevrons went; the picker and the long-press call applyViewMonth() directly
@@ -3019,11 +2908,14 @@ function applyViewMonth(y, m) {
   viewMonth = m;
   renderMasthead();
   if (currentView === 'logs') {
-    // Logs never FILTERS by month — the selector loads whatever months it needs
-    // to reach the target and scrolls there, leaving everything already loaded
-    // in place. It deliberately bypasses calculateAndRender(), so the
-    // renderedKey early-return can't swallow the jump.
-    logsScrollToMonth(viewYear, viewMonth);
+    // Logs FILTERS by month (2026-09-22): the ledger is rebuilt for the month
+    // just picked and nothing else is on the page. It re-renders directly
+    // rather than through calculateAndRender() so the renderedKey early-return
+    // can't swallow the switch, and lands at the top of the new month — the
+    // scroll position of the month you left means nothing in the one you chose.
+    _logsEnterYm = `${viewYear}-${viewMonth}`;
+    renderLogsLedger();
+    window.scrollTo(0, 0);
   } else {
     calculateAndRender();
   }
@@ -3336,39 +3228,6 @@ function closeMonthPicker() {
   document.body.classList.remove('modal-open-state');
   document.getElementById('month-overlay').classList.remove('open');
   releaseModalFocus();   // returns focus to whichever trigger opened it
-}
-
-// Scroll the Logs ledger to a month's header, growing the scope until that
-// month is rendered — the chip is a jump shortcut, so it loads whatever it
-// needs to get there and leaves it loaded. Stepping FORWARD never shrinks the
-// scope; it only scrolls. A month with no logged weeks has no header — then
-// this is a quiet no-op.
-function logsScrollToMonth(y, m) {
-  const sel = `#logs-ledger .month-header[data-ym="${y}-${m}"]`;
-  let guard = 0;
-  while (!document.querySelector(sel) && logsMonthsShown < _logsTotalMonths && guard++ < 120) {
-    logsMonthsShown++;
-    renderLogsLedger();
-  }
-  logsScrollToYm(`${y}-${m}`);
-}
-
-// Park a month's header at LOGS_PARK. Shared by the month picker, the pill's
-// swipe and the "Earlier months" tail, so a jump and an append land
-// identically — and so suppressing the spy here covers every caller by
-// construction.
-function logsScrollToYm(key) {
-  const target = document.querySelector(`#logs-ledger .month-header[data-ym="${key}"]`);
-  if (!target) return;
-  const want = target.getBoundingClientRect().top + window.scrollY - LOGS_PARK;
-  const top = Math.max(0, want);
-  // The oldest months can't reach the line — the document bottoms out first.
-  // Record it, so releaseSpy() leaves the readout on the month that was asked
-  // for rather than on whatever the line ends up pointing at.
-  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-  _jumpClamped = top > maxScroll + 1;
-  suppressSpy();
-  window.scrollTo({ top, behavior: REDUCED_MOTION ? 'auto' : 'smooth' });
 }
 
 // ── Archive card (Phase 3) ──────────────────────────────────────────────────
@@ -4545,11 +4404,8 @@ function switchView(view) {
   calculateAndRender();
   // ⚠️ Restore AFTER the render: before it the incoming pane has no content
   // yet, so the browser clamps the scroll to a short document and the position
-  // is silently lost. Suppressed so the jump doesn't drag the readout through
-  // every month on the way.
-  suppressSpy(400);
+  // is silently lost.
   window.scrollTo(0, scrollMemory[view] || 0);
-  wireLogsSpy();
 }
 
 function calculateAndRender() {
@@ -4588,14 +4444,13 @@ function calculateAndRender() {
   // Skip entirely if this view already shows the current month + data —
   // switching back to a tab should reveal it as-is, not replay everything.
   // (.settled pins child animations, since display:none → block restarts them.)
-  // Trends keys on the shared viewMonth (the picker and the swipe bust it);
-  // Today/Logs key
-  // on activeMonth, constant within a session since Phase B — only dataStamp
-  // busts them. Logs month-chip taps scroll instead of re-rendering, so the
-  // skip is exactly right there.
-  const viewKey = currentView === 'trends'
-    ? `${viewYear}-${viewMonth}-${dataStamp}`
-    : `${activeYear}-${activeMonth}-${dataStamp}`;
+  // Trends and Logs both key on the shared viewMonth (the picker and the swipe
+  // bust it) — since 2026-09-22 Logs draws that month and nothing else, so a
+  // key pinned to activeMonth would let a tab switch repaint the month the user
+  // left. Today keys on activeMonth, constant within a session since Phase B.
+  const viewKey = currentView === 'today'
+    ? `${activeYear}-${activeMonth}-${dataStamp}`
+    : `${viewYear}-${viewMonth}-${dataStamp}`;
   const viewEl = document.getElementById(`${currentView}-view`);
   if (renderedKey[currentView] === viewKey) {
     viewEl.classList.add('settled');
@@ -4730,8 +4585,8 @@ function calculateAndRender() {
   }
 
   // Logs — the ledger as a week index (roadmap Phase 4). Self-contained: it
-  // reads all the user's rows and scopes them itself with logsMonthsShown, so
-  // the header month chip never filters here — it only jumps.
+  // reads all the user's rows and scopes them itself to viewMonth/viewYear,
+  // which is the one month it draws.
   if (currentView === 'logs') {
     renderMasthead();
     renderLogsLedger();

@@ -68,9 +68,13 @@ test.describe('masthead corner', () => {
   });
 
   test('lifted pill takes back pointer events once the page scrolls', async ({ page }) => {
-    await openApp(page, { view: 'logs' });
-    await page.evaluate(() => loadOlderMonths());
-    await page.waitForTimeout(300);
+    // Trends, not Logs: since Logs filters to one month (2026-09-22) its
+    // ledger is rarely tall enough to scroll, and the page HAS to scroll for
+    // this check to mean anything — a scroll timeline on a short document is
+    // inactive, and the pill then sits at its resting pointer-events: none
+    // (§3.4). The gate is on .pill itself, so the tab it is proved on is free.
+    await openApp(page, { view: 'trends' });
+    expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeGreaterThan(120);
     await page.mouse.wheel(0, 400);
     await page.waitForTimeout(500);
     await expect(page.locator('#month-pill')).toHaveCSS('pointer-events', 'auto');
@@ -107,6 +111,61 @@ test.describe('core interactions', () => {
     await openApp(page, { view: 'today' });
     await page.click('#masthead-month');
     await expect(page.locator('#month-overlay')).not.toHaveClass(/open/);
+  });
+});
+
+// ── Logs month filter (2026-09-22) ──────────────────────────────────────────
+// Logs draws ONE month. These are the floor under the reversal of the
+// append-only scope: months must not accumulate, and going back to a month
+// already visited must show that month alone.
+test.describe('Logs month filter', () => {
+  const ledger = (page) => page.locator('#logs-ledger');
+  // Every week row the ledger is drawing, by its date range — the ledger holds
+  // ONE month, so these all have to fall inside it.
+  const ranges = (page) => page.locator('#logs-ledger .week-range');
+
+  test('Logs opens on the current month and draws only it', async ({ page }) => {
+    await openApp(page, { view: 'logs' });
+    await expect(ledger(page)).toHaveAttribute('data-ym', '2026-7');   // Aug, 0-indexed
+    // No in-ledger month header: the masthead above already names the month.
+    await expect(page.locator('#logs-ledger .month-header')).toHaveCount(0);
+    for (const r of await ranges(page).allTextContents()) expect(r).toMatch(/Aug/);
+  });
+
+  test('the tail steps back a month and swaps the ledger rather than appending', async ({ page }) => {
+    await openApp(page, { view: 'logs' });
+    // The fixture has a deliberate July gap, so the step back is June.
+    await expect(page.locator('.logs-tail')).toHaveText(/show June/);
+    await page.click('.logs-tail');
+    await expect(ledger(page)).toHaveAttribute('data-ym', '2026-5');
+    const rs = await ranges(page).allTextContents();
+    expect(rs.length).toBeGreaterThan(0);
+    for (const r of rs) expect(r).toMatch(/Jun/);   // August is gone, not stacked
+    // June is the oldest month the sheet holds, so the tail closes the ledger.
+    await expect(page.locator('.logs-tail')).toHaveCount(0);
+    await expect(page.locator('.logs-end')).toHaveText(/Nothing logged before June/);
+  });
+
+  test('returning to a month already visited shows that month ALONE', async ({ page }) => {
+    // The reported bug: August stayed on the page under June, and coming back
+    // to August left both months stacked in the ledger.
+    await openApp(page, { view: 'logs' });
+    await page.click('.logs-tail');                         // → June
+    await expect(ledger(page)).toHaveAttribute('data-ym', '2026-5');
+    await page.click('#masthead-month');                    // picker → August
+    await page.click('#month-list .lrow[data-y="2026"][data-m="7"]');
+    await expect(page.locator('#month-overlay')).not.toHaveClass(/open/);
+    await expect(ledger(page)).toHaveAttribute('data-ym', '2026-7');
+    const rs = await ranges(page).allTextContents();
+    expect(rs.length).toBeGreaterThan(0);
+    for (const r of rs) expect(r).toMatch(/Aug/);   // and June did not stay
+  });
+
+  test('export follows the month in view', async ({ page }) => {
+    await openApp(page, { view: 'logs' });
+    await page.click('.logs-tail');                         // → June
+    await page.click('#masthead-actions button[aria-label="Export transactions"]');
+    await expect(page.locator('#export-month-label')).toHaveText('Jun 2026');
   });
 });
 

@@ -8,7 +8,22 @@ rule and the consequence, not the story.** A trap gets one sentence saying what 
 decision gets one line. If an entry needs three paragraphs of reasoning, the reasoning belongs
 in the history skill and the rule belongs here.*
 
-*Shipped 2026-09-05: **the piggy bank's coin is gold** (`#E3A21C`, §3.15), in both the app icon
+*Shipped 2026-09-22: **Logs filters to one month** (§3.6). The ledger draws the month
+`viewMonth`/`viewYear` name and nothing else; the picker, the pill's swipe and the `Earlier
+months` tail all set that month and the ledger is rebuilt. This **reverses** the append-only
+scope of 2026-08-09 on owner report — months already visited stayed on the page, so going back to
+one showed it stacked under everything since. Gone with it: `logsMonthsShown`, `_logsTotalMonths`,
+`loadOlderMonths()`, `logsScrollToMonth()`/`logsScrollToYm()`, and **the whole scroll-position
+readout** (`SPY_LINE`, `LOGS_PARK`, `spyResolve()`, `wireLogsSpy()`, `suppressSpy()`/`releaseSpy()`,
+`_jumpClamped`) — with one month on the page there is no position to read, only a selection, so the
+pill is a selector on Logs exactly as on Trends. Two traps: **`renderedKey` for Logs had to move
+from `activeMonth` to `viewMonth`**, or a tab switch repaints the month the user left; and **a
+one-month ledger is usually too short to scroll**, so the lift-off rarely engages on Logs and the
+suite's lifted-pill check moved to Trends (§3.12). Rows for every month are still bucketed — the
+tail reads `_logsMonthKeys` to name the next month back **holding data**, so the picker, the swipe
+and the tail still agree about what a month is.*
+
+*Previously 2026-09-05: **the piggy bank's coin is gold** (`#E3A21C`, §3.15), in both the app icon
 PNGs and the Today masthead. Sienna read as a copper disc; gold is what makes the drawing say
 *money* without being told. It is the app's one hue that is not sienna or a tint of it, and it is
 representational — **sienna is still the only primary**, and nothing about buttons or charts
@@ -213,7 +228,7 @@ Three text tabs in a 280×**56**px glass pill (4px padding, 4px gaps). Today is 
 - **`repaintNavCluster()` (2026-08-13)** works around a **Chromium/Android compositing bug**: returning from a camera intent, `.floating-nav`'s `backdrop-filter` holds a **stale snapshot**, and nothing invalidates it because **a cancelled camera fires no event**. `.floating-nav.repainting` drops the filter, a forced style flush applies it, two rAFs restore it. Wired to `visibilitychange` (visible only) and `pageshow`. ⚠️ **Deliberately not `will-change`** — permanently promoting the layer may entrench the stale snapshot. ⚠️ **Not reproducible locally**; the real symptom needs a device.
 - ⚠️ **Derived numbers — re-derive ALL if the cluster moves (the pill's height is part of the cluster):** FAB center = **120px** + safe-area (24 bar + 56 pill + 12 gap + 28 half-FAB). Capture overlay `padding-bottom: calc(158px + inset)`; bloom `transform-origin: 50% calc(100% + 38px)` (158−120). `body` `padding-bottom: calc(172px + inset)`; toast `bottom: calc(160px + inset)`.
 - **Touch targets:** `.icon-btn` and `.capture-send` are **44px** square (they share the `.capture-card` row — resize together or alignment breaks); `.btn` `min-height:48px`; `.type-toggle button` 44px; `.logs-tail` 14px padding (13px rendered 43px). ⚠️ **Day columns are the documented exception** — a seventh of the track, never grown, so ~42px *wide* at 390px; they meet the ≥44px-**tall**, whole-cell-hit-area rule instead (§3.6). ⚠️ **Measure targets with the sheet OPEN** — a closed overlay is `scale(0.08)` and reports 44px as 3.5px.
-- **There is no header** (deleted 2026-08-11). `.header*`, `#header-monthnav`, `renderHeaderMonthNav()` and `.monthnav*` are gone. ⚠️ **It was silently doing two other jobs:** the **status-bar inset** in standalone PWA mode (now on `.container`, with `body.has-masthead` dropping it to 12px so it's never applied twice), and the **sticky offset** `logsScrollToYm()` subtracted — that one is gone entirely (`stickyTopOffset()` deleted), since nothing at the top is sticky; jumps park at `LOGS_PARK` (§3.6).
+- **There is no header** (deleted 2026-08-11). `.header*`, `#header-monthnav`, `renderHeaderMonthNav()` and `.monthnav*` are gone. ⚠️ **It was silently doing two other jobs:** the **status-bar inset** in standalone PWA mode (now on `.container`, with `body.has-masthead` dropping it to 12px so it's never applied twice), and the **sticky offset** the Logs jump subtracted — that one is gone entirely (`stickyTopOffset()` deleted), since nothing at the top is sticky, and the jump itself went with the scroll readout on 2026-09-22 (§3.6).
 - ⚠️ **`env(safe-area-inset-*)` is inert app-wide, and always has been.** The viewport meta has **no `viewport-fit=cover`**, so the UA insets the layout viewport itself and every `env()` resolves to **`0px`** — everywhere, including all the derived geometry above. Nothing is broken (the UA does the insetting), and the expressions are kept because they become correct the day the meta changes — but **"does it clear the status bar?" passes vacuously today**, and adding `viewport-fit=cover` shifts every derived number at once.
 
 ### 3.4 Month state — the masthead and the lift-off pill
@@ -272,8 +287,8 @@ calendar.** With data in June and August but none in July, a swipe back from Aug
 **June**. The picker and the swipe are the only two doors and must agree (§8).
 
 **`applyViewMonth(y, m)` is THE month-change handler** — picker, swipe and long-press all route
-through it. **Fork:** on Trends → `calculateAndRender()`; on Logs → `logsScrollToMonth()`, no
-filtering, no re-render.
+through it. **Fork:** on Trends → `calculateAndRender()`; on Logs → `renderLogsLedger()` plus a
+scroll to the top, since 2026-09-22 a real filter (§3.6).
 
 **Month picker** (`#month-overlay`, `openMonthPicker(trigger)`): the **ledger-list form** (each
 row carries the month's spend and a proportional bar), reusing
@@ -346,19 +361,15 @@ itself. The month chip never filters here; it jumps.
 - **Weekday labels:** single letters `M T W T F S S`, Mon-first, **`aria-hidden`** (the cell's own `aria-label` already names the day). Single letters so they can never wrap at 390px.
 - **Tap targets:** each `.day-col` is a real `<button>`; **the whole cell is the hit area** — full width, the 48px track *and* the label, ≥44px tall. Never shrink to the filled portion. `aria-label` = day + figure (`Tue 4 Aug, RM 42.00`). `.week-days` is a labelled `role="group"`.
 - **Day drill-in:** `openDaySheet(iso)` → the shared sheet (§3.14). Header = weekday + date, entry count, the day's **expense** total. Empty day reads `No transactions this day`.
-- **Month scope — current month by default, appended on demand:**
-  - `logsMonthsShown` (module state, init **1**). Older months are **appended, never swapped in**, and the scope **only grows within a session** — a `dataStamp` bump or tab round-trip must not collapse it; only a reload resets it. Clamped to `_logsTotalMonths` inside `renderLogsLedger()` (one place — the row set can shrink under an optimistic delete).
-  - ⚠️ **It counts months HOLDING DATA, not calendar months back.** With a gap (data in Aug and June, none in July) a calendar count would make the tail name July and reveal nothing — a dead tap.
-  - **Tail** (`logsTailHtml()`): a `.logs-tail` button reading `Earlier months — show June` (the next month back **holding data**), or at the earliest, a `.logs-end` note (`Nothing logged before March.`). A dashed transparent boundary, not a filled button — a footer, not a rival to the FAB. `--tail-dash` is its own token because `--outline-variant` is pixel-identical to `--surface-container` in dark mode. `logsMonthLabel()` year-suffixes outside the current year.
-  - **`loadOlderMonths()`** raises the scope by one, re-renders, scrolls the revealed header into place. Only the new block animates: tagged from `_logsAppendedYm` with `.logs-new`, and **the flag is cleared after that one render**. Neither `.settled` nor `.no-entrance` targets `.month-header`/`.week-row`, so neither suppresses the append.
-- **Scroll-to-month** (`logsScrollToMonth` → `logsScrollToYm`): grows the scope until the target `.month-header[data-ym]` exists, then parks it at **`LOGS_PARK` (56px)**. Stepping **forward never shrinks the scope**. Bypasses `calculateAndRender()` entirely so the `renderedKey` early-return can't swallow the jump. A month with no logged weeks → quiet no-op.
-- **The pill is a SCROLL READOUT on Logs** — there is no selected month here, only a position. `spyResolve()` writes `viewMonth`/`viewYear` and calls `renderMasthead()` — **label and state only.** ⚠️ **It must never call `calculateAndRender()`** (an infinite loop waiting to happen; the suite asserts `#logs-ledger.innerHTML` is byte-identical across a relabel).
-  - ⚠️ **Resolved GEOMETRICALLY against `SPY_LINE` (64px) — the last header above it** — with the `IntersectionObserver` used only as a trigger (`rootMargin: '-64px 0px 0px 0px'`). "Topmost intersecting entry" is **directionally asymmetric** and latches on the month you just left (§8).
-  - ⚠️ **`LOGS_PARK` (56) and `SPY_LINE` (64) are a pair.** A jump must park at or above the line or the readout names the month *before* the one asked for. Change one, re-check the other. 56 also clears the pill (12px top + 38px tall).
-  - **A jump the document cannot deliver is AUTHORITATIVE** — the oldest months can never reach the line (the page bottoms out), so `logsScrollToYm()` sets `_jumpClamped` and `releaseSpy()` leaves the readout on the month asked for.
-  - **Future months are skipped** — `pickerMonths()` won't offer them and the swipe clamps at the current month, so a readout naming one would be the only surface claiming it.
-  - `_spySuppressed` wraps every programmatic scroll, released on `scrollend` with a timeout backstop. ⚠️ **Not `{ once: true }`** — if the timeout wins the race, a stale listener survives and releases the *next* suppression early. `wireLogsSpy()` is called from the end of `renderLogsLedger()` and from `switchView()`, where it disconnects off-tab (`#logs-view` is `display:none`, so every header rect is 0 and a live observer would rewrite `viewMonth` while you scroll Trends).
-- **Export FOLLOWS the readout.** `openExportModal`/`exportCSV` scope, filename, error copy and `#export-month-label` read **`viewMonth`/`viewYear`** — on Logs that's wherever you've scrolled, so scrolling into July exports July. Intended and asserted.
+- **Month scope — ONE month, the one `viewMonth`/`viewYear` name** (2026-09-22, reversing the append-only scope of 2026-08-09). `renderLogsLedger()` buckets every row of the user's, then draws that one month's block and nothing else. **Months never accumulate** — the reported bug was that a month you had already visited stayed on the page, so returning to it showed it stacked under everything since. `logsMonthsShown`, `_logsTotalMonths`, `loadOlderMonths()`, `logsScrollToMonth()` and `logsScrollToYm()` are **deleted**.
+  - ⚠️ **All rows are still bucketed, only one month is drawn.** `_logsMonthKeys` (every month holding data, newest first) is what the tail reads to name the next month back — it cannot be derived from a block that isn't rendered.
+  - **The month in view may hold no rows** — the current month before its first entry. That renders the header plus one line, `Nothing logged in September.` with the `box` mark (§3.15). It is the only way to reach that state, since `pickerMonths()` offers nothing else without data.
+  - **Tail** (`logsTailHtml()`): a `.logs-tail` button reading `Earlier months — show June`, which **switches to that month** (`applyViewMonth`), or at the oldest, a `.logs-end` note (`Nothing logged before March.`). A dashed transparent boundary, not a filled button — a footer, not a rival to the FAB. `--tail-dash` is its own token because `--outline-variant` is pixel-identical to `--surface-container` in dark mode. `logsMonthLabel()` year-suffixes outside the current year.
+  - ⚠️ **It steps to the next month BACK HOLDING DATA, not the previous calendar month** — the same list the picker offers and the swipe steps through, so the three doors onto a month cannot disagree (§8). With data in Aug and June and none in July, the tail names June. It is computed from the view's position in time, not an index lookup, because the month in view may not be in `_logsMonthKeys` at all.
+  - **Entrance:** a month change sets `_logsEnterYm`, which tags that one render's block with `.logs-new`; **the flag is cleared after that render**, so an optimistic write does not replay it. Neither `.settled` nor `.no-entrance` targets `.month-header`/`.week-row`.
+- **The pill is a SELECTOR on Logs, exactly as on Trends** — `applyViewMonth()` re-renders the ledger and lands at the top of the new month. It re-renders directly rather than through `calculateAndRender()`, so the `renderedKey` early-return can't swallow the switch. ⚠️ **`renderedKey` for Logs keys on `viewYear`/`viewMonth`** (Today alone keys on `activeMonth`) — pinned to `activeMonth` a tab switch would repaint the month you left.
+- **The scroll readout is GONE** (2026-09-22). `SPY_LINE`, `LOGS_PARK`, `spyResolve()`, `wireLogsSpy()`, `suppressSpy()`/`releaseSpy()`, `_jumpClamped` and the `IntersectionObserver` are deleted — with one month on the page there is no position to read, only a selection. ⚠️ **A one-month ledger is usually too short to scroll**, so the lift-off pill rarely engages on Logs; the masthead is the month's representation there, which is why the pill may never be the sole route to anything (§3.4).
+- **Export FOLLOWS the month in view.** `openExportModal`/`exportCSV` scope, filename, error copy and `#export-month-label` read **`viewMonth`/`viewYear`** — which on Logs is now the month being drawn. Intended and asserted.
 - **Toolbar — GONE**; the recurring and export icons are in `#masthead-actions` (§3.4). `#logs-view` starts with `#logs-ledger`.
 - Recurring-written rows carry a quiet `.txn-auto` **"Auto"** marker (from `Source === 'recurring'`).
 - `CAT_COLORS` + `CAT_ICONS` live at module scope.
@@ -408,7 +419,7 @@ closes on the 1.5rem section break.
   - **Reference labels are anchored to their own lines** (`.anchor-start`/`-mid`/`-end` flip which end is pinned near the card edges) — a label nudged away from its line labels the wrong value, and one pushed past the edge is the mobile-zoom trap. Colliding labels (<18% apart) stack onto a second row instead.
   - `--dist-wash` has **separate light and dark values** — sienna at 0.18 all but vanishes on `#121212`.
   - **Empty state: fewer than 3 spending days** → one line of copy, no axes, no partial curve. Half a curve would read as a finding.
-- **The archive shelf is DELETED.** `#month-shelf`, `renderArchiveShelf()`, `.shelf-*` are gone; the picker supersedes it. ⚠️ **Two different things are called "archive":** the closed-month `archiveCardHtml()` in the `#income-bar-card` slot **stays**, as does the Logs `.logs-tail` (a lazy-load control, not a month selector). If unsure which you're looking at, stop.
+- **The archive shelf is DELETED.** `#month-shelf`, `renderArchiveShelf()`, `.shelf-*` are gone; the picker supersedes it. ⚠️ **Two different things are called "archive":** the closed-month `archiveCardHtml()` in the `#income-bar-card` slot **stays**, as does the Logs `.logs-tail` (which since 2026-09-22 steps the selector back one month — §3.6). If unsure which you're looking at, stop.
 
 ### 3.8 Capture flow (FAB → sheet → parse → confirm)
 
@@ -511,7 +522,8 @@ test/browser/smoke.spec.js    71 checks, 2 projects (390 light-reduced / 900 dar
 - **The harness is the reusable part; the assertions aren't.** `openApp()` is what used to be rewritten each session. A new check adds an assertion, not new plumbing.
 - **CI:** `.github/workflows/browser-tests.yml`, separate from the zero-install `tests.yml` so a browser-tooling failure can't be mistaken for a core-logic one. **`@playwright/test` is pinned exact**, not a range, so CI fetches the browser this suite was verified against.
 - ⚠️ **`page.emulateMedia()` before `goto()`, not the `reducedMotion` context/project option** — the option didn't reliably reach `matchMedia()` before the app's script ran. Matters because the app reads `matchMedia('(prefers-reduced-motion: reduce)')` **once**, into `REDUCED_MOTION`, at script-parse time (§3.2, §8).
-- The masthead-corner checks are a **permanent regression test** for the pill `pointer-events` bug (§3.4) — proved to fail against the pre-fix CSS before being trusted.
+- The masthead-corner checks are a **permanent regression test** for the pill `pointer-events` bug (§3.4) — proved to fail against the pre-fix CSS before being trusted. ⚠️ **The lifted-pill check runs on Trends, not Logs**: it needs a document tall enough to scroll, and a one-month Logs ledger usually isn't (§3.6). It asserts the page scrolls before it asserts anything about the pill — a short page leaves the timeline inactive and the check passes vacuously.
+- The **Logs month-filter checks** are the floor under §3.6's one-month ledger: one `.month-header` on load, the tail swapping rather than appending, a revisited month showing alone, and export following the month in view. Three of the four were proved to fail against the pre-change `index.html`; the fourth (opens on the current month) passed either way, since the old default scope was also one month.
 - The **loader-mark checks** are the same kind of floor for §3.15, and cost one round of the same lesson: the first draft read `svg.querySelectorAll('[stroke]')`, which searches DESCENDANTS ONLY, so a `stroke` on the `<svg>` root — the worst version of the regression, since every child inherits it — passed the negative control. ⚠️ **Test the root as well as its descendants.** Both controls (root, and one path) now fail; the shipped markup passes.
 
 ⚠️ **Figure assertions need reduced motion.** `animateCounters()` counts up, so a read 600ms
@@ -780,13 +792,13 @@ Owner checklist complete — redeployed; the `Recurring` tab is created on first
 3. **Scope is the month chip**, matching the ring. No all-time toggle.
 4. **The ring's paint is untouched** (verified pixel-identical).
 
-### Logs month scope — option C ✅ (2026-08-09)
+### Logs month scope — option C ✅ (2026-08-09) · ⛔ **SUPERSEDED 2026-09-22**
 
-Supersedes roadmap v3 decision 2 and Phase B step 3, and retires the scroll-sentinel auto-append
-they shipped with — don't reinstate either from the old roadmap.
+Decisions 1 and 2 are **reversed** by "Logs filters to one month" below — Logs is a filter now.
+Decisions 3, 4 and 5 still hold. Kept so the reversal is legible, not as current behaviour.
 
-1. **Not a filter.** Older months are appended, never swapped in; once loaded, a month stays loaded for the session.
-2. **Default scope is one month**, and **loaded months survive re-renders**. Only a reload resets it.
+1. ⛔ ~~**Not a filter.** Older months are appended, never swapped in; once loaded, a month stays loaded for the session.~~
+2. ⛔ ~~**Default scope is one month**, and **loaded months survive re-renders**. Only a reload resets it.~~
 3. **The tail is a plain statement, not a call to action.**
 4. **Export scope is the chip's month.**
 5. **Weeks still clip to their month.**
@@ -1057,6 +1069,27 @@ service-worker one.
 3. **Good news is stated, not coloured**, and **sienna is the only primary.**
 4. **The donut is untouched** — asserted pixel-identical against `e08da4f`.
 
+### Logs filters to one month ✅ (2026-09-22)
+
+Reverses decisions 1 and 2 of "Logs month scope — option C" (2026-08-09) on owner report: months
+already visited stayed on the page, so returning to one showed it stacked under everything since,
+and the picker could never answer "show me just this month".
+
+1. **Logs draws ONE month — the one the selector is on.** Nothing accumulates. The picker, the
+   pill's swipe and the tail all set that month and the ledger is rebuilt for it.
+2. **The tail steps the selector back one month**, to the next month **holding data**. Same list
+   the picker offers and the swipe steps through, so the three doors still cannot disagree.
+3. **The pill is a selector on Logs, not a readout.** The scroll spy, its two paired constants
+   and the suppression window are deleted — one month on the page has no position to read.
+   Consequence: a one-month ledger is usually too short to scroll, so the lift-off rarely engages
+   on Logs. Acceptable only because the pill is never the sole route to anything (§3.4).
+4. **`renderedKey` for Logs keys on `viewMonth`**, not `activeMonth` — or a tab switch repaints
+   the month the user left.
+5. **A month with no rows is a sentence, not a blank ledger** — `Nothing logged in September.`
+   with the `box` mark. Reached only from the current month before its first entry.
+6. **The regression floor is four browser checks**, three of which were proved to fail against
+   the pre-change `index.html`.
+
 ### Recorded but undecided — do NOT implement
 
 Each needs a decision before it is a task.
@@ -1091,6 +1124,7 @@ validation suite.
 - Milestone marks on the hero; personal-records insight templates
 - Search or filters on Logs
 - Restoring the Logs accordion or any week-level transaction list (§3.6)
+- Re-appending months in the Logs ledger, or bringing back the scroll-position readout, `LOGS_PARK`/`SPY_LINE` or `loadOlderMonths()` — Logs draws one month (§3.6)
 - Re-pinning the `wght` axis on `body`; reinstating the white heatmap ink, the green good-news states, or `Budget` as a transaction-type label (§3.2, §3.5)
 - Restoring the app header, or moving any *figure* into the masthead or the pill (§3.3, §3.4). **Today DOES have a masthead** — it states the date and is inert
 - Reinstating the masthead chevrons, any month stepper, the Trends archive shelf, or the binary `.condensed` condense-on-scroll (§3.4, §3.7)
