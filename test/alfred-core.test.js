@@ -23,7 +23,8 @@ const core = require('../lib/alfred-core.js');
 const {
   parseRowDate, isoDateOf, gvizDateToIso, daysInMonthOf,
   weekSpanFor, weekRangeLabel, weekDaySlots,
-  recurringUID, recurrenceDates, cadenceLabel, nextOccurrence,
+  recurringUID, occurrenceSlot, parseRecurringUID,
+  recurrenceDates, cadenceLabel, nextOccurrence,
   rowSig, mergeRows, csvEscape, escapeHtml, formatCurrency, hexToRgba,
   percentileOf, medianOf, dailyTotals, spendProfile, monthlyBigDayBuffer,
   computeSpendForecast, distributionBuckets
@@ -165,6 +166,77 @@ test('weekDaySlots covers the span and excludes income', () => {
 test('recurringUID is derived and stable', () => {
   assert.strictEqual(recurringUID('s1', '2026-08-03'), 'rc-s1-20260803');
   assert.strictEqual(recurringUID('s1', '2026-08-03'), recurringUID('s1', '2026-08-03'));
+});
+
+test('parseRecurringUID reads a derived UID back, and only a derived one', () => {
+  assert.deepStrictEqual(parseRecurringUID('rc-s1-20260803'), { seriesId: 's1', iso: '2026-08-03' });
+  // An id carrying a dash still splits correctly — the date comes off the right.
+  assert.deepStrictEqual(parseRecurringUID('rc-a-b-20260803'), { seriesId: 'a-b', iso: '2026-08-03' });
+  assert.strictEqual(parseRecurringUID('mrcq2sqoff24'), null);   // an ordinary row
+  assert.strictEqual(parseRecurringUID(''), null);
+  assert.strictEqual(parseRecurringUID(undefined), null);
+});
+
+test('occurrenceSlot keys a monthly series by MONTH, not by date', () => {
+  // The regression: a series whose StartDate moved from the 22nd back to the
+  // 1st computes a different UID for the same September, so a UID-keyed skip
+  // writes a second row. Both dates must land in one slot.
+  assert.strictEqual(
+    occurrenceSlot('s1', 'monthly', '2026-09-22'),
+    occurrenceSlot('s1', 'monthly', '2026-09-01')
+  );
+  assert.notStrictEqual(
+    occurrenceSlot('s1', 'monthly', '2026-09-01'),
+    occurrenceSlot('s1', 'monthly', '2026-10-01')
+  );
+  // Two series never share a slot, whatever the date.
+  assert.notStrictEqual(
+    occurrenceSlot('s1', 'monthly', '2026-09-01'),
+    occurrenceSlot('s2', 'monthly', '2026-09-01')
+  );
+});
+
+test('occurrenceSlot keys weekly by the Mon-Sun week, across a month boundary', () => {
+  // Mon 28 Sep 2026 … Sun 4 Oct 2026 is ONE week to a weekly series, even
+  // though weekSpanFor() clips it into two for the Logs ledger.
+  assert.strictEqual(
+    occurrenceSlot('s1', 'weekly', '2026-09-29'),
+    occurrenceSlot('s1', 'weekly', '2026-10-01')
+  );
+  assert.notStrictEqual(
+    occurrenceSlot('s1', 'weekly', '2026-09-29'),
+    occurrenceSlot('s1', 'weekly', '2026-10-06')
+  );
+});
+
+test('occurrenceSlot leaves daily keyed by the day itself', () => {
+  assert.notStrictEqual(
+    occurrenceSlot('s1', 'daily', '2026-09-01'),
+    occurrenceSlot('s1', 'daily', '2026-09-02')
+  );
+  assert.strictEqual(
+    occurrenceSlot('s1', 'daily', '2026-09-01'),
+    occurrenceSlot('s1', 'daily', '2026-09-01')
+  );
+});
+
+test('a moved StartDate does not fill a monthly slot twice', () => {
+  // End to end over the two pure pieces materializeRecurring() leans on:
+  // a row already written under the old anchor must occupy the new anchor's slot.
+  const series = { id: 's1', cadence: 'monthly', startDate: '2026-09-01', active: true };
+  const written = [{ UID: recurringUID('s1', '2026-09-22') }];   // the old anchor's row
+
+  const filled = new Set(
+    written
+      .map(r => parseRecurringUID(r.UID))
+      .filter(Boolean)
+      .map(p => occurrenceSlot(p.seriesId, series.cadence, p.iso))
+  );
+
+  const due = recurrenceDates(series, '2026-09-22')
+    .filter(iso => !filled.has(occurrenceSlot(series.id, series.cadence, iso)));
+
+  assert.deepStrictEqual(due, []);
 });
 
 test('monthly recurrence clamps to month end instead of skipping', () => {

@@ -525,6 +525,7 @@ A series is a **definition** in the `Recurring` tab (§1); its **occurrences** a
 - **Materialization** (`materializeRecurring()`) runs from `init()` **after first paint, in `requestIdleCallback` (3s timeout, `setTimeout` fallback), never awaited** — ⚠️ the idle scheduling is load-bearing: it fetches a second sheet and can post up to `RECURRING_MAX_PER_RUN` rows sequentially, so a slow or absent `Recurring` tab can't delay load. It enumerates each active series for `activeUser` from `StartDate` to **today**, skips UIDs already in `allRows`, pushes optimistic rows, POSTs sequentially, rolls failures back per row. Toast: `Added N recurring entries`.
 - **Never future-dated.** `avgDaily`, `forecast`, the pace bar and the patterns chip all divide by *elapsed* days — a pre-written future row corrupts all of them silently. "What's coming" is the **unwritten** `Next …` line (`nextOccurrence()`, analytic so it stays O(1)).
 - **Idempotency via derived UIDs:** `recurringUID(seriesId, iso)` → `rc-<seriesId>-<YYYYMMDD>`, identical on every device. Client skips UIDs in `allRows`; `handleAdd` refuses duplicates server-side (§2) for the window where the GViz cache lags.
+- ⚠️ **The skip is keyed on the cadence PERIOD, not only on the UID** (2026-09-22). A derived UID carries the *date* an occurrence was written for, so moving a series' `StartDate` re-anchors every occurrence onto a different date — a different UID — and a date-keyed skip writes a **second row into a period that is already filled**. `occurrenceSlot(seriesId, cadence, iso)` keys it by month (monthly), Mon–Sun week (weekly) or day (daily); `materializeRecurring()` builds the filled set from `allRows` via `parseRecurringUID()` and skips a proposed date whose slot is taken. ⚠️ **`occurrenceSlot`'s weekly key does NOT clip to the month** — `weekSpanFor()` does, for the Logs ledger, and a week straddling a boundary is still one week to a weekly series. Rows already written under the old anchor **stay** (series edits are forward-only); the guard only stops a new one joining them.
 - **`recurrenceDates(series, todayIso)` is pure** so verification can drive it at any simulated today. Monthly **clamps to the month's last day** (31st → 30 Nov, 28/29 Feb — never skips). ⚠️ `RECURRENCE_MAX_ITER` is a runaway-loop bound, **not** the write cap: enumeration must reach today, or a daily series older than the cap would forever re-propose only its oldest occurrences. Writes cap at `RECURRING_MAX_PER_RUN` (60).
 - **Backfill bound:** the create form sets the start date's `min` to today, so a *new* series can't backfill a closed month. An existing series keeps its anchor (no `min`), which is what lets a catch-up run cover days the app wasn't opened.
 - **UI** — `#recurring-overlay`, opened from the masthead's right slot. A **plain centered `.modal-overlay`, deliberately not `.align-bottom`** (that variant's `transform-origin` is FAB-anchored, §3.3). **One overlay, two panes** (`#recurring-list-pane` ⇄ `#recurring-form-pane`) swapped in place — `trapModalFocus` holds exactly one trap, so stacking would clobber the return-focus chain. Escape steps back one level at a time (confirm → form → list → closed).
@@ -1013,6 +1014,23 @@ out-of-scope list, and that is not reopened by having a house illustration style
 6. **The app now contains no emoji at all.** The ⚠️ in the failed-load state was the last one.
 7. **`init()` split into `init()` + `loadAndRender()`** so a retry re-runs the load without
    re-wiring the pill's gestures. A second `wirePillGestures()` binds duplicate listeners.
+
+### Recurring occurrences dedupe by period ✅ (2026-09-22)
+
+A monthly income series whose `StartDate` was moved from the 22nd back to the 1st wrote a
+**second** occurrence for the same September, and the Today tile correctly added both — income
+read RM 2,400 where the two intended rows totalled RM 2,100. Not a maths bug; a duplicate row.
+
+1. **A series fills one slot per cadence period.** `occurrenceSlot()` keys the materialization
+   skip by month / Mon–Sun week / day, so it survives an anchor move; the derived UID alone
+   cannot, because it names a date.
+2. **Occurrences already written are left alone.** Series edits stay forward-only — the guard
+   stops a duplicate being *created*, it never removes one. A duplicate from before this change
+   is deleted by hand, like any other row.
+3. **The weekly key does not clip to the month.** `weekSpanFor()` clips because the Logs ledger
+   renders under month headers; a weekly series has no such boundary.
+4. **The server guard is unchanged.** `handleAdd`'s UID refusal covers two devices computing the
+   same UID, which is a different question from one device re-anchoring a series.
 
 ### Install as an app, not a shortcut ✅ (2026-09-06)
 
