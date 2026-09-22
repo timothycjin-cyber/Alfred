@@ -635,6 +635,41 @@ test.describe('capture sheet survives the soft keyboard', () => {
   });
 });
 
+test.describe('capture row order', () => {
+  // Camera LEFT of the input, clip right of it, send last. Order is markup
+  // only — no CSS or JS keys on position — which is exactly why it needs a
+  // check: a swap is invisible to every other assertion in this file.
+  test('camera, input, clip, send', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => openCaptureModal());
+    const ids = await page.evaluate(() =>
+      [...document.querySelectorAll('#capture-card > button, #capture-card > input[type="text"]')]
+        .map((el) => el.id));
+    expect(ids).toEqual([
+      'capture-camera-btn', 'capture-input', 'capture-gallery-btn', 'capture-send-btn',
+    ]);
+  });
+
+  test('each icon still opens its own file input', async ({ page }) => {
+    // The onclick targets a file input by id, so a swap that dragged the wrong
+    // handler along would send the camera button to the gallery. Reading the
+    // chooser's element is the only way to see which input actually opened.
+    await openApp(page);
+    await page.evaluate(() => openCaptureModal());
+    for (const [btn, input] of [
+      ['capture-camera-btn', 'capture-camera-file'],
+      ['capture-gallery-btn', 'capture-gallery-file'],
+    ]) {
+      const [chooser] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        page.click(`#${btn}`),
+      ]);
+      expect(await chooser.element().evaluate((el) => el.id)).toBe(input);
+      await chooser.setFiles([]).catch(() => {});
+    }
+  });
+});
+
 test.describe('receipt split folds back into one entry', () => {
   // A receipt photo is one purchase, but the model sometimes returns it split
   // by line item. The prompt is the primary fix (apps-script/Code.gs's

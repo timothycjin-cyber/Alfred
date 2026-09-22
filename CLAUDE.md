@@ -467,7 +467,7 @@ closes on the 1.5rem section break.
 
 - **Capture sheet** (`#capture-overlay`, `.modal-overlay.align-bottom`) floats above the nav pill. Closed state is `scale(0.08)` + full radius with `transform-origin` at the FAB center (§3.3), so the FAB blooms into it.
 - **There is no FAB long-press.** `wireFabGestures()`, `openCameraDirect()`, `FAB_LONG_PRESS`, `_fabCameraShortcut` are gone. **The camera is the camera button in this sheet.** ⚠️ **Removed for reliability, not taste** — see §6/§8: the gesture's outcome is decided by main-thread timing, an off-main-thread platform long-press, file-chooser activation rules and camera-intent latency, and the render loop models none of them, so three green suites said nothing about the only environment where it broke.
-- Clip button → `#capture-gallery-file` (bare `accept="image/*"`); camera button → `#capture-camera-file` (`capture="environment"`). Both feed `handleCaptureFile`; photos downscale to ≤1280px JPEG q0.82 before base64.
+- **Row order: camera · input · clip · send** (2026-09-22). Camera button → `#capture-camera-file` (`capture="environment"`), sitting LEFT of the input; clip button → `#capture-gallery-file` (bare `accept="image/*"`), right of it. Both feed `handleCaptureFile`; photos downscale to ≤1280px JPEG q0.82 before base64. ⚠️ **The order is markup only** — no CSS or JS keys on position, and each button's `onclick` names its own input by id, so a reorder that dragged the wrong handler along would silently send one icon to the other picker. Both facts are asserted (§3.12), the order with a negative control.
 - **Photo + comment:** a photo parks as `pendingImageB64` with a removable `.capture-attach` chip so a note can be typed; send submits both, note as `caption`. Survives close/reopen until sent or removed. Placeholder `"Coffee RM8"` is set in markup **and** in `clearCaptureAttachment()`.
 - POSTs `action:'parse'`; **the receipt prints in `#capture-parse` while the request is in flight** (§3.15); 25s timeout; notes/errors in `#capture-note` (persist to next open, cleared on new parse).
 - ⚠️ **A non-JSON reply is a TRANSPORT miss, not a bad parse — and it retries once.** Apps Script answers a POST with a 302 to its echo URL; a failed handshake follows that as a GET onto `/exec`, returning `doGet()`'s `Project Alfred Apps Script is running.` in place of the JSON. `postParseOnce()` reads `res.text()` and parses it, throwing a `transport`-tagged error on a non-JSON body or a non-ok status; `parseCapture()` retries **once**, each attempt with its own `PARSE_ATTEMPT_MS` (25s) budget. ⚠️ **Only transport retries.** A backend `{error:…}` is a real answer (retrying burns another LLM call) and an `AbortError` may still be running server-side — a second 25s wait is worse than the message. ⚠️ **The retry can double-bill one capture** (the lost echo may mean `doPost` already ran); at ~$0.0004 a text parse that is the right trade, but it is why the retry is one and not a loop.
@@ -1175,6 +1175,15 @@ line items. **Nothing about the model, the vision path or the parse transport wa
 5. **The combined category comes from the largest row.** First-row category is the obvious
    implementation and the wrong one; it was the first negative control.
 6. **Four browser checks, three proved to fail** against a deliberately broken build.
+
+### Capture row: camera and clip swap places ✅ (2026-09-22)
+
+Owner request. Camera moves to the left of the input, clip to the right; send is unmoved.
+
+1. **Order is markup only, and is now pinned by a check.** Nothing in the CSS or JS keys on
+   position, which is exactly why a swap is invisible to every other assertion.
+2. **Each icon keeps its own file input.** Asserted by reading the opened chooser's element —
+   the only way to see which input actually fired.
 
 ### Capture sheet survives the soft keyboard ✅ (2026-09-22)
 
