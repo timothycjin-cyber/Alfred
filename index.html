@@ -2,7 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- interactive-widget=resizes-content: the soft keyboard shrinks the LAYOUT
+     viewport, not just the visual one. Chrome's default (resizes-visual) leaves
+     `position: fixed` at full height BEHIND the keyboard — the capture sheet's
+     send button sits 252px above the layout-viewport bottom, inside a ~300px
+     keyboard. ⚠️ This is NOT viewport-fit=cover: every env(safe-area-inset-*)
+     stays inert (CLAUDE.md §3.3), so no derived geometry moves. Asserted. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
 <title>Project Alfred — Dashboard</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)">
@@ -5356,6 +5362,18 @@ function submitCaptureText() {
 
 document.getElementById('capture-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.isComposing) submitCaptureText();
+});
+
+// ⚠️ Tapping a button in the capture row must NOT blur the input. On a phone the
+// blur dismisses the keyboard, the viewport resizes under the finger, and the
+// button has moved by the time `click` is dispatched — so the first tap only
+// closes the keyboard and a second one is needed to hit the button. Preventing
+// the default on `pointerdown` suppresses the focus change; the activation
+// behaviour still fires `click`, so the inline onclick handlers are untouched.
+// Scoped to the row beside the input — nothing else in the sheet can steal a
+// keyboard that is already up.
+document.querySelectorAll('#capture-card button').forEach((btn) => {
+  btn.addEventListener('pointerdown', (e) => e.preventDefault());
 });
 
 function showCaptureAttachment() {

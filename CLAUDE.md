@@ -23,6 +23,20 @@ suite's lifted-pill check moved to Trends (§3.12). Rows for every month are sti
 tail reads `_logsMonthKeys` to name the next month back **holding data**, so the picker, the swipe
 and the tail still agree about what a month is.*
 
+*Shipped 2026-09-22: **the capture sheet survives the soft keyboard** (§3.8). With the keyboard up,
+the send arrow took two taps — the first only dismissed it. **Two causes, two fixes.** (1) The
+viewport meta now carries **`interactive-widget=resizes-content`**, so the keyboard shrinks the
+**layout** viewport; Chrome's default `resizes-visual` leaves `position: fixed` at full height
+**behind** the keyboard, and the send button measures **252px** above the layout-viewport bottom —
+inside a ~300px keyboard. ⚠️ **This is NOT `viewport-fit=cover`** — every `env(safe-area-inset-*)`
+stays inert and no derived geometry moves (§3.3); asserted, including that `viewport-fit` is absent.
+(2) Every button in `#capture-card` now **preventDefaults `pointerdown`**, so a tap never blurs the
+input: the blur dismissed the keyboard, the viewport resized under the finger, and the button had
+moved by the time `click` was dispatched. `click` still fires, so the inline `onclick`s are
+untouched. Four browser checks; ⚠️ **two of them were vacuous in their first draft** — a dispatched
+`pointerdown` moves no focus, and `setViewportSize()` shrinks the layout viewport whatever the meta
+says (§3.12).*
+
 *Shipped 2026-09-22: **the capture parse retries a transport miss** (§3.8). A POST to Apps Script
 is answered with a 302 to its googleusercontent echo URL, and `fetch` follows it as a GET; when
 that handshake goes wrong the GET lands on `/exec` itself and **`doGet()`'s plain-text health line
@@ -441,6 +455,8 @@ closes on the 1.5rem section break.
 - **Photo + comment:** a photo parks as `pendingImageB64` with a removable `.capture-attach` chip so a note can be typed; send submits both, note as `caption`. Survives close/reopen until sent or removed. Placeholder `"Coffee RM8"` is set in markup **and** in `clearCaptureAttachment()`.
 - POSTs `action:'parse'`; **the receipt prints in `#capture-parse` while the request is in flight** (§3.15); 25s timeout; notes/errors in `#capture-note` (persist to next open, cleared on new parse).
 - ⚠️ **A non-JSON reply is a TRANSPORT miss, not a bad parse — and it retries once.** Apps Script answers a POST with a 302 to its echo URL; a failed handshake follows that as a GET onto `/exec`, returning `doGet()`'s `Project Alfred Apps Script is running.` in place of the JSON. `postParseOnce()` reads `res.text()` and parses it, throwing a `transport`-tagged error on a non-JSON body or a non-ok status; `parseCapture()` retries **once**, each attempt with its own `PARSE_ATTEMPT_MS` (25s) budget. ⚠️ **Only transport retries.** A backend `{error:…}` is a real answer (retrying burns another LLM call) and an `AbortError` may still be running server-side — a second 25s wait is worse than the message. ⚠️ **The retry can double-bill one capture** (the lost echo may mean `doPost` already ran); at ~$0.0004 a text parse that is the right trade, but it is why the retry is one and not a loop.
+- ⚠️ **A tap in the capture row must never blur the input.** Every `#capture-card` button gets a `pointerdown` listener that calls `preventDefault()`. On a phone the blur dismisses the keyboard, the viewport resizes **under the finger**, and the button has moved by the time `click` is dispatched — so the first tap only closed the keyboard. `preventDefault()` on `pointerdown` suppresses the focus change while the activation behaviour still fires `click`, so the inline `onclick`s are untouched. ⚠️ **Scoped to that row** — it is the only place a control sits beside a focused field.
+- ⚠️ **The sheet clears the keyboard because of the VIEWPORT META, not its padding.** `interactive-widget=resizes-content` makes the soft keyboard shrink the **layout** viewport, so the `position: fixed` overlay shrinks with it. Under Chrome's default (`resizes-visual`) only the *visual* viewport shrinks, the overlay stays full height, and the send button — **252px** above the layout-viewport bottom — sits behind a ~300px keyboard. ⚠️ **`interactive-widget` is not `viewport-fit`**: `env(safe-area-inset-*)` stays `0px` and none of §3.3's derived numbers move. Both halves are asserted, the second with an explicit `not.toContain('viewport-fit')`.
 - ⚠️ **A thrown JavaScript message is not copy.** `captureErrorNote()` is the only place the note is worded: abort → `That took too long`, transport → `Could not reach Alfred just now`, backend error → its own text. `res.json()` used to put its own parser diagnostic on screen.
 - ⚠️ **Exactly one busy indicator, and which one depends on the motion setting.** The receipt **replaces** the send-arrow spinner — two of them a centimetre apart is noise. Under `prefers-reduced-motion` the receipt goes still, so the spinner comes back; **that branch is now the only place the spinner's CSS lives**. Never both, never neither — asserted both ways (§3.12).
 - **`setCaptureBusy()` is the single hook** for both halves, and `parseCapture()`'s `finally` already covers success, error and the 25s abort — so the receipt cannot be left printing behind an error message.
@@ -539,6 +555,9 @@ test/browser/smoke.spec.js    71 checks, 2 projects (390 light-reduced / 900 dar
 - The masthead-corner checks are a **permanent regression test** for the pill `pointer-events` bug (§3.4) — proved to fail against the pre-fix CSS before being trusted. ⚠️ **The lifted-pill check runs on Trends, not Logs**: it needs a document tall enough to scroll, and a one-month Logs ledger usually isn't (§3.6). It asserts the page scrolls before it asserts anything about the pill — a short page leaves the timeline inactive and the check passes vacuously.
 - The **Logs month-filter checks** are the floor under §3.6's one-month ledger: one `.month-header` on load, the tail swapping rather than appending, a revisited month showing alone, and export following the month in view. Three of the four were proved to fail against the pre-change `index.html`; the fourth (opens on the current month) passed either way, since the old default scope was also one month.
 - The **loader-mark checks** are the same kind of floor for §3.15, and cost one round of the same lesson: the first draft read `svg.querySelectorAll('[stroke]')`, which searches DESCENDANTS ONLY, so a `stroke` on the `<svg>` root — the worst version of the regression, since every child inherits it — passed the negative control. ⚠️ **Test the root as well as its descendants.** Both controls (root, and one path) now fail; the shipped markup passes.
+
+- The **soft-keyboard checks** cost the vacuity lesson twice in one pass (§8). A **dispatched** `pointerdown` does not move focus, so the synthetic version of the focus check passed against the broken code — it has to be a real `page.click()`, which opens a file chooser and needs a `filechooser` handler. And `setViewportSize()` shrinks the layout viewport **whatever `interactive-widget` says**, so the short-viewport check can never be a control for the meta tag; it is kept and labelled as a geometry floor instead. The two that are real controls were proved to fail.
+- ⚠️ **Nothing here tests a real keyboard.** The suite proves the mechanism (focus is retained, the click still lands, `env()` stays inert); the device outcome follows from it. Same standing limit as every other touch behaviour (§8).
 
 ⚠️ **Figure assertions need reduced motion.** `animateCounters()` counts up, so a read 600ms
 after load lands mid-animation (the hero measured `RM 1,859.70` en route to `1,887.00`).
@@ -1118,6 +1137,23 @@ never involved**. Reverting the model would not have touched it.
    double-bill one capture.
 4. **Latency is a separate question from this error** and is still open — a temporary probe now measures it (§6 item 13). It is scaffolding in both `index.html` and `apps-script/Code.gs`, marked TEMPORARY, and comes out with the decision.
 
+### Capture sheet survives the soft keyboard ✅ (2026-09-22)
+
+With the keyboard up, the send arrow took two taps: the first only dismissed it. **Two independent
+causes, each with its own fix** — either one alone leaves the bug reachable.
+
+1. **The keyboard must shrink the LAYOUT viewport.** `interactive-widget=resizes-content` on the
+   viewport meta. Chrome's default (`resizes-visual`) shrinks only the visual viewport, so a
+   `fixed; inset: 0` overlay keeps full height and its bottom sits behind the keyboard.
+2. ⚠️ **`interactive-widget` is not `viewport-fit`.** `env(safe-area-inset-*)` stays inert and no
+   §3.3 geometry moves. Asserted explicitly, because the two live in the same tag.
+3. **A tap in the capture row never blurs the input.** `preventDefault()` on `pointerdown` for every
+   `#capture-card` button; `click` still fires, so the inline `onclick`s are untouched.
+4. **This is a mechanism fix, not a timing one** — nothing is being raced, so it does not reopen the
+   FAB long-press question (§6). What the suite proves is the mechanism; the device outcome follows.
+5. **Two of the four checks were vacuous when first written** and were fixed or labelled rather than
+   kept as false floors (§3.12, §8).
+
 ### Recorded but undecided — do NOT implement
 
 Each needs a decision before it is a task.
@@ -1226,6 +1262,10 @@ phase name referenced in an `index.html` comment.
 - **In a variable font, `font-variation-settings` beats `font-weight` — and hides it.** `getComputedStyle().fontWeight` reports the declared value either way, so the DOM agrees with the CSS and only the pixels disagree. Assertions about weight must measure rendered ink, with the real variable font loaded.
 - **An element whose GROUND travels with it needs one value, not two — the mirror of the two-grounds rule.** The pig's `$` and coin outline are drawn on the coin, a saturated fill the drawing carries everywhere; every other line in the same drawing sits on the page and must invert on dark. Flipping the coin's ink along with the rest puts warm-white on gold at ~1.8:1 and blanks the one element that says *money*, while the light theme stays perfect — so the check has to resolve the token and run in both themes, not just read the markup.
 - **A token that has to read on two grounds needs two values.** Its sharpest form: a *fill* and the *ink drawn on top of it* are one such pair. Porting the icon's pale-pink body into the app kept the light theme perfect and, on dark, put warm-white ink on pale pink — the outline vanished into its own fill and the drawing became a blob. **A shadow is the case with no solution:** it must be darker than its ground, and on a near-black surface no value is, so it is dropped rather than re-tinted.
+- **A soft keyboard does not resize the page any more, and `position: fixed` is what that breaks.** Chrome's default `interactive-widget` is `resizes-visual`: only the *visual* viewport shrinks, so a `fixed; inset: 0` overlay keeps its full height and anything anchored near its bottom ends up **behind** the keyboard, unreachable by scrolling because there is nothing to scroll. `interactive-widget=resizes-content` restores the old resize-the-layout behaviour. ⚠️ It is a different key from `viewport-fit` and does **not** un-zero `env()` — assert that, or the next reader assumes the worse trap was sprung.
+- **A tap that blurs a focused field moves the thing it is tapping.** The blur dismisses the keyboard, the viewport resizes, and the element under the finger has shifted by the time `click` is dispatched from `pointerup` — so the first tap does nothing but close the keyboard. `preventDefault()` on `pointerdown` suppresses the focus change and leaves `click` intact. **The fix is at the mechanism, not the timing**: no delay is being raced, so unlike the FAB long-press there is nothing here that a device can decide differently.
+- **A probe that cannot move the thing it is checking is not a probe.** `page.dispatchEvent(el, 'pointerdown')` never moves focus, so a focus-retention check written with it passes against the broken code and the fixed one alike. The tell is the same as always — run it against the pre-fix file first — and the general form is that **synthetic events skip exactly the default behaviours a fix like this exists to suppress.**
+- **An environment knob the harness fakes for free can never be a control for the knob.** `setViewportSize()` shrinks the layout viewport whatever `interactive-widget` says, so a short-viewport check proves the geometry and says nothing at all about the meta tag. Keep such a check if it floors something real, but **label what it does not prove** — an unlabelled vacuous pass is worse than no check.
 - **`env(safe-area-inset-*)` does nothing without `viewport-fit=cover`.** Without that meta every `env()` resolves to `0px`, so a stylesheet can be full of inset arithmetic that has never once been evaluated — and the check passes because both sides are zero.
 - **A compositing layer that nothing invalidates never repaints.** When the browser won't invalidate a layer, ask it to: drop the filter for one frame and put it back.
 - **A cancelled file picker fires nothing.** No `change`, no reliable `cancel` — so a flag set before opening one outlives the gesture and is still set at the user's next, unrelated pick. Read-and-clear at the top of the handler.

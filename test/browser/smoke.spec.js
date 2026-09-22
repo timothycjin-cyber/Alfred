@@ -559,6 +559,82 @@ test.describe('capture parse busy state', () => {
   });
 });
 
+// The reported bug: with the soft keyboard up, the capture sheet's send arrow
+// took two taps — the first only dismissed the keyboard. Two separate causes,
+// two separate fixes, one check each.
+test.describe('capture sheet survives the soft keyboard', () => {
+  test('tapping send does not blur the input', async ({ page }) => {
+    // A blur dismisses the phone keyboard, which resizes the viewport under the
+    // finger, so the button has moved by the time `click` is dispatched. The
+    // pointerdown preventDefault keeps focus in the input; the click still fires.
+    await openApp(page);
+    await page.route('**/script.google.com/**', () => { /* held open */ });
+    await page.evaluate(() => openCaptureModal());
+    await page.click('#capture-input');
+    await page.fill('#capture-input', 'Coffee RM8');
+    expect(await page.evaluate(() => document.activeElement.id)).toBe('capture-input');
+
+    await page.click('#capture-send-btn');
+    // The click still reached its handler — the parse is in flight.
+    await expect(page.locator('#capture-card')).toHaveClass(/busy/);
+    // ...and focus never left the field, so the keyboard never dropped.
+    expect(await page.evaluate(() => document.activeElement.id)).toBe('capture-input');
+  });
+
+  test('the whole capture row keeps focus, not just send', async ({ page }) => {
+    // The clip and camera buttons sit in the same row and have the same problem.
+    // ⚠️ A dispatched pointerdown does NOT move focus, so a synthetic-event
+    // version of this check passes against the broken code. It has to be a real
+    // click — which opens a file chooser, hence the handler.
+    await openApp(page);
+    page.on('filechooser', (fc) => fc.setFiles([]).catch(() => {}));
+    await page.evaluate(() => openCaptureModal());
+    await page.click('#capture-input');
+    for (const id of ['capture-gallery-btn', 'capture-camera-btn']) {
+      await page.click(`#${id}`);
+      expect(await page.evaluate(() => document.activeElement.id)).toBe('capture-input');
+    }
+  });
+
+  test('the keyboard shrinks the layout viewport, and env() stays inert', async ({ page }) => {
+    // interactive-widget=resizes-content is what puts the fixed overlay ABOVE
+    // the keyboard instead of behind it. ⚠️ It must not drag viewport-fit=cover
+    // in with it — that would un-zero every env(safe-area-inset-*) at once and
+    // shift the whole FAB cluster's derived geometry (CLAUDE.md §3.3).
+    await openApp(page);
+    const meta = await page.getAttribute('meta[name="viewport"]', 'content');
+    expect(meta).toContain('interactive-widget=resizes-content');
+    expect(meta).not.toContain('viewport-fit');
+
+    const inset = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.style.paddingBottom = 'env(safe-area-inset-bottom, 0px)';
+      document.body.appendChild(probe);
+      const v = getComputedStyle(probe).paddingBottom;
+      probe.remove();
+      return v;
+    });
+    expect(inset).toBe('0px');
+  });
+
+  test('send is reachable once the viewport shrinks to keyboard height', async ({ page }) => {
+    // ⚠️ NOT a control for the meta tag — setViewportSize() shrinks the layout
+    // viewport whatever `interactive-widget` says, so this passes against the
+    // broken markup too. It is a GEOMETRY floor: it holds the sheet's 158px
+    // bottom padding and its content honest at the height the keyboard leaves,
+    // which is what would break next if the sheet grew a row.
+    await openApp(page);
+    await page.route('**/script.google.com/**', () => { /* held open */ });
+    await page.setViewportSize({ width: 390, height: 544 }); // 844 less a ~300px keyboard
+    await page.evaluate(() => openCaptureModal());
+    const btn = page.locator('#capture-send-btn');
+    await expect(btn).toBeInViewport({ ratio: 1 });
+    await page.fill('#capture-input', 'Coffee RM8');
+    await btn.click({ timeout: 3000 }); // a refusal here names whatever intercepts it
+    await expect(page.locator('#capture-card')).toHaveClass(/busy/);
+  });
+});
+
 test.describe('masthead brand mark', () => {
   test('rides in the right slot on Today only', async ({ page }) => {
     await openApp(page, { view: 'today' });
