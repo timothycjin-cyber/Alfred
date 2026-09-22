@@ -4435,12 +4435,29 @@ async function materializeRecurring() {
   const existing = new Set(allRows.map(r => r.UID));
   const due = [];
 
+  // ⚠️ The UID check above is not enough on its own. A derived UID carries the
+  // DATE an occurrence was written for, so moving a series' StartDate re-anchors
+  // its occurrences onto different dates and the same period gets a second row —
+  // which is how one monthly income series wrote twice into one September.
+  // occurrenceSlot() keys the skip on the cadence PERIOD instead, so the guard
+  // holds across an anchor move. Built from allRows, which is the whole sheet:
+  // a row written on another device counts the same as one written here.
+  const cadenceOf = new Map(recurringSeries.map(s => [s.id, s.cadence]));
+  const filled = new Set();
+  for (const r of allRows) {
+    const p = parseRecurringUID(r.UID);
+    if (!p || !cadenceOf.has(p.seriesId)) continue;
+    filled.add(occurrenceSlot(p.seriesId, cadenceOf.get(p.seriesId), p.iso));
+  }
+
   for (const s of recurringSeries) {
     if (!s.active) continue;
     for (const iso of recurrenceDates(s, todayIso)) {
       const uid = recurringUID(s.id, iso);
-      if (existing.has(uid)) continue;
+      const slot = occurrenceSlot(s.id, s.cadence, iso);
+      if (existing.has(uid) || filled.has(slot)) continue;
       existing.add(uid);
+      filled.add(slot);
       due.push({ uid, iso, s });
       if (due.length >= RECURRING_MAX_PER_RUN) break;
     }
