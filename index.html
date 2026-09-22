@@ -5412,6 +5412,47 @@ function downscaleImage(file, maxDim = 1280, quality = 0.82) {
   });
 }
 
+// Apps Script answers a POST with a 302 to its googleusercontent echo URL, and
+// fetch follows that as a GET. When the handshake goes wrong the GET lands on
+// /exec itself, so doGet()'s plain-text health line comes back where the JSON
+// should be — the reported `Unexpected token 'P', "Project Al"...` IS that
+// string reaching JSON.parse. Nothing was parsed and nothing was written, so
+// it is a transport miss, not a bad answer, and one retry usually lands.
+const PARSE_ATTEMPT_MS = 25000;
+
+// ⚠️ Only a transport miss retries. A backend refusal ({error:…}) is a real
+// answer and repeating it just burns another LLM call; an abort may still be
+// running server-side, and a second 25s wait is worse than the message.
+function transportError(msg) {
+  const e = new Error(msg);
+  e.transport = true;
+  return e;
+}
+
+async function postParseOnce(payload) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PARSE_ATTEMPT_MS);
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ key: SECRET_KEY, action: 'parse', user: activeUser }, payload)),
+      signal: controller.signal
+    });
+    if (!res.ok) throw transportError('status ' + res.status);
+    // Read as text and parse here: res.json()'s own failure message is a
+    // JavaScript diagnostic, and it was being shown to the user as copy.
+    const body = await res.text();
+    let j;
+    try { j = JSON.parse(body); }
+    catch (_) { throw transportError('non-JSON reply'); }
+    if (j.error) throw new Error(j.error);
+    return j;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function parseCapture(payload) {
   if (captureBusy) return;
   if (!activeUser) {
@@ -5420,25 +5461,29 @@ async function parseCapture(payload) {
   }
   setCaptureNote('');
   setCaptureBusy(true);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25000);
   try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ key: SECRET_KEY, action: 'parse', user: activeUser }, payload)),
-      signal: controller.signal
-    });
-    if (!res.ok) throw new Error('status ' + res.status);
-    const j = await res.json();
-    if (j.error) throw new Error(j.error);
+    let j;
+    try {
+      j = await postParseOnce(payload);
+    } catch (e) {
+      if (!e.transport) throw e;
+      j = await postParseOnce(payload); // one retry, its own fresh budget
+    }
     handleParsedResult(j, payload.image_b64 ? 'web-image' : 'web');
   } catch (e) {
-    setCaptureNote(e.name === 'AbortError' ? 'That took too long — try again.' : 'Could not read that: ' + e.message, true);
+    setCaptureNote(captureErrorNote(e), true);
   } finally {
-    clearTimeout(timer);
     setCaptureBusy(false);
   }
+}
+
+// A thrown JavaScript message is not copy. Name what happened instead — the
+// one case that still interpolates is a backend {error:…}, which is written
+// for a reader.
+function captureErrorNote(e) {
+  if (e.name === 'AbortError') return 'That took too long — try again.';
+  if (e.transport) return 'Could not reach Alfred just now — try again.';
+  return 'Could not read that: ' + e.message;
 }
 
 function handleParsedResult(j, source) {
