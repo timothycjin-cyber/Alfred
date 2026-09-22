@@ -635,6 +635,98 @@ test.describe('capture sheet survives the soft keyboard', () => {
   });
 });
 
+test.describe('capture row order', () => {
+  // Camera LEFT of the input, clip right of it, send last. Order is markup
+  // only — no CSS or JS keys on position — which is exactly why it needs a
+  // check: a swap is invisible to every other assertion in this file.
+  test('camera, input, clip, send', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => openCaptureModal());
+    const ids = await page.evaluate(() =>
+      [...document.querySelectorAll('#capture-card > button, #capture-card > input[type="text"]')]
+        .map((el) => el.id));
+    expect(ids).toEqual([
+      'capture-camera-btn', 'capture-input', 'capture-gallery-btn', 'capture-send-btn',
+    ]);
+  });
+
+  test('each icon still opens its own file input', async ({ page }) => {
+    // The onclick targets a file input by id, so a swap that dragged the wrong
+    // handler along would send the camera button to the gallery. Reading the
+    // chooser's element is the only way to see which input actually opened.
+    await openApp(page);
+    await page.evaluate(() => openCaptureModal());
+    for (const [btn, input] of [
+      ['capture-camera-btn', 'capture-camera-file'],
+      ['capture-gallery-btn', 'capture-gallery-file'],
+    ]) {
+      const [chooser] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        page.click(`#${btn}`),
+      ]);
+      expect(await chooser.element().evaluate((el) => el.id)).toBe(input);
+      await chooser.setFiles([]).catch(() => {});
+    }
+  });
+});
+
+test.describe('receipt split folds back into one entry', () => {
+  // A receipt photo is one purchase, but the model sometimes returns it split
+  // by line item. The prompt is the primary fix (apps-script/Code.gs's
+  // RECEIPT_PROMPT) and lives server-side; this is the client's escape hatch
+  // for when it still splits. Driven through openReviewModal() directly —
+  // these are top-level function declarations in a non-module inline script,
+  // so they are on window, and the parse POST is not involved.
+  const receipt = [
+    { type: 'Expense', amount: 12.5, category: 'Food & Dining', description: 'Nasi lemak', date: '2026-08-11' },
+    { type: 'Expense', amount: 31.9, category: 'Shopping & Groceries', description: 'Detergent', date: '2026-08-11' },
+    { type: 'Expense', amount: 4.2, category: 'Food & Dining', description: 'Teh ais', date: '2026-08-11' },
+  ];
+
+  test('a photo split by item offers Combine, and sums to the total', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate((rows) => openReviewModal(rows, 'web-image'), receipt);
+    const combine = page.locator('#review-combine-btn');
+    await expect(combine).toBeVisible();
+
+    await combine.click();
+    // Hands off to the ordinary confirm modal — the only place every field is
+    // editable. The review row edits amounts alone.
+    await expect(page.locator('#review-overlay')).not.toHaveClass(/open/);
+    await expect(page.locator('#modal-overlay')).toHaveClass(/open/);
+    expect(await page.inputValue('#modal-amount')).toBe('48.6');
+    // Category comes from the LARGEST row, not the first — a big grocery run
+    // must not be filed under the small snack above it on the receipt.
+    expect(await page.inputValue('#modal-category')).toBe('Shopping & Groceries');
+    expect(await page.inputValue('#modal-date')).toBe('2026-08-11');
+  });
+
+  test('a TEXT capture is never offered Combine', async ({ page }) => {
+    // "lunch RM15, grab RM9" is two distinct purchases; adding them up would
+    // be wrong. This is the control that keeps the offer photo-only.
+    await openApp(page);
+    await page.evaluate((rows) => openReviewModal(rows, 'web'), receipt);
+    await expect(page.locator('#review-combine-btn')).toBeHidden();
+  });
+
+  test('mixed Expense/Income rows are never offered Combine', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate((rows) => openReviewModal(
+      [rows[0], { type: 'Income', amount: 50, category: 'Reimbursement', description: 'Claim', date: '2026-08-11' }],
+      'web-image',
+    ), receipt);
+    await expect(page.locator('#review-combine-btn')).toBeHidden();
+  });
+
+  test('the offer disappears once rows are removed down to one', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate((rows) => openReviewModal(rows, 'web-image'), receipt);
+    await expect(page.locator('#review-combine-btn')).toBeVisible();
+    await page.evaluate(() => { removeReviewRow(0); removeReviewRow(0); });
+    await expect(page.locator('#review-combine-btn')).toBeHidden();
+  });
+});
+
 test.describe('masthead brand mark', () => {
   test('rides in the right slot on Today only', async ({ page }) => {
     await openApp(page, { view: 'today' });
