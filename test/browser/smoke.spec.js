@@ -471,6 +471,92 @@ test.describe('capture parse busy state', () => {
     await expect(page.locator('#capture-parse')).toBeHidden();
     await expect(page.locator('#capture-card')).not.toHaveClass(/busy/);
   });
+
+  // Apps Script answers a POST with a 302 to its echo URL; when that handshake
+  // goes wrong the followed GET lands on /exec and doGet()'s plain-text health
+  // line comes back instead of the JSON. This is the exact body that produced
+  // the reported `Unexpected token 'P', "Project Al"...`.
+  const DO_GET_BODY = 'Project Alfred Apps Script is running.';
+
+  test('a non-JSON reply is retried once, and the retry lands', async ({ page }) => {
+    await openApp(page);
+    let hits = 0;
+    await page.route('**/script.google.com/**', (route) => {
+      hits += 1;
+      if (hits === 1) return route.fulfill({ contentType: 'text/plain', body: DO_GET_BODY });
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ transactions: [{ amount: 8, category: 'Food & Dining', description: 'Coffee', date: '2026-08-19', type: 'Expense' }], dropped: 0 }),
+      });
+    });
+    await page.evaluate(() => openCaptureModal());
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+
+    // The confirm step opening is the whole point: the user never sees the miss.
+    await expect(page.locator('#modal-overlay')).toHaveClass(/open/);
+    await expect(page.locator('#modal-title')).toHaveText('Confirm entry');
+    await expect(page.locator('#modal-amount')).toHaveValue('8');
+    expect(hits).toBe(2);
+    await expect(page.locator('#capture-parse')).toBeHidden();
+  });
+
+  test('two non-JSON replies stop, and the note is copy rather than a JSON error', async ({ page }) => {
+    await openApp(page);
+    let hits = 0;
+    await page.route('**/script.google.com/**', (route) => {
+      hits += 1;
+      route.fulfill({ contentType: 'text/plain', body: DO_GET_BODY });
+    });
+    await page.evaluate(() => openCaptureModal());
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+
+    const note = page.locator('#capture-note');
+    await expect(note).toContainText('Could not reach Alfred');
+    // The regression: a JSON.parse diagnostic was being shown to the user.
+    await expect(note).not.toContainText('JSON');
+    await expect(note).not.toContainText('Project Al');
+    expect(hits).toBe(2); // one retry, not a loop
+    await expect(page.locator('#capture-parse')).toBeHidden();
+    await expect(page.locator('#capture-card')).not.toHaveClass(/busy/);
+  });
+
+  test('the latency probe records a round trip and stays silent without ?debug=1', async ({ page }) => {
+    // Scaffolding for the gpt-5.6-luna speed question (CLAUDE.md §6 item 13).
+    // It must leave no trace in the UI: no toast, no note, nothing on screen.
+    await openApp(page);
+    await page.route('**/script.google.com/**', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ transactions: [], dropped: 0, ms: 1234 }),
+      }));
+    await page.evaluate(() => openCaptureModal());
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+    await expect(page.locator('#capture-note')).toContainText('Nothing to log');
+
+    const recorded = await page.evaluate(() => JSON.parse(localStorage.getItem('alfred_parse_timings') || '[]'));
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]).toMatchObject({ kind: 'text', attempt: 1, outcome: 'ok', modelMs: 1234 });
+    expect(recorded[0].totalMs).toBeGreaterThanOrEqual(0);
+    await expect(page.locator('#toast')).not.toHaveClass(/show/);
+  });
+
+  test('a backend refusal is NOT retried', async ({ page }) => {
+    // {error:…} is a real answer. Repeating it just burns another LLM call.
+    await openApp(page);
+    let hits = 0;
+    await page.route('**/script.google.com/**', (route) => {
+      hits += 1;
+      route.fulfill({ contentType: 'application/json', body: '{"error":"user not allowed"}' });
+    });
+    await page.evaluate(() => openCaptureModal());
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+    await expect(page.locator('#capture-note')).toContainText('user not allowed');
+    expect(hits).toBe(1);
+  });
 });
 
 test.describe('masthead brand mark', () => {

@@ -23,6 +23,18 @@ suite's lifted-pill check moved to Trends (§3.12). Rows for every month are sti
 tail reads `_logsMonthKeys` to name the next month back **holding data**, so the picker, the swipe
 and the tail still agree about what a month is.*
 
+*Shipped 2026-09-22: **the capture parse retries a transport miss** (§3.8). A POST to Apps Script
+is answered with a 302 to its googleusercontent echo URL, and `fetch` follows it as a GET; when
+that handshake goes wrong the GET lands on `/exec` itself and **`doGet()`'s plain-text health line
+comes back where the JSON should be**. That string reaching `JSON.parse` is the reported
+`Could not read that: Unexpected token 'P', "Project Al"... is not valid JSON` — **not a model
+error, and nothing the model was ever asked**. `parseCapture()` now reads the body as text, parses
+it itself, and **retries exactly once on a transport miss** (non-JSON body or non-ok status), each
+attempt on its own 25s budget. ⚠️ **A backend `{error:…}` and an abort never retry** — the first is
+a real answer and repeating it burns another LLM call, the second may still be running. The note a
+user sees is copy now, never a `JSON.parse` diagnostic. Four browser checks; the negative control
+reproduced the reported string character for character.*
+
 *Previously 2026-09-05: **the piggy bank's coin is gold** (`#E3A21C`, §3.15), in both the app icon
 PNGs and the Today masthead. Sienna read as a copper disc; gold is what makes the drawing say
 *money* without being told. It is the app's one hue that is not sienna or a tint of it, and it is
@@ -428,6 +440,8 @@ closes on the 1.5rem section break.
 - Clip button → `#capture-gallery-file` (bare `accept="image/*"`); camera button → `#capture-camera-file` (`capture="environment"`). Both feed `handleCaptureFile`; photos downscale to ≤1280px JPEG q0.82 before base64.
 - **Photo + comment:** a photo parks as `pendingImageB64` with a removable `.capture-attach` chip so a note can be typed; send submits both, note as `caption`. Survives close/reopen until sent or removed. Placeholder `"Coffee RM8"` is set in markup **and** in `clearCaptureAttachment()`.
 - POSTs `action:'parse'`; **the receipt prints in `#capture-parse` while the request is in flight** (§3.15); 25s timeout; notes/errors in `#capture-note` (persist to next open, cleared on new parse).
+- ⚠️ **A non-JSON reply is a TRANSPORT miss, not a bad parse — and it retries once.** Apps Script answers a POST with a 302 to its echo URL; a failed handshake follows that as a GET onto `/exec`, returning `doGet()`'s `Project Alfred Apps Script is running.` in place of the JSON. `postParseOnce()` reads `res.text()` and parses it, throwing a `transport`-tagged error on a non-JSON body or a non-ok status; `parseCapture()` retries **once**, each attempt with its own `PARSE_ATTEMPT_MS` (25s) budget. ⚠️ **Only transport retries.** A backend `{error:…}` is a real answer (retrying burns another LLM call) and an `AbortError` may still be running server-side — a second 25s wait is worse than the message. ⚠️ **The retry can double-bill one capture** (the lost echo may mean `doPost` already ran); at ~$0.0004 a text parse that is the right trade, but it is why the retry is one and not a loop.
+- ⚠️ **A thrown JavaScript message is not copy.** `captureErrorNote()` is the only place the note is worded: abort → `That took too long`, transport → `Could not reach Alfred just now`, backend error → its own text. `res.json()` used to put its own parser diagnostic on screen.
 - ⚠️ **Exactly one busy indicator, and which one depends on the motion setting.** The receipt **replaces** the send-arrow spinner — two of them a centimetre apart is noise. Under `prefers-reduced-motion` the receipt goes still, so the spinner comes back; **that branch is now the only place the spinner's CSS lives**. Never both, never neither — asserted both ways (§3.12).
 - **`setCaptureBusy()` is the single hook** for both halves, and `parseCapture()`'s `finally` already covers success, error and the 25s abort — so the receipt cannot be left printing behind an error message.
 - **`Enter manually instead` is styled as a fallback** (`.capture-manual`) — an underlined text button, not a `.btn`, which outranked the capture field the sheet exists for. Still a 44px target. ⚠️ It **replaced** its `.modal-actions` wrapper rather than sitting inside it (the rule carries its own `margin-top`).
@@ -1090,6 +1104,20 @@ and the picker could never answer "show me just this month".
 6. **The regression floor is four browser checks**, three of which were proved to fail against
    the pre-change `index.html`.
 
+### Capture parse retries a transport miss ✅ (2026-09-22)
+
+The reported `Could not read that: Unexpected token 'P', "Project Al"... is not valid JSON` was
+`doGet()`'s health line answering a POST — **the model, the prompt and the gpt-5.6 parameters were
+never involved**. Reverting the model would not have touched it.
+
+1. **A non-JSON body or a non-ok status is a TRANSPORT miss and retries once.** A backend
+   `{error:…}` is a real answer and never retries; an abort never retries either.
+2. **The client parses the body itself.** `res.json()`'s failure message was being shown to the
+   user as copy; `captureErrorNote()` is now the only place the note is worded.
+3. **One retry, not a loop.** The lost echo may mean `doPost` already ran, so a retry can
+   double-bill one capture.
+4. **Latency is a separate question from this error** and is still open — a temporary probe now measures it (§6 item 13). It is scaffolding in both `index.html` and `apps-script/Code.gs`, marked TEMPORARY, and comes out with the decision.
+
 ### Recorded but undecided — do NOT implement
 
 Each needs a decision before it is a task.
@@ -1106,6 +1134,8 @@ Each needs a decision before it is a task.
 10. ✅ *(Resolved 2026-09-05.)* **First run** now splits on `activeUser`: no link reads *"No personal link"*, a valid link with zero rows reads *"Nothing logged yet"* and points at the FAB.
 11. ◐ *(Half-resolved 2026-09-05.)* **Failed load** is now a card with the cloud mark, neutral ink and a **Try again** button, and the ⚠️ is gone. **Still open: the FAB stays live over the failed state**, so `+` opens a capture sheet whose save will also fail. Decide whether a failed load should suppress the FAB, or whether the write path's own toast is enough.
 12. **Date input locale** — the manual modal's `type="date"` rendered `MM/DD/YYYY` in Chromium; that follows browser locale, so verify on a real phone.
+13. ◐ **Capture latency on `gpt-5.6-luna` — MEASURING (2026-09-22).** A temporary probe is in place: `index.html` records the last 20 parse round trips in `localStorage('alfred_parse_timings')`, `parseTimings()` prints them with the median, and `?debug=1` toasts each one (a phone has no console). `handleParse` returns `ms`, the OpenAI call's own share — **that half needs a redeploy**, and the client tolerates its absence, so `totalMs` alone is still useful today. ⚠️ **Both halves are scaffolding and come out once this is decided**; they are marked TEMPORARY in both files.
+    **The decision.** Text parses feel slower than on `gpt-4o-mini`, and a reasoning model carries overhead even at `reasoning_effort: 'none'` (§2). Reverting is a one-line `OPENAI_MODEL` change **plus a redeploy**, and would also halve the metered cost (§5) — but `INSIGHTS_PROMPT`'s 3–4 sentence widening was written for the newer model. ⚠️ **Decide on measured latency, not on the JSON error of 2026-09-22** — that one was transport, not the model.
 
 *(Resolved: "three doors onto the same month change" — the chevrons and archive shelf are deleted;
 the picker and the pill's swipe remain and now agree about what a month is.)*
@@ -1257,6 +1287,8 @@ phase name referenced in an `index.html` comment.
 - **A static site can't hold a secret.** Anything needing the OpenAI key goes through Script Properties; public-by-design values are fine in page source; the allow-list guards metered spend.
 - **Apps Script can be the whole backend — with two crypto-shaped edges:** no raw Web Push (no ES256/ECDH), so push went through FCM, whose RS256 SA JWT it *can* sign; and FCM's page SDK must be handed our SW registration explicitly on a project-pages path.
 - **A manifest can't carry per-user state** — `start_url` is static, so identity needs a localStorage fallback for the installed-app launch path.
+- **An Apps Script POST is really a POST plus a followed GET, and the GET can land on `doGet`.** The web app replies 302 to a `script.googleusercontent.com` echo URL; `fetch` follows it as a GET, and when that handshake misses it hits `/exec` instead — so a **`doGet()` return value shows up as the answer to a POST**. A client that calls `res.json()` then shows the user a `JSON.parse` diagnostic naming the first ten characters of that health line. Two lessons: **read the body as text and parse it yourself**, so the failure is yours to word; and **a non-JSON body from a JSON endpoint is a transport fact, not a content fact** — safe to retry on a read-only action, never worth retrying on a real `{error:…}`.
+- **An error string that quotes the response body is a stack trace pointing at the server.** `"Project Al"...` matched exactly one string in the whole system; `node -e 'JSON.parse("…")'` reproduced the report character for character before a single line was changed. **Reproduce the message before theorising about the cause** — here it ruled out the model, the prompt and the new parameters in one command.
 - **Cross-origin from GitHub Pages needs two things or it silently fails** — `Access-Control-Allow-Origin` on the response (Apps Script sends it), and `text/plain` requests to skip the preflight. Make optional calls non-blocking so an upgrade never becomes a hard dependency.
 
 **The harness lessons live in the `alfred-verification` skill** — negative controls, canvas pixel

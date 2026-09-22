@@ -5412,6 +5412,99 @@ function downscaleImage(file, maxDim = 1280, quality = 0.82) {
   });
 }
 
+// ── Parse latency probe — TEMPORARY (2026-09-22) ─────────────────────────────
+// Exists to answer "is gpt-5.6-luna actually slower than gpt-4o-mini?" with
+// numbers instead of a feeling (CLAUDE.md §6, open question 13). Keeps the last
+// 20 round trips in localStorage; parseTimings() prints them. `?debug=1` toasts
+// each one as well, because the slowness is felt on a phone and a phone has no
+// console. `modelMs` is the OpenAI call's own share and only appears once the
+// Apps Script side is redeployed — until then `totalMs` is all there is.
+// ⚠️ DELETE THIS BLOCK once the model question is decided. It is scaffolding,
+// not a feature: nothing in the app reads it and no user is meant to find it.
+const PARSE_TIMINGS_KEY = 'alfred_parse_timings';
+const DEBUG_TIMING = new URLSearchParams(location.search).get('debug') === '1';
+
+function recordParseTiming(entry) {
+  console.log('[alfred] parse', entry);
+  try {
+    const all = JSON.parse(localStorage.getItem(PARSE_TIMINGS_KEY) || '[]');
+    all.push(entry);
+    localStorage.setItem(PARSE_TIMINGS_KEY, JSON.stringify(all.slice(-20)));
+  } catch (_) { /* private mode — the console line is enough */ }
+  if (DEBUG_TIMING) {
+    const secs = (ms) => (ms / 1000).toFixed(1) + 's';
+    showToast('Parse ' + secs(entry.totalMs)
+      + (entry.modelMs ? ' (model ' + secs(entry.modelMs) + ')' : '')
+      + (entry.attempt > 1 ? ' · try ' + entry.attempt : '')
+      + (entry.outcome === 'ok' ? '' : ' · ' + entry.outcome));
+  }
+}
+
+// Console helper: the point of the probe. Prints every recorded round trip and
+// the median, which is the figure the model decision turns on.
+function parseTimings() {
+  let all = [];
+  try { all = JSON.parse(localStorage.getItem(PARSE_TIMINGS_KEY) || '[]'); } catch (_) {}
+  if (!all.length) return 'No parses recorded yet.';
+  console.table(all);
+  const ok = all.filter((e) => e.outcome === 'ok').map((e) => e.totalMs).sort((a, b) => a - b);
+  if (!ok.length) return all.length + ' recorded, none successful.';
+  const mid = ok.length % 2 ? ok[(ok.length - 1) / 2] : (ok[ok.length / 2 - 1] + ok[ok.length / 2]) / 2;
+  return ok.length + ' successful parses, median ' + (mid / 1000).toFixed(1) + 's';
+}
+
+// Apps Script answers a POST with a 302 to its googleusercontent echo URL, and
+// fetch follows that as a GET. When the handshake goes wrong the GET lands on
+// /exec itself, so doGet()'s plain-text health line comes back where the JSON
+// should be — the reported `Unexpected token 'P', "Project Al"...` IS that
+// string reaching JSON.parse. Nothing was parsed and nothing was written, so
+// it is a transport miss, not a bad answer, and one retry usually lands.
+const PARSE_ATTEMPT_MS = 25000;
+
+// ⚠️ Only a transport miss retries. A backend refusal ({error:…}) is a real
+// answer and repeating it just burns another LLM call; an abort may still be
+// running server-side, and a second 25s wait is worse than the message.
+function transportError(msg) {
+  const e = new Error(msg);
+  e.transport = true;
+  return e;
+}
+
+async function postParseOnce(payload, attempt) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PARSE_ATTEMPT_MS);
+  const t0 = Date.now();
+  let outcome = 'ok';
+  let modelMs = 0;
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ key: SECRET_KEY, action: 'parse', user: activeUser }, payload)),
+      signal: controller.signal
+    });
+    if (!res.ok) { outcome = 'status ' + res.status; throw transportError(outcome); }
+    // Read as text and parse here: res.json()'s own failure message is a
+    // JavaScript diagnostic, and it was being shown to the user as copy.
+    const body = await res.text();
+    let j;
+    try { j = JSON.parse(body); }
+    catch (_) { outcome = 'non-JSON'; throw transportError('non-JSON reply'); }
+    if (j.error) { outcome = 'refused'; throw new Error(j.error); }
+    modelMs = Number(j.ms) || 0; // present once the Apps Script side is redeployed
+    return j;
+  } catch (e) {
+    if (outcome === 'ok') outcome = e.name === 'AbortError' ? 'timeout' : 'error';
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    recordParseTiming({
+      at: new Date().toISOString(), kind: payload.image_b64 ? 'photo' : 'text',
+      attempt, totalMs: Date.now() - t0, modelMs, outcome,
+    });
+  }
+}
+
 async function parseCapture(payload) {
   if (captureBusy) return;
   if (!activeUser) {
@@ -5420,25 +5513,29 @@ async function parseCapture(payload) {
   }
   setCaptureNote('');
   setCaptureBusy(true);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25000);
   try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ key: SECRET_KEY, action: 'parse', user: activeUser }, payload)),
-      signal: controller.signal
-    });
-    if (!res.ok) throw new Error('status ' + res.status);
-    const j = await res.json();
-    if (j.error) throw new Error(j.error);
+    let j;
+    try {
+      j = await postParseOnce(payload, 1);
+    } catch (e) {
+      if (!e.transport) throw e;
+      j = await postParseOnce(payload, 2); // one retry, its own fresh budget
+    }
     handleParsedResult(j, payload.image_b64 ? 'web-image' : 'web');
   } catch (e) {
-    setCaptureNote(e.name === 'AbortError' ? 'That took too long — try again.' : 'Could not read that: ' + e.message, true);
+    setCaptureNote(captureErrorNote(e), true);
   } finally {
-    clearTimeout(timer);
     setCaptureBusy(false);
   }
+}
+
+// A thrown JavaScript message is not copy. Name what happened instead — the
+// one case that still interpolates is a backend {error:…}, which is written
+// for a reader.
+function captureErrorNote(e) {
+  if (e.name === 'AbortError') return 'That took too long — try again.';
+  if (e.transport) return 'Could not reach Alfred just now — try again.';
+  return 'Could not read that: ' + e.message;
 }
 
 function handleParsedResult(j, source) {

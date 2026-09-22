@@ -501,14 +501,21 @@ function handleParse(data) {
     return { error: 'nothing to parse' };
   }
 
+  // TEMPORARY (2026-09-22): time the model's own share of the round trip, so
+  // "is gpt-5.6-luna slower than gpt-4o-mini?" can be answered with numbers.
+  // The client records it beside its total (index.html's parse latency probe).
+  // ⚠️ Remove `ms` from the response once the model question is decided — the
+  // client tolerates its absence, so the two halves can be removed separately.
+  var llmStart = Date.now();
   var raw = callOpenAI(messages);
+  var llmMs = Date.now() - llmStart;
   var result = validateTransactions(parseArrayResponse(raw), todayIso);
 
   // A query object means the model saw a question, not a transaction — surface
   // its reply as a note for the capture UI to show instead of a confirm sheet.
   var queries = result.clean.filter(function (t) { return t.query; });
   var txns = result.clean.filter(function (t) { return !t.query; });
-  var out = { transactions: txns, dropped: result.dropped };
+  var out = { transactions: txns, dropped: result.dropped, ms: llmMs };
   if (!txns.length && queries.length) out.note = String(queries[0].message || 'That looks like a question — the charts below have the answers.');
   return out;
 }
