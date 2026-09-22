@@ -1116,7 +1116,7 @@ never involved**. Reverting the model would not have touched it.
    user as copy; `captureErrorNote()` is now the only place the note is worded.
 3. **One retry, not a loop.** The lost echo may mean `doPost` already ran, so a retry can
    double-bill one capture.
-4. **Latency is a separate question from this error** and is still open — see below.
+4. **Latency is a separate question from this error** and is still open — a temporary probe now measures it (§6 item 13). It is scaffolding in both `index.html` and `apps-script/Code.gs`, marked TEMPORARY, and comes out with the decision.
 
 ### Recorded but undecided — do NOT implement
 
@@ -1134,7 +1134,8 @@ Each needs a decision before it is a task.
 10. ✅ *(Resolved 2026-09-05.)* **First run** now splits on `activeUser`: no link reads *"No personal link"*, a valid link with zero rows reads *"Nothing logged yet"* and points at the FAB.
 11. ◐ *(Half-resolved 2026-09-05.)* **Failed load** is now a card with the cloud mark, neutral ink and a **Try again** button, and the ⚠️ is gone. **Still open: the FAB stays live over the failed state**, so `+` opens a capture sheet whose save will also fail. Decide whether a failed load should suppress the FAB, or whether the write path's own toast is enough.
 12. **Date input locale** — the manual modal's `type="date"` rendered `MM/DD/YYYY` in Chromium; that follows browser locale, so verify on a real phone.
-13. **Capture latency on `gpt-5.6-luna`.** Text parses feel slower than on `gpt-4o-mini`, and a reasoning model carries overhead even at `reasoning_effort: 'none'` (§2). Reverting is a one-line `OPENAI_MODEL` change **plus a redeploy**, and would also halve the metered cost (§5) — but `INSIGHTS_PROMPT`'s 3–4 sentence widening was written for the newer model. ⚠️ **Decide on measured latency, not on the JSON error above** — that one was transport, not the model. Measure first: log `handleParse`'s own elapsed time across a few captures before swapping anything.
+13. ◐ **Capture latency on `gpt-5.6-luna` — MEASURING (2026-09-22).** A temporary probe is in place: `index.html` records the last 20 parse round trips in `localStorage('alfred_parse_timings')`, `parseTimings()` prints them with the median, and `?debug=1` toasts each one (a phone has no console). `handleParse` returns `ms`, the OpenAI call's own share — **that half needs a redeploy**, and the client tolerates its absence, so `totalMs` alone is still useful today. ⚠️ **Both halves are scaffolding and come out once this is decided**; they are marked TEMPORARY in both files.
+    **The decision.** Text parses feel slower than on `gpt-4o-mini`, and a reasoning model carries overhead even at `reasoning_effort: 'none'` (§2). Reverting is a one-line `OPENAI_MODEL` change **plus a redeploy**, and would also halve the metered cost (§5) — but `INSIGHTS_PROMPT`'s 3–4 sentence widening was written for the newer model. ⚠️ **Decide on measured latency, not on the JSON error of 2026-09-22** — that one was transport, not the model.
 
 *(Resolved: "three doors onto the same month change" — the chevrons and archive shelf are deleted;
 the picker and the pill's swipe remain and now agree about what a month is.)*

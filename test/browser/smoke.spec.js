@@ -522,6 +522,27 @@ test.describe('capture parse busy state', () => {
     await expect(page.locator('#capture-card')).not.toHaveClass(/busy/);
   });
 
+  test('the latency probe records a round trip and stays silent without ?debug=1', async ({ page }) => {
+    // Scaffolding for the gpt-5.6-luna speed question (CLAUDE.md §6 item 13).
+    // It must leave no trace in the UI: no toast, no note, nothing on screen.
+    await openApp(page);
+    await page.route('**/script.google.com/**', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ transactions: [], dropped: 0, ms: 1234 }),
+      }));
+    await page.evaluate(() => openCaptureModal());
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+    await expect(page.locator('#capture-note')).toContainText('Nothing to log');
+
+    const recorded = await page.evaluate(() => JSON.parse(localStorage.getItem('alfred_parse_timings') || '[]'));
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]).toMatchObject({ kind: 'text', attempt: 1, outcome: 'ok', modelMs: 1234 });
+    expect(recorded[0].totalMs).toBeGreaterThanOrEqual(0);
+    await expect(page.locator('#toast')).not.toHaveClass(/show/);
+  });
+
   test('a backend refusal is NOT retried', async ({ page }) => {
     // {error:…} is a real answer. Repeating it just burns another LLM call.
     await openApp(page);
