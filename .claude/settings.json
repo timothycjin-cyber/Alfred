@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty'); case \"$f\" in *index.html|*/lib/*.js|*/icons/*|*manifest.json|*/sw.js) echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"UI file changed. Before you finish or commit, run the verify skill: write change checks, run .claude/skills/verify/run.sh, fix and re-run on failure, and send the screenshots + perf score to the user as proof.\"}}';; esac",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

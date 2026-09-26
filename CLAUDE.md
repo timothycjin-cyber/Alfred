@@ -542,6 +542,7 @@ cannot silently re-identify the app and orphan every existing install.
 | Layer | Question | Committed? |
 |---|---|---|
 | Render loop (`alfred-verification` skill) | "Did this change do what I meant?" | No — written per pass, thrown away |
+| `verify` skill (`.claude/skills/verify/run.sh`) | "Can I prove it — screenshots + perf score?" | Runner yes; its per-change checks no |
 | `test/` | "Is the logic still true?" | Yes |
 | `test/browser/` | "Does the app still boot, render, and open what it should?" | Yes |
 
@@ -575,6 +576,13 @@ test/browser/smoke.spec.js    71 checks, 2 projects (390 light-reduced / 900 dar
 
 - The **soft-keyboard checks** cost the vacuity lesson twice in one pass (§8). A **dispatched** `pointerdown` does not move focus, so the synthetic version of the focus check passed against the broken code — it has to be a real `page.click()`, which opens a file chooser and needs a `filechooser` handler. And `setViewportSize()` shrinks the layout viewport **whatever `interactive-widget` says**, so the short-viewport check can never be a control for the meta tag; it is kept and labelled as a geometry floor instead. The two that are real controls were proved to fail.
 - ⚠️ **Nothing here tests a real keyboard.** The suite proves the mechanism (focus is retained, the click still lands, `env()` stays inert); the device outcome follows from it. Same standing limit as every other touch behaviour (§8).
+
+**`verify` skill (after every UI change).** `run.sh` screenshots all three tabs and the capture
+sheet in both projects, records a Chrome trace with real Chart.js (fetched from npm — the CDN is
+blocked in cloud sessions), and scores it against five budgets in `verify.spec.js`; **below 100
+fails the run.** A PostToolUse hook in `.claude/settings.json` reminds Claude to run it when
+`index.html`, `lib/`, icons, the manifest or `sw.js` is edited. On failure: fix and re-run, at
+most 3 rounds, then report. ⚠️ **Never raise a budget to go green** — that is the owner's call.
 
 ⚠️ **Figure assertions need reduced motion.** `animateCounters()` counts up, so a read 600ms
 after load lands mid-animation (the hero measured `RM 1,859.70` en route to `1,887.00`).
