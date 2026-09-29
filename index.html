@@ -1706,6 +1706,12 @@
      (158 − 120). Both include the same safe-area inset, so the offset holds.
      Re-derive all three numbers if the nav cluster's geometry moves. */
   .modal-overlay.align-bottom { align-items: flex-end; padding: 1rem 1rem calc(158px + env(safe-area-inset-bottom, 0px)); }
+  /* Soft keyboard up (html.kbd-open, set by syncKeyboardState()): the layout
+     viewport has shrunk to the keyboard's top edge, and the nav cluster the
+     158px was clearing now sits there too — behind the overlay (z 200 over
+     100). Keeping the reserve floats the sheet a thumb-width above the
+     keyboard over empty space, so it drops to a small gap. */
+  .kbd-open .modal-overlay.align-bottom { padding-bottom: 12px; }
   .modal-overlay.align-bottom .modal-sheet {
     max-width: 440px;
     transform-origin: 50% calc(100% + 38px);
@@ -2979,6 +2985,20 @@ function syncPillTravel() {
 // The pill inherits the UI font, so a late webfont changes its width and with
 // it the distance it has to fly.
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncPillTravel);
+
+// Soft keyboard detection for the bottom sheets. With
+// interactive-widget=resizes-content the keyboard shrinks innerHeight, so a
+// drop of more than 150px below the tallest height seen at this width is the
+// keyboard (a URL bar hiding moves it ~56px). A width change is a rotation and
+// starts a new baseline.
+let _kbdBase = { w: window.innerWidth, h: window.innerHeight };
+function syncKeyboardState() {
+  const w = window.innerWidth, h = window.innerHeight;
+  if (w !== _kbdBase.w) _kbdBase = { w, h };
+  else if (h > _kbdBase.h) _kbdBase.h = h;
+  document.documentElement.classList.toggle('kbd-open', _kbdBase.h - h > 150);
+}
+window.addEventListener('resize', syncKeyboardState, { passive: true });
 
 let _travelRAF = null;
 window.addEventListener('resize', () => {

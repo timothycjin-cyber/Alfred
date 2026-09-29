@@ -635,6 +635,36 @@ test.describe('capture sheet survives the soft keyboard', () => {
   });
 });
 
+test.describe('capture sheet sits on the keyboard', () => {
+  // With the keyboard up the nav cluster is hidden behind the overlay, so the
+  // 158px reserve that clears it is empty space: the sheet floated high above
+  // the keyboard. A >150px height drop at the same width must drop the reserve.
+  test('the sheet drops to the keyboard, and back up without it', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => openCaptureModal());
+    const gap = () => page.evaluate(() =>
+      window.innerHeight - document.querySelector('#capture-overlay .modal-sheet').getBoundingClientRect().bottom);
+    const sz = page.viewportSize();
+    await expect.poll(gap).toBeGreaterThan(150);
+
+    await page.setViewportSize({ width: sz.width, height: sz.height - 300 });
+    await expect(page.locator('html')).toHaveClass(/kbd-open/);
+    await expect.poll(gap).toBeLessThan(30);
+
+    await page.setViewportSize(sz);
+    await expect(page.locator('html')).not.toHaveClass(/kbd-open/);
+    await expect.poll(gap).toBeGreaterThan(150);
+  });
+
+  test('a URL-bar-sized height change is not the keyboard', async ({ page }) => {
+    await openApp(page);
+    const sz = page.viewportSize();
+    await page.setViewportSize({ width: sz.width, height: sz.height - 56 });
+    await page.waitForTimeout(100);
+    await expect(page.locator('html')).not.toHaveClass(/kbd-open/);
+  });
+});
+
 test.describe('capture row order', () => {
   // Camera LEFT of the input, clip right of it, send last. Order is markup
   // only — no CSS or JS keys on position — which is exactly why it needs a
