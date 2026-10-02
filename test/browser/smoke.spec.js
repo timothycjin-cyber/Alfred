@@ -989,3 +989,32 @@ test.describe('PWA install shell', () => {
     expect(maskable.map((i) => i.sizes).sort()).toEqual(['192x192', '512x512']);
   });
 });
+
+// The cumulative line's colours are baked into the canvas at render time, while
+// the CSS follows the theme live. A theme flip with the app open used to leave
+// the dark-theme near-white line on a light card — unreadable.
+test.describe('cumulative spend line', () => {
+  const lastLine = (page) => page.evaluate(() => {
+    const c = (window.__charts || []).filter((ch) => ch.ctx && ch.ctx.id === 'cumulative-line').pop();
+    return c && {
+      line: c.config.data.datasets[0].borderColor,
+      grid: c.config.options.scales.x.grid.color,
+    };
+  });
+
+  test('this month is drawn in sienna', async ({ page }) => {
+    await openApp(page, { view: 'trends' });
+    const got = await lastLine(page);
+    expect(got.line.toUpperCase()).toBe('#C2542D');
+  });
+
+  test('a theme flip with the app open repaints the chart for the new theme', async ({ page }) => {
+    await openApp(page, { view: 'trends' });
+    const before = await lastLine(page);
+    const flipped = test.info().project.use.colorScheme === 'dark' ? 'light' : 'dark';
+    await page.emulateMedia({ colorScheme: flipped });
+    await expect.poll(async () => (await lastLine(page)).grid).not.toBe(before.grid);
+    const after = await lastLine(page);
+    expect(after.grid).toBe(flipped === 'dark' ? '#2D2D2D' : '#E9ECEF');
+  });
+});

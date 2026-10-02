@@ -434,7 +434,8 @@ closes on the 1.5rem section break.
   - **Typewriter reveal:** `typewriteInto()` sets real innerHTML then types over the text nodes (rAF, `clamp(chars·14ms, 500, 1900)`). Reduced motion → instant.
 - **Tiles** (`#trends-metrics`): **closed months only** — a past month shows `Average Daily` + `Total Spent` actuals; on the live month it's emptied and `display:none`. `.tile-block.neutral-block` uses `--outline-variant` border + translucent `--wash-neutral` (a flat `--surface-container` fill was pixel-identical to that border in dark mode).
 - **Spend-card slot** (`#income-bar-card`): **hidden on the live month** (Today owns the pace bar); closed months show the **archive card** (net, top category, days logged X of N, quiet pace verdict).
-- **Cumulative line:** current cumulative vs viewMonth−1 reference in outline gray (`#6C757D`/`#ADB5BD`) — reference, not warning.
+- **Cumulative line:** current cumulative in **sienna** (read from `--sienna`; the legend's `.pill-dot-this` matches) vs viewMonth−1 reference in outline gray (`#6C757D`/`#ADB5BD`) — reference, not warning. Sienna replaced the near-white/near-black ink 2026-10-02: that ink reads on one ground only.
+  - ⚠️ **Canvas colours are baked in at render time; the CSS follows the theme live.** A theme flip with the app open (an OS auto-switch) left the dark-theme white line and dark grid on a light card. A `prefers-color-scheme` `change` listener (beside `applyLocalRender()`) clears `renderedKey.today`/`.trends` and re-renders. Asserted both ways; the chart stub records instances in `window.__charts` for it.
 - **Donut + category breakdown** (`#category-card`): a **segmented donut** (`doughnut`, `cutout:'70%'`, `radius:'92%'`, `spacing:6`, `borderRadius:12`, `borderWidth:0`) in a 260px container, month expense total in the hole, ranked list below.
   - **Nothing is drawn on the canvas but arcs.** `pieLabelsPlugin` and `variableRadiusPlugin` are **deleted**; `Chart.register()` takes `heroBaselinePlugin` alone. `layout.padding` is `4` (52/36 existed only for callouts). `variableRadius` was also wrong on a ring — it scaled `outerRadius` but not `innerRadius`, making thickness vary per segment.
   - **A single category is a full circle, so it has no ends** — both `spacing` *and* `borderRadius` guard to `0` (`vCatData.length > 1 ? … : 0`). `borderWidth:0` also retires a latent bug: `borderColor: 'var(--surface-container-low)'` never worked, since canvas 2D can't resolve a CSS custom property.
@@ -554,7 +555,7 @@ test/run.sh                the same suite in four timezones
 
 test/browser/helpers/app.js   openApp() — mocks the sheet, stubs Chart.js, pins the clock
 test/browser/fixtures/        GViz mock (deliberate month gap) + Chart.js stub
-test/browser/smoke.spec.js    73 checks, 2 projects (390 light-reduced / 900 dark-motion)
+test/browser/smoke.spec.js    75 checks, 2 projects (390 light-reduced / 900 dark-motion)
 ```
 
 **`test/` (pure logic):**

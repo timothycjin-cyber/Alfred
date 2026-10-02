@@ -5,7 +5,7 @@
 // test/alfred-core.test.js and the throwaway render loop (alfred-verification
 // skill) cover chart-adjacent behaviour when a change actually touches one.
 (function (g) {
-  function Chart(ctx, cfg) { this.ctx = ctx; this.config = cfg; this.canvas = ctx && ctx.canvas; }
+  function Chart(ctx, cfg) { this.ctx = ctx; this.config = cfg; this.canvas = ctx && ctx.canvas; (g.__charts = g.__charts || []).push(this); }
   Chart.prototype.destroy = function () {};
   Chart.prototype.update = function () {};
   Chart.prototype.getElementsAtEventForMode = function () { return []; };

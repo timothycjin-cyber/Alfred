@@ -1172,14 +1172,12 @@
   .custom-pill-legend { display: flex; gap: 12px; justify-content: center; margin-top: 10px; width: 100%; }
   .pill-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--on-surface-variant); padding: 4px 12px; border-radius: var(--shape-full); border: 1px solid var(--outline-variant); background: var(--surface-container-low); }
   .pill-dot { width: 8px; height: 8px; border-radius: 50%; }
-  /* Matches the "This Month" line color the chart JS picks per theme —
-     the old hardcoded #1A1A1A dot was invisible on the dark card. */
-  .pill-dot-this { background: #1A1A1A; }
+  /* Matches the "This Month" line: sienna on both themes. */
+  .pill-dot-this { background: var(--sienna); }
   /* Last month is a reference, not a warning — outline gray, matching the
      dashed line color the chart JS picks per theme. */
   .pill-dot-last { background: #6C757D; }
   @media (prefers-color-scheme: dark) {
-    .pill-dot-this { background: #F8F9FA; }
     .pill-dot-last { background: #ADB5BD; }
   }
 
@@ -4233,6 +4231,17 @@ function applyLocalRender() {
   calculateAndRender();
 }
 
+// Canvas charts bake their colours in at render time, while the CSS follows the
+// theme live. Without this, a theme flip with the app open (an OS auto-switch)
+// leaves dark-theme chart ink on a light card — a white line on white.
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!allRows.length) return;
+    renderedKey.today = renderedKey.trends = null;
+    calculateAndRender();
+  });
+}
+
 // One POST, shared by every write path. Throws on a non-ok body.
 async function postWrite(body) {
   const res = await fetch(APPS_SCRIPT_URL, {
@@ -4836,7 +4845,9 @@ function calculateAndRender() {
     const lineContainer = document.getElementById('cumulative-line-container');
     if (lineContainer) lineContainer.innerHTML = '<canvas id="cumulative-line"></canvas>';
 
-    const activeThisMonthLineColor = isDarkMode ? "#F8F9FA" : "#1A1A1A";
+    // This month is the accent line: sienna reads on both grounds, where the
+    // old near-white/near-black ink depended on the theme read being current.
+    const activeThisMonthLineColor = getComputedStyle(document.documentElement).getPropertyValue('--sienna').trim() || '#C2542D';
 
     if (lineChart) lineChart.destroy();
     lineChart = new Chart(document.getElementById('cumulative-line'), {
@@ -4844,7 +4855,7 @@ function calculateAndRender() {
       data: {
         labels: Array.from({ length: daysInMonth }, (_, i) => i + 1),
         datasets: [
-          { label: 'This Month', data: currentMonthlyCumulativeData, borderColor: activeThisMonthLineColor, backgroundColor: 'transparent', borderWidth: 3, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: '#fff', pointBorderColor: activeThisMonthLineColor, pointBorderWidth: 2, tension: 0.1 },
+          { label: 'This Month', data: currentMonthlyCumulativeData, borderColor: activeThisMonthLineColor, backgroundColor: 'transparent', borderWidth: 3, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: isDarkMode ? '#121212' : '#fff', pointBorderColor: activeThisMonthLineColor, pointBorderWidth: 2, tension: 0.1 },
           { label: 'Last Month', data: priorMonthlyCumulativeData, borderColor: isDarkMode ? '#ADB5BD' : '#6C757D', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.1 }
         ]
       },
