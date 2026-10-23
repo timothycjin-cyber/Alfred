@@ -1710,6 +1710,13 @@
      100). Keeping the reserve floats the sheet a thumb-width above the
      keyboard over empty space, so it drops to a small gap. */
   .kbd-open .modal-overlay.align-bottom { padding-bottom: 12px; }
+  /* The keyboard leaves the sheet ~450px, and the 118px receipt pushed
+     "Enter manually instead" off its bottom behind a scrollbar. With the
+     keyboard up the receipt prints small, beside its copy — same drawing,
+     same animation, a row instead of a column. */
+  .kbd-open .capture-parse { flex-direction: row; justify-content: center; gap: 12px; padding: 0 0 6px; }
+  .kbd-open .capture-receipt { width: 38px; height: 48px; }
+  .kbd-open .capture-manual { margin-top: 4px; }
   .modal-overlay.align-bottom .modal-sheet {
     max-width: 440px;
     transform-origin: 50% calc(100% + 38px);
