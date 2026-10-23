@@ -656,6 +656,25 @@ test.describe('capture sheet sits on the keyboard', () => {
     await expect.poll(gap).toBeGreaterThan(150);
   });
 
+  test('the printing receipt fits the sheet with the keyboard up', async ({ page }) => {
+    // Reported on a phone: with the keyboard up the sheet is ~450px of
+    // viewport, and the 118px receipt pushed "Enter manually instead" off the
+    // bottom of the sheet behind a scrollbar. Under kbd-open the receipt sits
+    // small, beside its copy, so the whole sheet fits without scrolling.
+    await openApp(page);
+    await page.route('**/script.google.com/**', () => { /* held open */ });
+    await page.evaluate(() => openCaptureModal());
+    const sz = page.viewportSize();
+    await page.setViewportSize({ width: sz.width, height: 400 }); // a short phone, or a large font scale
+    await expect(page.locator('html')).toHaveClass(/kbd-open/);
+    await page.fill('#capture-input', 'Coffee RM8');
+    await page.click('#capture-send-btn');
+    await expect(page.locator('#capture-parse')).toBeVisible();
+    const sheet = page.locator('#capture-overlay .modal-sheet');
+    await expect.poll(() => sheet.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(0);
+    await expect(page.locator('.capture-manual')).toBeInViewport({ ratio: 1 });
+  });
+
   test('a URL-bar-sized height change is not the keyboard', async ({ page }) => {
     await openApp(page);
     const sz = page.viewportSize();
