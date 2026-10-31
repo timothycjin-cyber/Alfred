@@ -46,3 +46,9 @@ Fully serverless and free to run:
 | Subscriptions category | ✅ Done |
 | Nightly push digest | ⬜ Retired — the digest math lives on as the Today glance line |
 | Recurring expenses | ✅ Done |
+
+## License
+
+**All rights reserved.** This code is public to read, but it is not open source.
+You may not copy, change, reuse or redistribute any part of it without written
+permission. See [LICENSE](LICENSE).
