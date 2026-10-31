@@ -9,8 +9,7 @@
 'use strict';
 const fs = require('fs');
 const { test, expect } = require('@playwright/test');
-const { openApp, USER } = require('./helpers/app');
-const { GVIZ_BODY } = require('./fixtures/gviz-fixture');
+const { openApp, USER, TOKEN, fulfillScript } = require('./helpers/app');
 
 const OUT = process.env.VERIFY_OUT;
 const CHART_JS = process.env.CHART_JS; // real Chart.js; the smoke suite stubs it
@@ -64,9 +63,7 @@ test('perf trace + score', async ({ page, browser }) => {
     const u = route.request().url();
     if (u.includes('cdnjs.cloudflare.com')) return route.fulfill({ contentType: 'application/javascript', body: chart });
     if (u.includes('fonts.googleapis.com') || u.includes('fonts.gstatic.com')) return route.fulfill({ contentType: 'text/css', body: '' });
-    if (u.includes('gviz/tq') && u.includes('sheet=Sheet1')) return route.fulfill({ contentType: 'text/plain', body: GVIZ_BODY });
-    if (u.includes('gviz/tq')) return route.fulfill({ status: 404, body: '' });
-    if (u.includes('script.google.com')) return route.fulfill({ contentType: 'application/json', body: '{"success":true}' });
+    if (u.includes('script.google.com')) return fulfillScript(route);
     return route.continue();
   });
 
@@ -76,7 +73,7 @@ test('perf trace + score', async ({ page, browser }) => {
       'v8.execute', 'blink.user_timing', 'loading', 'disabled-by-default-devtools.screenshot'],
   });
   const t0 = Date.now();
-  await page.goto(`/index.html?user=${USER}`);
+  await page.goto(`/index.html?user=${USER}&t=${TOKEN}`);
   await page.waitForFunction(() => document.getElementById('main-loader').style.display === 'none', { timeout: 10000 });
   const bootMs = Date.now() - t0;
   await page.waitForTimeout(800); // let entrances finish before reading load CLS

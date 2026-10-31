@@ -2242,14 +2242,11 @@
 </div>
 
 <script>
-const SHEET_ID = "19_C3gFlY7hDjGm87k3Uke63_Tgg6TQPl6xLiGZvuEis";
-const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Sheet1`;
-// Recurring-series definitions (Phase G) — a second tab, same spreadsheet. The
-// tab is created by Apps Script on first save, so this URL 404s in GViz until
-// then; fetchRecurringSeries() treats that as "no series", never an error.
-const RECURRING_SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Recurring`;
+// ⚠️ PRIVACY (2026-10-31): the Sheet is RESTRICTED and this page holds no
+// secret. Every read and write goes through Apps Script carrying the user's own
+// {user, token} (authBody()); the script answers with that user's rows only.
+// There is no sheet ID here on purpose — nothing in public source can read it.
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXIWSRt1xVAbLnNPlhiHHaWpTHGB23N1wkoMU74nHifMT9prU3rM4m6/exec";
-const SECRET_KEY = "8891";
 
 // Insights strip — Phase 2 (LLM phrasing), served by the Apps Script backend
 // (action:"insights"; requires OPENAI_API_KEY in the script's Script
@@ -2274,9 +2271,33 @@ const DAYS_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","
 // back to it when the param is absent. Strict privacy filtering is unchanged:
 // no user from either source still renders zero rows.
 const urlParams = new URLSearchParams(window.location.search);
-let activeUser = urlParams.get('user') || localStorage.getItem('alfred_user') || '';
+// Read BEFORE the line below overwrites it: the token check further down needs
+// to know whether this link names the same person the stored token belongs to.
+const _storedUser = localStorage.getItem('alfred_user');
+let activeUser = urlParams.get('user') || _storedUser || '';
 if (urlParams.get('user')) {
   try { localStorage.setItem('alfred_user', urlParams.get('user')); } catch (e) {}
+}
+// The personal token rides in the link as ?t= once, then lives in this
+// device's storage. ⚠️ It is stripped from the address bar straight away, so a
+// screenshot or a shared tab never carries it. A link for a DIFFERENT user
+// without a token must not inherit the previous user's one.
+let activeToken = urlParams.get('t') || '';
+if (activeToken) {
+  try { localStorage.setItem('alfred_token', activeToken); } catch (e) {}
+  urlParams.delete('t');
+  const q = urlParams.toString();
+  try { history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash); } catch (e) {}
+} else if (!urlParams.get('user') || urlParams.get('user') === _storedUser) {
+  activeToken = localStorage.getItem('alfred_token') || '';
+}
+// Set when the script refuses the pair — an old or revoked link.
+let linkRejected = false;
+
+// The credential every POST carries. user is ALWAYS activeUser — the script
+// overwrites it with the authenticated id anyway.
+function authBody(body) {
+  return Object.assign({}, body, { user: activeUser, token: activeToken });
 }
 
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -3886,7 +3907,7 @@ async function fetchInsightNarrative(facts) {
     const res = await fetch(INSIGHTS_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ key: SECRET_KEY, action: 'insights', facts, month: `${MONTHS[viewMonth]} ${viewYear}` }),
+      body: JSON.stringify(authBody({ action: 'insights', facts, month: `${MONTHS[viewMonth]} ${viewYear}` })),
       signal: controller.signal
     });
     if (!res.ok) throw new Error('status ' + res.status);
@@ -4109,41 +4130,49 @@ function animateCounters() {
   });
 }
 
-// Maps a parsed GViz response into our field-cased row shape. Shared by the
-// initial load and the background reconcile (see reconcileFromServer).
-// GViz hands dates back as "Date(YYYY,M,D)" with a ZERO-INDEXED month — the +1
-// is the fix. Shared by both tabs (Sheet1 and Recurring) so the correction
-// lives in exactly one place; the else branch strips the leading apostrophe
-// off text-formatted date cells.
-// gvizDateToIso() moved to lib/alfred-core.js — the month-0-index correction is
-// shared by both tabs' mappers.
+// One read through Apps Script — the only way the page sees the Sheet. Returns
+// the caller's rows as arrays in sheet column order; dates are already ISO.
+// An 'unauthorized' answer sets linkRejected and resolves to no rows, so the
+// first-run card can say the link is out of date instead of "could not load".
+async function readSheet(sheet) {
+  if (!activeUser || !activeToken) return [];
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(authBody({ action: 'read', sheet }))
+  });
+  if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+  const j = JSON.parse(await res.text());
+  if (j.error === 'unauthorized') { linkRejected = true; return []; }
+  if (j.error) throw new Error(j.error);
+  linkRejected = false;
+  return j.rows || [];
+}
 
-function mapGvizRows(json) {
-  return json.table.rows
-    .filter(r => r.c && r.c[0]?.v && r.c[1]?.v)
-    .map(r => {
-      return {
-        Date: gvizDateToIso(r.c[0].v),
-        Amount: Number(r.c[1].v),
-        Category: r.c[2]?.v || "Other",
-        Description: r.c[3]?.v || "",
-        // Source (col E) is read for the recurring "Auto" marker and to keep
-        // generated rows out of _insightRecurring. Deliberately NOT part of
-        // rowSig — it isn't a render-visible field an edit can move.
-        Source: r.c[4]?.v ? String(r.c[4].v).trim() : "",
-        Type: r.c[5]?.v ? String(r.c[5].v).trim() : "Expense",
-        UID: r.c[6]?.v ? String(r.c[6].v).trim() : "",
-        User: r.c[7]?.v ? String(r.c[7].v).trim() : ""
-      };
-    });
+// Maps ledger arrays into our field-cased row shape. Shared by the initial load
+// and the background reconcile (see reconcileFromServer). gvizDateToIso() (in
+// lib/alfred-core.js) passes an ISO string through and strips a stray
+// leading apostrophe, so it still normalises the date column.
+function mapLedgerRows(rows) {
+  return rows
+    .filter(c => c && c[0] && c[1])
+    .map(c => ({
+      Date: gvizDateToIso(c[0]),
+      Amount: Number(c[1]),
+      Category: c[2] || "Other",
+      Description: c[3] || "",
+      // Source (col E) is read for the recurring "Auto" marker and to keep
+      // generated rows out of _insightRecurring. Deliberately NOT part of
+      // rowSig — it isn't a render-visible field an edit can move.
+      Source: c[4] ? String(c[4]).trim() : "",
+      Type: c[5] ? String(c[5]).trim() : "Expense",
+      UID: c[6] ? String(c[6]).trim() : "",
+      User: c[7] ? String(c[7]).trim() : ""
+    }));
 }
 
 async function fetchServerRows() {
-  const res = await fetch(SHEET_URL);
-  if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-  const text = await res.text();
-  const jsonString = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
-  return mapGvizRows(JSON.parse(jsonString));
+  return mapLedgerRows(await readSheet('ledger'));
 }
 
 // The loader's own markup, captured before anything can overwrite it. The
@@ -4254,7 +4283,7 @@ async function postWrite(body) {
   const res = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ key: SECRET_KEY, ...body })
+    body: JSON.stringify(authBody(body))
   });
   const result = await res.json().catch(() => ({ success: true }));
   if (result.error) throw new Error(result.error);
@@ -4309,36 +4338,28 @@ const RECURRING_MAX_PER_RUN = 60; // belt-and-braces cap on a catch-up run
 // be driven at a simulated "today" — test/alfred-core.test.js now does that,
 // including a property test holding recurrenceDates and nextOccurrence in step.
 
-function mapRecurringRows(json) {
-  return (json.table.rows || [])
-    .filter(r => r.c && r.c[0]?.v)
-    .map(r => ({
-      id: String(r.c[0].v).trim(),
-      user: r.c[1]?.v ? String(r.c[1].v).trim() : "",
-      type: r.c[2]?.v ? String(r.c[2].v).trim() : "Expense",
-      amount: Number(r.c[3]?.v || 0),
-      category: r.c[4]?.v || "Other",
-      description: r.c[5]?.v || "",
-      cadence: r.c[6]?.v ? String(r.c[6].v).trim().toLowerCase() : "monthly",
-      startDate: r.c[7]?.v ? gvizDateToIso(r.c[7].v) : "",
-      endDate: r.c[8]?.v ? gvizDateToIso(r.c[8].v) : "",
-      active: String(r.c[9]?.v ?? 'TRUE').trim().toUpperCase() !== 'FALSE'
+function mapRecurringRows(rows) {
+  return rows
+    .filter(c => c && c[0])
+    .map(c => ({
+      id: String(c[0]).trim(),
+      user: c[1] ? String(c[1]).trim() : "",
+      type: c[2] ? String(c[2]).trim() : "Expense",
+      amount: Number(c[3] || 0),
+      category: c[4] || "Other",
+      description: c[5] || "",
+      cadence: c[6] ? String(c[6]).trim().toLowerCase() : "monthly",
+      startDate: c[7] ? gvizDateToIso(c[7]) : "",
+      endDate: c[8] ? gvizDateToIso(c[8]) : "",
+      active: String(c[9] ?? 'TRUE').trim().toUpperCase() !== 'FALSE'
     }));
 }
 
-// Never throws. A missing Recurring tab (before the first save) makes GViz
-// return an error page, which must read as "no series" — not as a broken app.
+// Never throws. A missing Recurring tab (before the first save) comes back as
+// no rows, and any failure reads as "no series" — not as a broken app.
 async function fetchRecurringSeries() {
   try {
-    const res = await fetch(RECURRING_SHEET_URL);
-    if (!res.ok) return [];
-    const text = await res.text();
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start === -1 || end === -1) return [];
-    const json = JSON.parse(text.substring(start, end + 1));
-    if (!json.table || !json.table.rows) return [];
-    return mapRecurringRows(json).filter(s => s.id && activeUser && s.user === activeUser);
+    return mapRecurringRows(await readSheet('recurring')).filter(s => s.id && activeUser && s.user === activeUser);
   } catch (e) {
     return [];
   }
@@ -4485,11 +4506,20 @@ function calculateAndRender() {
     // what separates them: no link at all is a different problem from a link
     // whose ledger is empty, and only the first one has anything to fix.
     const noLink = !activeUser;
+    // A user without a working token is a third state: the link is right in
+    // spirit but out of date (it predates the private links, or was revoked).
+    const staleLink = !noLink && (!activeToken || linkRejected);
     emptyEl.innerHTML = noLink
       ? `<div class="insight-card empty-state-card">
         ${inkMark('envelope')}
         <div class="insight-head"><span class="insight-label">No personal link</span></div>
         <div class="insight-body">Alfred shows one person's ledger at a time. Open your own link — the one ending <b>?user=…</b> — to see yours.</div>
+      </div>`
+      : staleLink
+      ? `<div class="insight-card empty-state-card">
+        ${inkMark('envelope')}
+        <div class="insight-head"><span class="insight-label">Link out of date</span></div>
+        <div class="insight-body">Your ledger is private now. Open the newest personal link you were sent — it carries your key.</div>
       </div>`
       : `<div class="insight-card empty-state-card">
         ${inkMark('box')}
@@ -5556,7 +5586,7 @@ async function postParseOnce(payload, attempt) {
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ key: SECRET_KEY, action: 'parse', user: activeUser }, payload)),
+      body: JSON.stringify(authBody(Object.assign({ action: 'parse' }, payload))),
       signal: controller.signal
     });
     if (!res.ok) { outcome = 'status ' + res.status; throw transportError(outcome); }

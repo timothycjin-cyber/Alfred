@@ -17,6 +17,36 @@ const FIXTURES = {
   skewed: require('../fixtures/gviz-fixture-skewed').GVIZ_BODY,
 };
 
+// The fixtures are written as GViz bodies (their history); since 2026-10-31
+// the app reads through Apps Script's `read` action instead, which answers
+// with plain arrays and ISO dates. Converted once, here, so the fixtures stay
+// untouched and every spec keeps its data.
+function gvizToReadRows(body) {
+  const json = JSON.parse(body.substring(body.indexOf('{'), body.lastIndexOf('}') + 1));
+  return json.table.rows.map((r) => r.c.map((cell) => {
+    const v = cell && cell.v;
+    const m = typeof v === 'string' && v.match(/^Date\((\d+),(\d+),(\d+)\)$/);
+    if (!m) return v;
+    return `${m[1]}-${String(+m[2] + 1).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
+  }));
+}
+const READ_ROWS = Object.fromEntries(Object.entries(FIXTURES).map(([k, v]) => [k, gvizToReadRows(v)]));
+
+// The test link's token. Any non-empty value — the mock does not check it.
+const TOKEN = 'test-token';
+
+// Answers an Apps Script POST: `read` gets the fixture's ledger rows (and no
+// recurring series); anything else is a successful write.
+function fulfillScript(route, fixture = 'default') {
+  let body = {};
+  try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) { /* not JSON */ }
+  if (body.action === 'read') {
+    const rows = body.sheet === 'ledger' ? READ_ROWS[fixture] : [];
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ rows }) });
+  }
+  return route.fulfill({ contentType: 'application/json', body: '{"success":true}' });
+}
+
 const CHART_STUB = fs.readFileSync(path.join(__dirname, '../fixtures/chart-stub.js'), 'utf8');
 
 /**
@@ -64,25 +94,21 @@ async function openApp(page, opts = {}) {
     if (url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com')) {
       return route.fulfill({ contentType: 'text/css', body: '' });
     }
-    if (url.includes('gviz/tq') && url.includes('sheet=Sheet1')) {
-      return route.fulfill({ contentType: 'text/plain', body: sheetBody });
-    }
-    if (url.includes('gviz/tq') && url.includes('sheet=Recurring')) {
-      return route.fulfill({ status: 404, body: 'not found' }); // "no series", not an error
-    }
-    if (url.includes('script.google.com')) {
-      return route.fulfill({ contentType: 'application/json', body: '{"success":true}' });
-    }
+    if (url.includes('script.google.com')) return fulfillScript(route, fixture);
     return route.continue(); // everything else — index.html, lib/*, icons — is real, served by webServer
   });
 
-  await page.goto(`/index.html?user=${USER}`);
+  await page.goto(`/index.html?user=${USER}&t=${TOKEN}`);
   await page.waitForFunction(
     () => document.getElementById('main-loader').style.display === 'none',
     { timeout: 8000 }
   );
+  // The recurring read is the second Apps Script call, made at idle. Wait for
+  // it, so a spec that re-routes script.google.com afterwards only sees the
+  // POSTs it causes itself.
+  await page.waitForFunction(() => _recurringLoaded === true, { timeout: 8000 });
   if (view) await page.evaluate((v) => switchView(v), view);
   await page.waitForTimeout(150); // entrance animations / mount-then-spring settle
 }
 
-module.exports = { openApp, USER };
+module.exports = { openApp, USER, TOKEN, fulfillScript };

@@ -100,6 +100,17 @@ is in the history skill.*
 *Two facts that live nowhere else: earlier roadmap files were folded into §6 (2026-07-19), and `index.html`
 comments still reference roadmap phase names — §6 and the history skill keep those resolvable.*
 
+*Shipped 2026-10-31: **the ledger is private** (§2, §3.1). The repo is public, and it held the
+Sheet ID (readable by anyone, since the Sheet was link-shared for GViz) and the write key `8891`
+— so anyone reading the source could read, edit and delete every row. Now **the Sheet is
+RESTRICTED and the page holds no secret.** Every request — reads included — goes to Apps Script
+with `{user, token}`; `authUser()` checks the pair against the `USER_TOKENS` Script Property and
+**overwrites `data.user` with the authenticated id**, so reads return only the caller's rows and
+edit/delete refuse a row they do not own. The token arrives once as `?t=` in each person's link,
+lives in `localStorage('alfred_token')`, and is **stripped from the address bar on load**. GViz,
+`SHEET_ID` and `SECRET_KEY` are gone from `index.html`. ⚠️ **Needs a REDEPLOY plus three owner
+steps** (§4) — until then the new page cannot read anything.*
+
 ---
 
 ## 0. Overview & product model
@@ -131,7 +142,7 @@ remain valid data. `apps-script/Code.gs` is the **single** extraction/validation
 
 | Idx | Column | Notes |
 |---|---|---|
-| 0 | Date | GViz returns `Date(YYYY,M,D)` with **month 0-indexed**; `gvizDateToIso()` (extracted from `mapGvizRows`, shared by both tabs) adds +1. ⚠️ Reading the ISO back with `new Date(iso)` parses **UTC** midnight while every getter is **local** — use **`parseRowDate()`**, never `new Date(row.Date)` (§3.12). |
+| 0 | Date | Apps Script's `read` returns `yyyy-MM-dd` in the spreadsheet's own zone (`cellOut()`). Historically GViz returned `Date(YYYY,M,D)` with **month 0-indexed**; `gvizDateToIso()` (extracted from `mapGvizRows`, shared by both tabs) adds +1. ⚠️ Reading the ISO back with `new Date(iso)` parses **UTC** midnight while every getter is **local** — use **`parseRowDate()`**, never `new Date(row.Date)` (§3.12). |
 | 1 | Amount (MYR) | Numeric |
 | 2 | Category | String |
 | 3 | Description | String |
@@ -146,8 +157,11 @@ remain valid data. `apps-script/Code.gs` is the **single** extraction/validation
 **`Recurring` tab** — series *definitions* only, never ledger rows (§3.13). Columns: `SeriesID`
 · `User` · `Type` · `Amount` · `Category` · `Description` · `Cadence` · `StartDate` · `EndDate`
 (reserved, no UI) · `Active` · `Created`. Created automatically by `getRecurringSheet()` on
-first save. Read client-side via a second GViz query (`&sheet=Recurring`), which 404s until the
-tab exists — `fetchRecurringSeries()` treats that as "no series", never an error.
+first save. Read through `read` with `sheet:'recurring'`; a missing tab is `{rows:[]}` — "no
+series", never an error.
+
+⚠️ **The Sheet's General access must stay RESTRICTED.** Nothing but the script reads it. Link
+sharing would re-open every row to anyone holding the ID, which is in this repo's history.
 
 **`PushSubs` tab** is retired (Phase F); nothing references it. Owner may delete it.
 
@@ -162,7 +176,8 @@ In-repo `apps-script/Code.gs` is the source of truth.
 
 - **Web App URL:** `https://script.google.com/macros/s/AKfycbzxRLfHCAbCspXIWSRt1xVAbLnNPlhiHHaWpTHGB23N1wkoMU74nHifMT9prU3rM4m6/exec`
 - **Deployment:** Execute as Me, Access Anyone.
-- **Auth:** shared secret `key: "8891"` in every POST body (public in page source — fine; the allow-list guards metered spend).
+- **Auth (2026-10-31):** every POST carries `{user, token}`; `authUser()` checks it against the `USER_TOKENS` Script Property (JSON `{"<user>":"<token>"}`) and replaces `data.user` with the authenticated id. No action runs without it. **There is no shared key** — `8891` is retired. ⚠️ Edit/delete (ledger and recurring) refuse a row whose owner column is not the caller (`ownsRow()`), answering `row not found` so nothing leaks. **Tokens are minted by running `issueUserLinks()` by hand** in the editor: it gives every `ALLOWED_USERS` id a token if missing and logs one link per user. Revoke by deleting an entry from `USER_TOKENS`.
+- `read` — `{sheet:'ledger'|'recurring'}` → `{rows:[[…]]}`, the caller's rows only, arrays in column order, dates ISO. **The only way the page sees the Sheet.**
 - **All requests POST as `text/plain`** to stay CORS-simple (no preflight).
 - ⚠️ **To update: Deploy → Manage deployments → Edit → new version. NEVER create a new deployment** (different URL). Don't redeploy unless code changed.
 
@@ -200,6 +215,8 @@ are dead after Phase F.)
 ### 3.1 User filtering (strict, deliberate)
 
 - `activeUser` from `?user=`, falling back to `localStorage('alfred_user')` (written whenever the param is present) — `start_url` can't carry per-user state.
+- `activeToken` from `?t=`, stored as `localStorage('alfred_token')` and **removed from the URL by `history.replaceState`** at once. ⚠️ A link naming a **different** user with no `t=` must not inherit the stored token — compare against the stored user **read before** it is overwritten (`_storedUser`). `authBody()` adds both to every POST.
+- **The `?user=` filter is not the lock — the token is.** A user without a working token (none, or `unauthorized` → `linkRejected`) sees a third empty state, **`Link out of date`**.
 - **Strict filter:** a row renders only if `activeUser` is non-empty AND matches exactly. No `?user=` → zero rows (intentional privacy). Always test with `?user=YOUR_CHAT_ID`.
 - **No household / "view all" toggle — never add one.**
 
@@ -794,6 +811,7 @@ it shipped.
 
 **The only live items are owner steps, Apps Script side:**
 
+- ⚠️ **PRIVATE LEDGER — owner steps, in order (2026-10-31).** (1) Paste `apps-script/Code.gs` into the editor and **Deploy → Manage deployments → Edit → new version**. (2) In the editor, run **`issueUserLinks`** and copy each link from the log. (3) Open your link once on each device (Chrome on Android, so the installed app shares the storage). (4) Sheet → Share → General access → **Restricted**. No reinstall: the app URL is unchanged. Steps 1 and the page merge should land close together — the old page cannot talk to the new script and vice versa.
 - **Phase F** — delete the `sendDailyDigestPush` time-driven trigger, and drop the `FIREBASE_SA_JSON` / `FCM_PROJECT_ID` Script Properties. Harmless if left, but the trigger fails silently in the execution log nightly.
 - ⚠️ **REDEPLOY REQUIRED (2026-08-31, model upgrade).** `OPENAI_MODEL` is now `gpt-5.6-luna` with the request-shape changes in §2. **Until the owner redeploys, the live script is still calling `gpt-4o-mini` and nothing changes** — the two halves are inseparable, so a redeploy carrying the new model without the new parameters would 400 every `parse` (capture dies, falling back to manual entry) and every `insights` (silent, deterministic text ships). Verify after redeploying by capturing one text expense and one receipt photo.
 - ⚠️ **REDEPLOY REQUIRED (2026-08-31).** `INSIGHTS_PROMPT` was widened to 3–4 sentences / ~60 words with a "keep every observation" rule, so the LLM phrasing layer stops compressing four chart observations back into two. **This ends the front-end-only run that held from 2026-08-08.** Until the owner redeploys, the deterministic narrative (which is already correct and covers all four charts) is what ships — the live one will read short. **Deploy → Manage deployments → Edit → new version. NEVER a new deployment** — that issues a different URL and `APPS_SCRIPT_URL` would silently fall through to the deterministic path forever.
@@ -1213,6 +1231,18 @@ causes, each with its own fix** — either one alone leaves the bug reachable.
 5. **Two of the four checks were vacuous when first written** and were fixed or labelled rather than
    kept as false floors (§3.12, §8).
 
+### The ledger is private ✅ (2026-10-31)
+
+Owner concern on privacy. The public repo held the Sheet ID (link-shared, so readable) and the
+write key, so any reader could read, edit and delete every row.
+
+1. **The Sheet is Restricted; Apps Script is the only reader.** No GViz, no sheet ID in the page.
+2. **A per-user token, not a shared key.** It lives in the person's link and device, never in
+   source. The server, not the client, decides whose rows a request may see or change.
+3. **The token is stripped from the address bar** so screenshots and shared tabs never carry it.
+4. **Old commits still hold the ID and `8891`.** That is harmless only while step 1 holds —
+   history is not rewritten.
+
 ### Recorded but undecided — do NOT implement
 
 Each needs a decision before it is a task.
@@ -1288,7 +1318,8 @@ validation suite.
   worker and is not a foothold for any of that (§3.11)
 - Merging `RECEIPT_PROMPT` into `EXTRACT_PROMPT`, or applying its one-transaction rule to the text path — a text capture's several entries are distinct purchases (§2)
 - Offering `Combine into one entry` on a text capture, or auto-combining a photo's rows without the user asking (§3.8)
-- Any new backend endpoints, LLM calls, or paid services
+- Any new backend endpoints, LLM calls, or paid services (the `read` action is the one deliberate exception, for privacy)
+- Reading the Sheet from the page directly (GViz or any public URL), putting a shared key back in source, or link-sharing the Sheet (§1, §2)
 
 ---
 
