@@ -13,9 +13,20 @@
  * Script Properties required (File → Project Settings → Script Properties):
  *   OPENAI_API_KEY   — for the parse + insights actions
  *   ALLOWED_USERS    — comma-separated chat_ids; empty/absent disables the
- *                      allow-list; empty/absent disables it
+ *                      allow-list for parse only
+ *   USER_TOKENS      — JSON {"<user>":"<token>"}. Written by issueUserLinks();
+ *                      never edit by hand unless revoking a token.
  *
- * Actions routed by doPost (all POSTed as text/plain JSON with key "8891"):
+ * ⚠️ PRIVACY MODEL (2026-10-31). The Sheet is shared RESTRICTED — nothing reads
+ * it but this script. Every request carries {user, token}; authUser() checks
+ * the pair against USER_TOKENS, and every action is scoped to that user:
+ * reads return only their rows, writes stamp their id, and edit/delete refuse
+ * a row they do not own. The page source holds no secret at all — the token
+ * lives in each person's own link (?user=…&t=…) and their device's storage.
+ *
+ * Actions routed by doPost (all POSTed as text/plain JSON with user + token):
+ *   read                           — {sheet:'ledger'|'recurring'} → {rows:[[...]]}
+ *                                    the caller's rows only
  *   add / edit / delete            — sheet writes (existing dashboard paths)
  *   parse                          — {user, text | image_b64[, mime][, caption]}
  *                                    → {transactions:[...], dropped, note?}
@@ -26,7 +37,6 @@
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
-var SECRET_KEY = '8891';
 var SHEET_NAME = 'Sheet1';
 // Recurring-series definitions (Phase G). Separate tab so Sheet1 stays purely
 // the ledger; created on demand by getRecurringSheet().
@@ -50,8 +60,8 @@ var INCOME_CATEGORIES = ['Salary', 'Freelance', 'Bonus', 'Investment',
 // project-alfred repo - keep the two implementations behaviourally aligned)
 var MAX_TRANSACTIONS = 31;      // covers "every day this month"
 var MAX_AMOUNT = 1000000;       // RM: above this is almost certainly a parse error
-var MAX_TEXT_CHARS = 1000;      // parse input caps — the key is public in the
-var MAX_IMAGE_B64_CHARS = 5000000; // page source; don't let anyone feed novels
+var MAX_TEXT_CHARS = 1000;      // parse input caps — a leaked link should not
+var MAX_IMAGE_B64_CHARS = 5000000; // be able to feed novels to the model
 
 var TIMEZONE = 'Asia/Kuala_Lumpur';
 
@@ -178,10 +188,16 @@ function doPost(e) {
   } catch (err) {
     return jsonOut({ error: 'bad request' });
   }
-  if (data.key !== SECRET_KEY) return jsonOut({ error: 'unauthorized' });
+  // Every action, reads included, needs a valid user + token pair. The
+  // authenticated id REPLACES whatever user the body claimed, so no handler
+  // below can be talked into acting for someone else.
+  var user = authUser(data);
+  if (!user) return jsonOut({ error: 'unauthorized' });
+  data.user = user;
 
   try {
     switch (data.action) {
+      case 'read':             return jsonOut(handleRead(data));
       case 'add':              return jsonOut(handleAdd(data));
       case 'edit':             return jsonOut(handleEdit(data));
       case 'delete':           return jsonOut(handleDelete(data));
@@ -198,6 +214,78 @@ function doPost(e) {
 function jsonOut(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+function getUserTokens() {
+  var raw = PropertiesService.getScriptProperties().getProperty('USER_TOKENS') || '{}';
+  try { return JSON.parse(raw) || {}; } catch (err) { return {}; }
+}
+
+// Returns the caller's user id when {user, token} match USER_TOKENS, else null.
+function authUser(data) {
+  var user = String(data.user || '').trim();
+  var token = String(data.token || '').trim();
+  if (!user || !token) return null;
+  var expected = getUserTokens()[user];
+  return (expected && expected === token) ? user : null;
+}
+
+function newToken() {
+  return Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8);
+}
+
+// RUN THIS BY HAND from the editor (select it, press Run, open the log).
+// Gives every id in ALLOWED_USERS a token if it has none, then logs one private
+// link per user. Existing tokens are kept, so running it again re-prints the
+// same links. To revoke someone, delete their entry from USER_TOKENS.
+function issueUserLinks() {
+  var raw = PropertiesService.getScriptProperties().getProperty('ALLOWED_USERS') || '';
+  var users = raw.split(',').map(function (s) { return s.trim(); }).filter(String);
+  if (!users.length) throw new Error('Set ALLOWED_USERS first (comma-separated user ids).');
+  var tokens = getUserTokens();
+  users.forEach(function (u) { if (!tokens[u]) tokens[u] = newToken(); });
+  PropertiesService.getScriptProperties().setProperty('USER_TOKENS', JSON.stringify(tokens));
+  users.forEach(function (u) {
+    Logger.log(u + '  →  https://timothycjin-cyber.github.io/Alfred/?user=' +
+               encodeURIComponent(u) + '&t=' + tokens[u]);
+  });
+}
+
+// ── Read (the only way the dashboard sees the Sheet) ─────────────────────────
+
+// Dates come back as yyyy-MM-dd in the SPREADSHEET's own zone, so a row reads
+// the same day it shows in the Sheet. Text dates lose a leading apostrophe.
+function cellOut(v, tz) {
+  if (v instanceof Date) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+  if (typeof v === 'string') return v.replace(/^'/, '');
+  return v;
+}
+
+// {sheet:'ledger'} → Sheet1 rows (8 cols) whose User (col H) is the caller.
+// {sheet:'recurring'} → Recurring rows (11 cols) whose User (col B) is the caller.
+// A missing Recurring tab is "no series", never an error.
+function handleRead(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var tz = ss.getSpreadsheetTimeZone();
+  var recurring = data.sheet === 'recurring';
+  var sheet = ss.getSheetByName(recurring ? RECURRING_SHEET_NAME : SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return { rows: [] };
+  var width = recurring ? RECURRING_HEADERS.length : 8;
+  var userCol = recurring ? 1 : 7;
+  var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getValues();
+  var rows = [];
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][userCol]).trim() !== data.user) continue;
+    rows.push(values[i].map(function (v) { return cellOut(v, tz); }));
+  }
+  return { rows: rows };
+}
+
+// True when the 1-based row's owner column holds the caller's id.
+function ownsRow(sheet, row, userCol, user) {
+  return String(sheet.getRange(row, userCol).getValue()).trim() === user;
 }
 
 // ── Sheet write handlers (existing dashboard paths) ──────────────────────────
@@ -252,6 +340,7 @@ function handleEdit(data) {
   var row = findRowByUID(data.uid);
   if (row === -1) return { error: 'row not found' };
   var sheet = getSheet();
+  if (!ownsRow(sheet, row, 8, data.user)) return { error: 'row not found' };
   sheet.getRange(row, 1).setValue(data.date);
   sheet.getRange(row, 2).setValue(Number(data.amount));
   sheet.getRange(row, 3).setValue(data.category);
@@ -264,6 +353,7 @@ function handleEdit(data) {
 function handleDelete(data) {
   var row = findRowByUID(data.uid);
   if (row === -1) return { error: 'row not found' };
+  if (!ownsRow(getSheet(), row, 8, data.user)) return { error: 'row not found' };
   getSheet().deleteRow(row);
   return { success: true };
 }
@@ -327,7 +417,7 @@ function handleRecurring(data) {
 
   if (op === 'edit') {
     var row = findRecurringRowById(data.id);
-    if (row === -1) return { error: 'series not found' };
+    if (row === -1 || !ownsRow(sheet, row, 2, data.user)) return { error: 'series not found' };
     // Cols A (id), K (created) are immutable; B (user) never changes owner.
     sheet.getRange(row, 3).setValue(data.type);
     sheet.getRange(row, 4).setValue(Number(data.amount));
@@ -342,7 +432,7 @@ function handleRecurring(data) {
 
   if (op === 'delete') {
     var delRow = findRecurringRowById(data.id);
-    if (delRow === -1) return { error: 'series not found' };
+    if (delRow === -1 || !ownsRow(sheet, delRow, 2, data.user)) return { error: 'series not found' };
     sheet.deleteRow(delRow);
     return { success: true };
   }

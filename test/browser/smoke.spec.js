@@ -12,7 +12,7 @@
 'use strict';
 
 const { test, expect } = require('@playwright/test');
-const { openApp } = require('./helpers/app');
+const { openApp, USER, TOKEN } = require('./helpers/app');
 
 test.describe('boot', () => {
   for (const view of ['today', 'logs', 'trends']) {
@@ -1035,5 +1035,57 @@ test.describe('cumulative spend line', () => {
     await expect.poll(async () => (await lastLine(page)).grid).not.toBe(before.grid);
     const after = await lastLine(page);
     expect(after.grid).toBe(flipped === 'dark' ? '#2D2D2D' : '#E9ECEF');
+  });
+});
+
+test.describe('private ledger (2026-10-31)', () => {
+  // The Sheet is RESTRICTED; the page holds no secret and reads only through
+  // Apps Script with the user's own token. These are the floor under that.
+
+  test('the page source carries no sheet id and no shared key', async ({ page }) => {
+    await openApp(page);
+    const html = await page.evaluate(async () => (await fetch('/index.html')).text());
+    expect(html).not.toContain('19_C3gFlY7hDjGm87k3Uke63_Tgg6TQPl6xLiGZvuEis');
+    expect(html).not.toContain('docs.google.com/spreadsheets');
+    expect(html).not.toMatch(/['"]8891['"]/);
+  });
+
+  test('the token leaves the address bar, and every POST carries it', async ({ page }) => {
+    const posts = [];
+    const sheetHits = [];
+    page.on('request', (r) => {
+      if (r.url().includes('script.google.com')) posts.push(JSON.parse(r.postData() || '{}'));
+      if (r.url().includes('docs.google.com')) sheetHits.push(r.url());
+    });
+    await openApp(page);
+    expect(page.url()).not.toContain('t=');
+    expect(page.url()).toContain(`user=${USER}`);
+    expect(await page.evaluate(() => localStorage.getItem('alfred_token'))).toBe(TOKEN);
+    expect(posts.map((p) => p.sheet)).toEqual(['ledger', 'recurring']);
+    for (const p of posts) expect(p).toMatchObject({ action: 'read', user: USER, token: TOKEN });
+    expect(posts.some((p) => 'key' in p)).toBe(false);
+    expect(sheetHits).toEqual([]);
+  });
+
+  test('a refused link reads as out of date, not as a broken load', async ({ page }) => {
+    await openApp(page);
+    await page.route('**/script.google.com/**', (route) =>
+      route.fulfill({ contentType: 'application/json', body: '{"error":"unauthorized"}' }));
+    await page.evaluate(() => retryLoad());
+    await page.waitForFunction(() => document.getElementById('main-loader').style.display === 'none');
+    const el = page.locator('#empty-state');
+    await expect(el).toBeVisible();
+    await expect(el).toContainText('Link out of date');
+    await expect(page.locator('#today-hero')).toBeHidden();
+  });
+
+  test('a link for another user does not borrow the stored token', async ({ page }) => {
+    await openApp(page);
+    const posts = [];
+    page.on('request', (r) => { if (r.url().includes('script.google.com')) posts.push(r.postData()); });
+    await page.goto('/index.html?user=99999');
+    await page.waitForFunction(() => document.getElementById('main-loader').style.display === 'none');
+    await expect(page.locator('#empty-state')).toContainText('Link out of date');
+    expect(posts).toEqual([]); // nothing sent without a token of its own
   });
 });

@@ -25,7 +25,7 @@
 Fully serverless and free to run:
 
 - **Frontend** — plain HTML/CSS/JS (single file), Chart.js, hosted on GitHub Pages
-- **Data** — one Google Sheet, read via the public GViz JSON endpoint
+- **Data** — one private Google Sheet, read only through the Apps Script with each person's own link token
 - **Backend** — the Sheet's own Google Apps Script Web App (`apps-script/Code.gs`): transaction writes, AI parsing (OpenAI), and insights phrasing
 
 (Historical note: capture originally happened through a Telegram bot — [Project-Alfred](https://github.com/timothycjin-cyber/Project-Alfred), decommissioned 2026-07-16 once this app covered everything it did. Rows it wrote remain in the Sheet.)
