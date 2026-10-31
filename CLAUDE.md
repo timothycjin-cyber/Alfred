@@ -100,6 +100,8 @@ is in the history skill.*
 *Two facts that live nowhere else: earlier roadmap files were folded into §6 (2026-07-19), and `index.html`
 comments still reference roadmap phase names — §6 and the history skill keep those resolvable.*
 
+*Shipped 2026-10-31: **the Today hero lost its chart** (§3.5). Six unlabelled monthly bars said nothing the pace card and Trends do not; a burn-down was rejected as a copy of the pace card. The hero is label, figure, sub-line. `heroBaselinePlugin` went too, so nothing is passed to `Chart.register()`. Front-end only — no redeploy.*
+
 *Shipped 2026-10-31: **the ledger is private** (§2, §3.1). The repo is public, and it held the
 Sheet ID (readable by anyone, since the Sheet was link-shared for GViz) and the write key `8891`
 — so anyone reading the source could read, edit and delete every row. Now **the Sheet is
@@ -365,7 +367,7 @@ year; future-dated rows excluded. ⚠️ The name is `pickerMonths()` — `month
 Order: **hero → two tiles → detail panel → budget-pace card.** **There is no glance line** —
 `computeTodayGlance`, `todayGlanceHtml`, `#today-glance` and `.today-*` are deleted (§0).
 
-- **Hero** (`.hero-card`, `#today-hero`): label **`Budget left`** (income − expense). **1.5px `--outline` border** (light) / `rgba(255,255,255,.22)` (dark) — deliberately heavier than every other card, so the hero reads as the focal point. Embedded 6-month net-trend mini bar chart (`heroChart`; current month sienna, others green/red by sign; `minBarLength: 4` + `heroBaselinePlugin`, gated on `canvas.id === 'hero-trend'`). Sub-copy "In the green" / "Watching the leak". **The running month is drawn as provisional:** a `heroLiveMonth` flag washes the last bar to `hexToRgba('#C2542D', 0.38)` and appends `.hero-chart-note` ("August is 10 days in") — otherwise nine days read against thirty-one-day bars on one axis. Build the note from the flag, not unconditionally. ⚠️ **There is no privacy blur toggle** — `toggleHeroPrivacy()`/`.value-hidden` do not exist; the only trace is `.hero-top` still being `space-between` with one child.
+- **Hero** (`.hero-card`, `#today-hero`): label **`Budget left`** (income − expense). **1.5px `--outline` border** (light) / `rgba(255,255,255,.22)` (dark) — deliberately heavier than every other card, so the hero reads as the focal point. Sub-copy "In the green" / "Watching the leak". **The hero has no chart** (deleted 2026-10-31): label, figure, sub-line, nothing else. `heroChart`, `heroBaselinePlugin`, `#hero-trend`, `heroLiveMonth` and `.hero-chart-*` are gone. The six-month bars carried no labels and no axis; the pace card below says where the month stands, and Trends holds the history. ⚠️ **There is no privacy blur toggle** — `toggleHeroPrivacy()`/`.value-hidden` do not exist; the only trace is `.hero-top` still being `space-between` with one child.
 - **Tiles** (`#today-tiles`, 2-col grid): **`Income`** / **`Expenses`** on `--wash-income`/`--wash-expense`, with `▲/▼ X% vs last month` chips. ⚠️ **The income tile says `Income`, not `Budget`** — the hero 200px above says `Budget left`, and one word for two quantities was the collision. Element ids, the stored `'Income'` value and `INCOME_CATEGORIES` are unchanged. `.good` chips neutral, `.bad` red (§3.2).
 - **Detail panel** (`#today-detail`, `todayDetailHtml()`): **`Median Daily`** (or `Average Daily`, see below) + **`Forecast`**, **always open** — the two figures are the point of the tile row, not a disclosure behind it. **No `#today-detail-trigger`, no `toggleTodayDetail()`, no `todayDetailOpen`, no `.tile-chev`** (removed 2026-08-31); the Expenses tile is a plain `.tile-block` again. It's the last child of the `.tile-row` grid spanning `1 / -1`; `#today-detail:empty { display: none }` still collapses it when `todayDetailHtml()` returns nothing. `data-key`s `today-avg`/`today-fc` (reused to preserve `counterMemory`, distinct from Trends `an-avg`/`an-fc`). `forecast > totalIncome` → both go `.overspend` red. **Nothing logged this month → an em dash in both slots**, deliberately not `.counter-val` — `RM 0.00` reads as a measurement of zero rather than the absence of one.
 - **`todayForecast()` is THE forecast, and the only one the app computes** (§3.5a). The detail panel and the pace bar both read it, so they can never disagree. Memoised on `dataStamp` (like `pickerMonths()`) because it rescans four months and the panel is rebuilt from a click handler, not only from a render. **No `vs last mo.` chips** — a percentage against a projection is noise. Built inside `calculateAndRender()`, so the single `animateCounters()` sweep at its end covers it — the panel no longer needs its own.
@@ -454,7 +456,7 @@ closes on the 1.5rem section break.
 - **Cumulative line:** current cumulative in **sienna** (read from `--sienna`; the legend's `.pill-dot-this` matches) vs viewMonth−1 reference in outline gray (`#6C757D`/`#ADB5BD`) — reference, not warning. Sienna replaced the near-white/near-black ink 2026-10-02: that ink reads on one ground only.
   - ⚠️ **Canvas colours are baked in at render time; the CSS follows the theme live.** A theme flip with the app open (an OS auto-switch) left the dark-theme white line and dark grid on a light card. A `prefers-color-scheme` `change` listener (beside `applyLocalRender()`) clears `renderedKey.today`/`.trends` and re-renders. Asserted both ways; the chart stub records instances in `window.__charts` for it.
 - **Donut + category breakdown** (`#category-card`): a **segmented donut** (`doughnut`, `cutout:'70%'`, `radius:'92%'`, `spacing:6`, `borderRadius:12`, `borderWidth:0`) in a 260px container, month expense total in the hole, ranked list below.
-  - **Nothing is drawn on the canvas but arcs.** `pieLabelsPlugin` and `variableRadiusPlugin` are **deleted**; `Chart.register()` takes `heroBaselinePlugin` alone. `layout.padding` is `4` (52/36 existed only for callouts). `variableRadius` was also wrong on a ring — it scaled `outerRadius` but not `innerRadius`, making thickness vary per segment.
+  - **Nothing is drawn on the canvas but arcs.** `pieLabelsPlugin` and `variableRadiusPlugin` are **deleted**; Nothing is registered with `Chart.register()` — the hero's baseline plugin went with the hero chart (2026-10-31). `layout.padding` is `4` (52/36 existed only for callouts). `variableRadius` was also wrong on a ring — it scaled `outerRadius` but not `innerRadius`, making thickness vary per segment.
   - **A single category is a full circle, so it has no ends** — both `spacing` *and* `borderRadius` guard to `0` (`vCatData.length > 1 ? … : 0`). `borderWidth:0` also retires a latent bug: `borderColor: 'var(--surface-container-low)'` never worked, since canvas 2D can't resolve a CSS custom property.
   - **Centre total is an HTML overlay** (`.donut-center`), not canvas text — so it gets the UI font, theme tokens and `.counter-val` inertia (`data-key="an-cat-total"`). ⚠️ The render **wipes `#donut-container.innerHTML`** each pass, so the overlay must be re-injected in that same statement.
   - **List** (`categoryBreakdownHtml()` → `#category-breakdown`): icon chip (`.txn-icon-chip` + `hexToRgba(hex, 0.12)` **and `color: hex`**), name, `X% of total`, amount, share bar in the category's hue (`.cat-bar`). Bars scale to **share of total**, matching the printed percentage — not share of max, which would always fill the top row. Shares print one decimal below 10%. Bars mount at `width:0` and get real width one frame later.
@@ -573,7 +575,7 @@ test/run.sh                the same suite in four timezones
 
 test/browser/helpers/app.js   openApp() — mocks the sheet, stubs Chart.js, pins the clock
 test/browser/fixtures/        GViz mock (deliberate month gap) + Chart.js stub
-test/browser/smoke.spec.js    76 checks, 2 projects (390 light-reduced / 900 dark-motion)
+test/browser/smoke.spec.js    77 checks, 2 projects (390 light-reduced / 900 dark-motion)
 ```
 
 **`test/` (pure logic):**
@@ -1247,7 +1249,7 @@ write key, so any reader could read, edit and delete every row.
 
 Each needs a decision before it is a task.
 
-1. **The hero mini-chart** — six unlabelled bars, no axis, little dynamic range. Options: a within-month burn-down against an even-pace line, or delete it.
+1. ✅ *(Resolved 2026-10-31.)* **The hero mini-chart is deleted.** A burn-down was the other option and was rejected: the budget-pace card directly below already plots spend against time.
 2. **Logs: shape or list.** If the drill-in goes unfound, auto-expanding the current week is the next smallest step.
 3. **Future-dated entries.** Income dated ahead counts toward a week's entry total but appears in no chart or spend figure. Decide: exclude from the month, surface a "scheduled" strip, or reject at capture.
 4. **Category taxonomy.** `Shopping & Groceries` merges two behaviours; `Subscriptions` overlaps `Bills & Utilities`. Splitting is cheap now, expensive after a year of history.
@@ -1296,6 +1298,7 @@ validation suite.
 - Putting "P90" or "percentile" back on the distribution card or in its insight line — `Median` and `Mean` are the labels and are correct (§3.7)
 - Putting figures back into `DIST_NOTE`, or making it data-driven again (§3.7)
 - Restoring the Today glance line, the Expenses-tile disclosure, or `todayDetailOpen` (§3.5)
+- Putting a chart back in the Today hero, bars or burn-down (§3.5) — the pace card is the hero's chart
 - Letting the insight strip's novelty rotation drop a chart's line again — it orders, it does not filter (§3.7)
 - Reinstating the FAB long-press → camera accelerator, or any press-and-hold on the FAB, without a hardware verification plan (§3.3, §3.8)
 - Deleting `repaintNavCluster()` as dead code — a Chromium/Android workaround, unreproducible locally (§3.3)
