@@ -264,10 +264,12 @@ test.describe('spend distribution', () => {
     await expect(note).toContainText('mean line');
     expect(await note.textContent()).not.toMatch(/RM|\d/);
 
-    // On this fixture the two lines land 14.2% apart, inside the 18% collision
-    // rule, so the stacking path is exercised here rather than left untested.
-    await expect(labels.first()).toHaveClass(/row1/);
-    await expect(labels.nth(1)).toHaveClass(/row2/);
+    // The labels always sit on two rows: Mean on top, Median below — so they
+    // cannot overlap however close the lines are.
+    await expect(labels.first()).toHaveClass(/row2/);   // Median, lower
+    await expect(labels.nth(1)).toHaveClass(/row1/);    // Mean, higher
+    const [med, mean] = [await labels.first().boundingBox(), await labels.nth(1).boundingBox()];
+    expect(mean.y + mean.height).toBeLessThanOrEqual(med.y + 0.5);
 
     // It sits between the patterns grid and the cumulative card.
     const order = await page.evaluate(() => Array.from(
