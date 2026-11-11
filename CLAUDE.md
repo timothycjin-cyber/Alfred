@@ -697,9 +697,10 @@ back — that argument has been had and this table is the answer.
 - **Ink is `--loader-ink`, not `--on-surface`** (§3.2). Each mark carries **exactly one**
   accent path; a second would make the accent decorative. The loader's bar and the empty-state
   marks use `var(--sienna)`; the **pig's accent is the coin, in `var(--coin)` gold** (below).
-- ⚠️ **The loader has NO ground shadow; the icon does.** The shadow is ink-coloured, so on the
-  dark theme it inverts into a pale puddle under the mark. The icon always sits on paper and
-  keeps it. Do not "restore" the shadow to the loader for consistency — the two grounds differ.
+- ⚠️ **NOTHING carries a ground shadow any more — the icon included (2026-11-11).** The loader
+  never had one (ink-coloured, it inverts into a pale puddle on dark). The icon dropped its own
+  on owner report: **Android draws the launch splash from the manifest icon**, and there the
+  shadow read as a black bar under the pig. Do not restore it to any mark.
 - **Animation:** `.lb` groups **LIFT** in sequence (`loaderBounce`, **0.8s, `translateY(-36px)`,
   `ease-in-out`, a 200ms stagger**); `.lt` ticks pulse. Reduced motion moves the pulse to the
   whole mark and sets `.lb`/`.lt` to `animation: none` — which is also what sets the bars back
@@ -734,7 +735,9 @@ back — that argument has been had and this table is the answer.
   rounded silhouette that reaches nowhere near its own corners — bbox corner **226.7** units out,
   furthest drawn pixel only **192.1**. Sizing against the corner shrank the maskable file for
   nothing *and* said nothing at all about the file that was actually being clipped.
-  **0.97** puts the furthest pixel at ~186, inside the spec's 205-unit safe radius (a circle of
+  *(Re-derived 2026-11-11 without the shadow: ink spans y 96–406, `ART_CENTRE` is now
+  `{248.5, 251.5}`, furthest pixel 179.5 → ~174 at 0.97. FRAME was kept so the pig did not grow.)*
+  **0.97** put the furthest pixel at ~186 (with the shadow), inside the spec's 205-unit safe radius (a circle of
   80% diameter) with margin for launchers that crop harder than the guarantee. Verified against
   crops at 100%, 80% and 72%.
   ⚠️ **Re-derive it after any change to the drawing** — the tail alone has moved the art's
@@ -759,7 +762,8 @@ back — that argument has been had and this table is the answer.
   - ⚠️ **No ground shadow, and this one cannot be fixed by re-tinting.** The shadow is drawn in
     the ink colour, and on dark the ink is warm-**white** — so it renders as a pale smear under
     the feet. A shadow has to be darker than its ground, and nothing is darker than `#121212`
-    here. `ground: false`, permanently.
+    here. `ground: false`, permanently — and since 2026-11-11 the tile has none either, so this
+    is no longer a difference from it.
   - ⚠️ **The wash stops are TOKENS (`--pig-wash-1..3`), never the icon's literal pinks.**
     Warm-white ink on pale pink has almost no contrast: on dark the outline stops doing its job
     and the pig reads as a blob. Dark swaps in a warm near-black ramp (`#3A2E28` → `#241C19`),
@@ -983,7 +987,8 @@ recorded here so they are not re-proposed as new.
 
 1. **Filled tapered paths, never strokes.** This is the whole style, and it is asserted (§3.12).
 2. **One accent element per mark**, never two. *(Sienna for every mark except the pig, whose accent coin went gold 2026-09-05 — §3.15.)*
-3. **The loader carries no ground shadow, the icon does** — the shadow inverts on dark.
+3. **The loader carries no ground shadow** — the shadow inverts on dark. *(The icon lost its own
+   on 2026-11-11: it showed as a black bar on the Android launch splash.)*
 4. **`--loader-ink` is its own light/dark pair**, not `--on-surface`.
 5. ~~Maskable icons are a separate file~~ — **REVERSED on device evidence (2026-09-04, sixth
    pass).** A launcher masks a `purpose: "any"` icon too, so a full-bleed framing does not
@@ -1284,7 +1289,7 @@ validation suite.
 - Restoring the app header, or moving any *figure* into the masthead or the pill (§3.3, §3.4). **Today DOES have a masthead** — it states the date and is inert
 - Reinstating the masthead chevrons, any month stepper, the Trends archive shelf, or the binary `.condensed` condense-on-scroll (§3.4, §3.7)
 - Reinstating the Logs toolbar row, or putting a *figure* in the masthead's right slot (§3.4, §3.6) — the Today brand mark is not a figure and does not reopen this
-- Giving the in-app pig the icon's ground shadow, hard-coding its wash stops as literal pinks, or making it a button (§3.15)
+- Giving the icon, the in-app pig or any mark a ground shadow, hard-coding its wash stops as literal pinks, or making it a button (§3.15)
 - Adding a dark override for `--coin` or `--coin-ink`, or drawing the coin's `$` in `--loader-ink` — the coin's ground travels with it, so its ink is fixed (§3.15)
 - Setting `.pill { pointer-events: auto }` — the resting value must stay `none` (§3.4, §8)
 - Adding `viewport-fit=cover` casually — every `env(safe-area-inset-*)` is currently inert, so turning it on shifts the FAB cluster's geometry and both top offsets at once (§3.3)
