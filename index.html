@@ -2553,6 +2553,11 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   // separate buffer instead of a mean smeared across the month, this fires less
   // often than it used to — that is the correction, not a threshold to retune.
   const over = todayForecast().forecast > totalIncome;
+  // The bars are a straight-line pace; the verdict is the forecast. When the
+  // Spent bar is past the Month line but the forecast still clears the budget,
+  // the two would read as a contradiction — so the strip says both halves.
+  // Same neutral styling as on-track: only `over` earns the solid fill.
+  const ahead = !over && usedPct > monthPct;
 
   // Mount the bars at their previous state (or 0 on first render), then set
   // the real values a frame later so the width / left transitions actually
@@ -2582,7 +2587,9 @@ function renderLivePaceBar(totalIncome, totalExpense) {
       ${STATUS_ICON_SVG}
       ${over
         ? 'Your spending is outpacing the budget'
-        : 'Your spending is on track and within budget'}
+        : ahead
+          ? 'Ahead of an even pace, but on track to stay within budget'
+          : 'Your spending is on track and within budget'}
     </div>
   `;
 

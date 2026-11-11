@@ -223,6 +223,17 @@ test.describe('median daily', () => {
     await expect(strip).toHaveClass(/under/);
     await expect(strip).toContainText('on track');
   });
+
+  test('spent past the month line but forecast under budget says both halves', async ({ page }) => {
+    // Skewed fixture: 890 of 1200 spent (74%) on day 19 of 31 (61%) — the Spent
+    // bar is past the Month line, yet the forecast clears the budget. The strip
+    // must not read a bare "on track" under a bar that visibly leads.
+    await openApp(page, { view: 'today', fixture: 'skewed' });
+    const strip = page.locator('.income-bar-status');
+    await expect(strip).toHaveClass(/under/);
+    await expect(strip).toContainText('Ahead of an even pace, but on track to stay within budget');
+    await expect(page.locator('.income-bar-fill.spent')).not.toHaveClass(/over/);
+  });
 });
 
 test.describe('spend distribution', () => {
