@@ -22,7 +22,10 @@ permissions:
 jobs:
   smoke:
     name: browser smoke suite
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: the pinned @playwright/test (1.56.1) cannot
+    # install Chromium on ubuntu26.04, so `latest` broke the job at setup.
+    # Move this and the Playwright pin together, deliberately.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: test/browser
