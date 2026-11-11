@@ -235,6 +235,17 @@ test.describe('median daily', () => {
     await expect(strip).toHaveClass(/under/);
     await expect(strip).toContainText('on track');
   });
+
+  test('spent past the month line but forecast under budget says both halves', async ({ page }) => {
+    // Skewed fixture: 890 of 1200 spent (74%) on day 19 of 31 (61%) — the Spent
+    // bar is past the Month line, yet the forecast clears the budget. The strip
+    // must not read a bare "on track" under a bar that visibly leads.
+    await openApp(page, { view: 'today', fixture: 'skewed' });
+    const strip = page.locator('.income-bar-status');
+    await expect(strip).toHaveClass(/under/);
+    await expect(strip).toContainText('Ahead of an even pace, but on track to stay within budget');
+    await expect(page.locator('.income-bar-fill.spent')).not.toHaveClass(/over/);
+  });
 });
 
 test.describe('spend distribution', () => {
@@ -265,10 +276,12 @@ test.describe('spend distribution', () => {
     await expect(note).toContainText('mean line');
     expect(await note.textContent()).not.toMatch(/RM|\d/);
 
-    // On this fixture the two lines land 14.2% apart, inside the 18% collision
-    // rule, so the stacking path is exercised here rather than left untested.
-    await expect(labels.first()).toHaveClass(/row1/);
-    await expect(labels.nth(1)).toHaveClass(/row2/);
+    // The labels always sit on two rows: Mean on top, Median below — so they
+    // cannot overlap however close the lines are.
+    await expect(labels.first()).toHaveClass(/row2/);   // Median, lower
+    await expect(labels.nth(1)).toHaveClass(/row1/);    // Mean, higher
+    const [med, mean] = [await labels.first().boundingBox(), await labels.nth(1).boundingBox()];
+    expect(mean.y + mean.height).toBeLessThanOrEqual(med.y + 0.5);
 
     // It sits between the patterns grid and the cumulative card.
     const order = await page.evaluate(() => Array.from(

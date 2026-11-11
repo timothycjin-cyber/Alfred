@@ -406,7 +406,7 @@ P90 jump day to day, which moves the median and therefore the forecast for no vi
 - **The overspend strip fires LESS often than it used to. That is the correction, not a
   regression** — do not retune the threshold to restore the old rate.
 
-- **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome, totalExpense)`): caption `Day X of N` (or `No budget set this month`); a **Spent** row and a **Month** row, each `label | track | value%` (`.income-bar-row`, a `60px 1fr 52px` grid). Spent fills **sienna**, flipping to **red** once it crosses the Month line (`.income-bar-fill.spent.over`); Month is always `--outline` gray. A shared **dotted 2px "Today" line** (`.income-bar-marker`) crosses both bars at month-elapsed, with a bubble legend above (`.income-bar-wrap` reserves space via `padding-top: 36px`). Marker and bubble are positioned against the whole wrap but must align to the *track column* — `paceMarkerLeft(pct)` = `calc(72px + (100% - 136px) * pct)`. Closes on a **status strip** (`.income-bar-status`) flush with the card's bottom edge: an info glyph plus one sentence (`Your spending is outpacing the budget` / `…is on track and within budget`). **No ringgit figure** — the strip states the verdict, the bars carry magnitude. Same `over` boolean as the bar's colour flip, read from **`todayForecast()`** — the same call the detail panel prints, so the strip, the bar's red and the two figures can never disagree. **Only overspending gets a solid fill** (`--strip-over`, white text); on-track is transparent ground + `--on-surface-variant` ink with only a hairline top border. `--strip-over` is deliberately **deeper than `--semantic-expense`** (#D93A31 / #C0392F dark) — the semantic token is tuned for text *on* the surface and clears only ~4.0:1 under white. Full-bleed via negative margins (`20px -1.25rem -1.25rem`); bottom corners mirror `.card`'s asymmetric radius. **No strip in the no-budget state** — "within budget" with no budget is a false statement. `paceBarMemory` feeds the mount-then-spring.
+- **Budget-pace card** (`#today-pace-block`, `renderLivePaceBar(totalIncome, totalExpense)`): caption `Day X of N` (or `No budget set this month`); a **Spent** row and a **Month** row, each `label | track | value%` (`.income-bar-row`, a `60px 1fr 52px` grid). Spent fills **sienna**, flipping to **red** once it crosses the Month line (`.income-bar-fill.spent.over`); Month is always `--outline` gray. A shared **dotted 2px "Today" line** (`.income-bar-marker`) crosses both bars at month-elapsed, with a bubble legend above (`.income-bar-wrap` reserves space via `padding-top: 36px`). Marker and bubble are positioned against the whole wrap but must align to the *track column* — `paceMarkerLeft(pct)` = `calc(72px + (100% - 136px) * pct)`. Closes on a **status strip** (`.income-bar-status`) flush with the card's bottom edge: an info glyph plus one sentence (`Your spending is outpacing the budget` / `…is on track and within budget`). ⚠️ **A third, middle sentence (2026-11-11):** when Spent% is past Month% but the forecast is still under budget, it reads `Ahead of an even pace, but on track to stay within budget` — the bars are a straight-line pace and the verdict is the forecast, and a bare "on track" under a visibly leading bar read as a contradiction. Neutral styling, like on-track; only `over` gets the fill. **The verdict still comes from the forecast alone** — this is copy, not a retuned threshold. **No ringgit figure** — the strip states the verdict, the bars carry magnitude. Same `over` boolean as the bar's colour flip, read from **`todayForecast()`** — the same call the detail panel prints, so the strip, the bar's red and the two figures can never disagree. **Only overspending gets a solid fill** (`--strip-over`, white text); on-track is transparent ground + `--on-surface-variant` ink with only a hairline top border. `--strip-over` is deliberately **deeper than `--semantic-expense`** (#D93A31 / #C0392F dark) — the semantic token is tuned for text *on* the surface and clears only ~4.0:1 under white. Full-bleed via negative margins (`20px -1.25rem -1.25rem`); bottom corners mirror `.card`'s asymmetric radius. **No strip in the no-budget state** — "within budget" with no budget is a false statement. `paceBarMemory` feeds the mount-then-spring.
 - **Current-month-only:** the pace bar renders only for the real current month.
 
 ### 3.6 Logs tab
@@ -478,7 +478,7 @@ closes on the 1.5rem section break.
   - ⚠️ **The live month is CLIPPED at today**, same as `todayForecast()`. The card explains that tile's median, so it must be drawn from the same days or it marks a median the tile does not print. `distributionBuckets()` also takes the median **over days at or below P90** (D3) for the same reason.
   - **Inline SVG, no Chart.js** — 14 bucket points is a trivial path, the labels stay real DOM (§8), and it needs no fourth chart and no new id-gated canvas plugin.
   - ⚠️ **The curve RISES (`distRise`); it is never drawn with `stroke-dasharray`.** Under `preserveAspectRatio="none"` with `vector-effect: non-scaling-stroke`, Chrome lays the dash pattern along the **device-space** path while `stroke-dasharray` stays in user units — the two disagree by the viewBox scale and a "solid" line renders as chunks with gaps. `pathLength` does **not** reconcile them.
-  - **Reference labels are anchored to their own lines** (`.anchor-start`/`-mid`/`-end` flip which end is pinned near the card edges) — a label nudged away from its line labels the wrong value, and one pushed past the edge is the mobile-zoom trap. Colliding labels (<18% apart) stack onto a second row instead.
+  - **Reference labels are anchored to their own lines** (`.anchor-start`/`-mid`/`-end` flip which end is pinned near the card edges) — a label nudged away from its line labels the wrong value, and one pushed past the edge is the mobile-zoom trap. ⚠️ **The labels ALWAYS sit on two rows — `Mean` on top (`row1`), `Median` below (`row2`)** (2026-11-11). The old rule stacked only when the lines were <18% apart, and a percent gap cannot know how wide the labels render: lines ~20% apart still overlapped on a phone. Two fixed rows cannot collide at any gap.
   - `--dist-wash` has **separate light and dark values** — sienna at 0.18 all but vanishes on `#121212`.
   - **Empty state: fewer than 3 spending days** → one line of copy, no axes, no partial curve. Half a curve would read as a finding.
 - **The archive shelf is DELETED.** `#month-shelf`, `renderArchiveShelf()`, `.shelf-*` are gone; the picker supersedes it. ⚠️ **Two different things are called "archive":** the closed-month `archiveCardHtml()` in the `#income-bar-card` slot **stays**, as does the Logs `.logs-tail` (which since 2026-09-22 steps the selector back one month — §3.6). If unsure which you're looking at, stop.
@@ -590,7 +590,7 @@ test/browser/smoke.spec.js    77 checks, 2 projects (390 light-reduced / 900 dar
 **`test/browser/` (browser level):**
 - **`openApp({ fixture })` picks the sheet.** `default` is the original one — its deliberate July gap and its `Aug 2026` export label are load-bearing for the first 26 checks, so a spec needing different data **adds a fixture to `FIXTURES`, never edits that one**. `skewed` (`gviz-fixture-skewed.js`) exists for §3.5a: 12 August spending days with two outliers, three complete prior months so the buffer applies, and an income that sits **between** the mean projection and the calibrated forecast — so the pace strip reads "on track" only if it is using the new figure. Keep that gap, or those checks stop proving anything.
 - **The harness is the reusable part; the assertions aren't.** `openApp()` is what used to be rewritten each session. A new check adds an assertion, not new plumbing.
-- **CI:** `.github/workflows/browser-tests.yml`, separate from the zero-install `tests.yml` so a browser-tooling failure can't be mistaken for a core-logic one. **`@playwright/test` is pinned exact**, not a range, so CI fetches the browser this suite was verified against.
+- **CI:** `.github/workflows/browser-tests.yml`, separate from the zero-install `tests.yml` so a browser-tooling failure can't be mistaken for a core-logic one. **`@playwright/test` is pinned exact**, not a range, so CI fetches the browser this suite was verified against. ⚠️ **The runner is pinned too (`ubuntu-24.04`, 2026-11-11)** — `ubuntu-latest` moved to 26.04, which Playwright 1.56.1 cannot install Chromium on, and the job died at setup with no test run. Move the runner and the Playwright pin together.
 - ⚠️ **`page.emulateMedia()` before `goto()`, not the `reducedMotion` context/project option** — the option didn't reliably reach `matchMedia()` before the app's script ran. Matters because the app reads `matchMedia('(prefers-reduced-motion: reduce)')` **once**, into `REDUCED_MOTION`, at script-parse time (§3.2, §8).
 - The masthead-corner checks are a **permanent regression test** for the pill `pointer-events` bug (§3.4) — proved to fail against the pre-fix CSS before being trusted. ⚠️ **The lifted-pill check runs on Trends, not Logs**: it needs a document tall enough to scroll, and a one-month Logs ledger usually isn't (§3.6). It asserts the page scrolls before it asserts anything about the pill — a short page leaves the timeline inactive and the check passes vacuously.
 - The **Logs month-filter checks** are the floor under §3.6's one-month ledger: one `.month-header` on load, the tail swapping rather than appending, a revisited month showing alone, and export following the month in view. Three of the four were proved to fail against the pre-change `index.html`; the fourth (opens on the current month) passed either way, since the old default scope was also one month.
@@ -699,9 +699,10 @@ back — that argument has been had and this table is the answer.
 - **Ink is `--loader-ink`, not `--on-surface`** (§3.2). Each mark carries **exactly one**
   accent path; a second would make the accent decorative. The loader's bar and the empty-state
   marks use `var(--sienna)`; the **pig's accent is the coin, in `var(--coin)` gold** (below).
-- ⚠️ **The loader has NO ground shadow; the icon does.** The shadow is ink-coloured, so on the
-  dark theme it inverts into a pale puddle under the mark. The icon always sits on paper and
-  keeps it. Do not "restore" the shadow to the loader for consistency — the two grounds differ.
+- ⚠️ **NOTHING carries a ground shadow any more — the icon included (2026-11-11).** The loader
+  never had one (ink-coloured, it inverts into a pale puddle on dark). The icon dropped its own
+  on owner report: **Android draws the launch splash from the manifest icon**, and there the
+  shadow read as a black bar under the pig. Do not restore it to any mark.
 - **Animation:** `.lb` groups **LIFT** in sequence (`loaderBounce`, **0.8s, `translateY(-36px)`,
   `ease-in-out`, a 200ms stagger**); `.lt` ticks pulse. Reduced motion moves the pulse to the
   whole mark and sets `.lb`/`.lt` to `animation: none` — which is also what sets the bars back
@@ -736,7 +737,9 @@ back — that argument has been had and this table is the answer.
   rounded silhouette that reaches nowhere near its own corners — bbox corner **226.7** units out,
   furthest drawn pixel only **192.1**. Sizing against the corner shrank the maskable file for
   nothing *and* said nothing at all about the file that was actually being clipped.
-  **0.97** puts the furthest pixel at ~186, inside the spec's 205-unit safe radius (a circle of
+  *(Re-derived 2026-11-11 without the shadow: ink spans y 96–406, `ART_CENTRE` is now
+  `{248.5, 251.5}`, furthest pixel 179.5 → ~174 at 0.97. FRAME was kept so the pig did not grow.)*
+  **0.97** put the furthest pixel at ~186 (with the shadow), inside the spec's 205-unit safe radius (a circle of
   80% diameter) with margin for launchers that crop harder than the guarantee. Verified against
   crops at 100%, 80% and 72%.
   ⚠️ **Re-derive it after any change to the drawing** — the tail alone has moved the art's
@@ -761,7 +764,8 @@ back — that argument has been had and this table is the answer.
   - ⚠️ **No ground shadow, and this one cannot be fixed by re-tinting.** The shadow is drawn in
     the ink colour, and on dark the ink is warm-**white** — so it renders as a pale smear under
     the feet. A shadow has to be darker than its ground, and nothing is darker than `#121212`
-    here. `ground: false`, permanently.
+    here. `ground: false`, permanently — and since 2026-11-11 the tile has none either, so this
+    is no longer a difference from it.
   - ⚠️ **The wash stops are TOKENS (`--pig-wash-1..3`), never the icon's literal pinks.**
     Warm-white ink on pale pink has almost no contrast: on dark the outline stops doing its job
     and the pig reads as a blob. Dark swaps in a warm near-black ramp (`#3A2E28` → `#241C19`),
@@ -985,7 +989,8 @@ recorded here so they are not re-proposed as new.
 
 1. **Filled tapered paths, never strokes.** This is the whole style, and it is asserted (§3.12).
 2. **One accent element per mark**, never two. *(Sienna for every mark except the pig, whose accent coin went gold 2026-09-05 — §3.15.)*
-3. **The loader carries no ground shadow, the icon does** — the shadow inverts on dark.
+3. **The loader carries no ground shadow** — the shadow inverts on dark. *(The icon lost its own
+   on 2026-11-11: it showed as a black bar on the Android launch splash.)*
 4. **`--loader-ink` is its own light/dark pair**, not `--on-surface`.
 5. ~~Maskable icons are a separate file~~ — **REVERSED on device evidence (2026-09-04, sixth
    pass).** A launcher masks a `purpose: "any"` icon too, so a full-bleed framing does not
@@ -1286,7 +1291,7 @@ validation suite.
 - Restoring the app header, or moving any *figure* into the masthead or the pill (§3.3, §3.4). **Today DOES have a masthead** — it states the date and is inert
 - Reinstating the masthead chevrons, any month stepper, the Trends archive shelf, or the binary `.condensed` condense-on-scroll (§3.4, §3.7)
 - Reinstating the Logs toolbar row, or putting a *figure* in the masthead's right slot (§3.4, §3.6) — the Today brand mark is not a figure and does not reopen this
-- Giving the in-app pig the icon's ground shadow, hard-coding its wash stops as literal pinks, or making it a button (§3.15)
+- Giving the icon, the in-app pig or any mark a ground shadow, hard-coding its wash stops as literal pinks, or making it a button (§3.15)
 - Adding a dark override for `--coin` or `--coin-ink`, or drawing the coin's `$` in `--loader-ink` — the coin's ground travels with it, so its ink is fixed (§3.15)
 - Setting `.pill { pointer-events: auto }` — the resting value must stay `none` (§3.4, §8)
 - Adding `viewport-fit=cover` casually — every `env(safe-area-inset-*)` is currently inert, so turning it on shifts the FAB cluster's geometry and both top offsets at once (§3.3)

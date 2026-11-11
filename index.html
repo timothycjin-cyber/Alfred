@@ -2547,6 +2547,11 @@ function renderLivePaceBar(totalIncome, totalExpense) {
   // separate buffer instead of a mean smeared across the month, this fires less
   // often than it used to — that is the correction, not a threshold to retune.
   const over = todayForecast().forecast > totalIncome;
+  // The bars are a straight-line pace; the verdict is the forecast. When the
+  // Spent bar is past the Month line but the forecast still clears the budget,
+  // the two would read as a contradiction — so the strip says both halves.
+  // Same neutral styling as on-track: only `over` earns the solid fill.
+  const ahead = !over && usedPct > monthPct;
 
   // Mount the bars at their previous state (or 0 on first render), then set
   // the real values a frame later so the width / left transitions actually
@@ -2576,7 +2581,9 @@ function renderLivePaceBar(totalIncome, totalExpense) {
       ${STATUS_ICON_SVG}
       ${over
         ? 'Your spending is outpacing the budget'
-        : 'Your spending is on track and within budget'}
+        : ahead
+          ? 'Ahead of an even pace, but on track to stay within budget'
+          : 'Your spending is on track and within budget'}
     </div>
   `;
 
@@ -3475,10 +3482,11 @@ function renderSpendDistribution() {
   const avgPct = Math.max(0, Math.min(100, xOf(dist.spendDayMean)));
   const refLine = pct => `<line class="dist-ref" x1="${pct.toFixed(2)}" y1="0" x2="${pct.toFixed(2)}" y2="${DIST_VIEW_H}"/>`;
 
-  // The two labels can sit on top of each other when the month has no real
-  // tail. Drop the mean to a second row rather than overlapping; keep the
-  // label itself off the card's edges while its LINE stays at the true value.
-  const stacked = Math.abs(medPct - avgPct) < 18;
+  // The two labels always sit on separate rows: Mean on top, Median below.
+  // A percent-distance rule (the old <18% stack) cannot know how wide the
+  // labels render, so lines ~20% apart still overlapped on a phone. Two fixed
+  // rows cannot collide at any gap. The mean is usually the right-hand line,
+  // so the higher row also keeps the label order reading left-low, right-high.
   // Which end of the label is pinned, so it stays on the card without leaving
   // its line behind. A label pushed past the edge would also widen the
   // document, which is the mobile-zoom trap (CLAUDE.md §3.2).
@@ -3488,9 +3496,9 @@ function renderSpendDistribution() {
 
   el.innerHTML = `<div class="card spending-card">${head}
     <div class="sp-chip"><b>${escapeHtml(chipLabel)}</b><span class="sp-sep">•</span><b>${prof.spendDays.length}</b> spending days</div>
-    <div class="dist-plot" style="padding-top:${stacked ? 74 : 40}px">
-      ${lbl(medPct, 'Median', dist.median, 'row1')}
-      ${lbl(avgPct, 'Mean', dist.spendDayMean, stacked ? 'row2' : 'row1')}
+    <div class="dist-plot" style="padding-top:74px">
+      ${lbl(medPct, 'Median', dist.median, 'row2')}
+      ${lbl(avgPct, 'Mean', dist.spendDayMean, 'row1')}
       <svg class="dist-svg" viewBox="0 0 ${DIST_VIEW_W} ${DIST_VIEW_H}" preserveAspectRatio="none"
            role="img" aria-label="Distribution of daily spend for ${escapeHtml(chipLabel)}. Median RM ${formatCurrency(dist.median)}, mean RM ${formatCurrency(dist.spendDayMean)}.">
         <path class="dist-fill" d="${fill}"/>

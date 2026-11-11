@@ -187,11 +187,16 @@ fs.writeFileSync('loader-markup.txt',
    harder than the guarantee. Re-derive it by rasterising the art and reading
    pixels, not from getBBox(). */
 const FRAME = 0.97;
-const ART_CENTRE = { x: 248.5, y: 259 };
+/* ⚠️ The icon has NO ground shadow (2026-11-11). Android draws the launch
+   splash from this icon, and the shadow read there as a black bar under the
+   pig. Without it the ink spans y 96–406, so the centre moved up from 259 to
+   251.5; the furthest pixel is now 179.5 out (~174 at 0.97), comfortably
+   inside the 205 safe radius. FRAME is kept so the pig stays the same size. */
+const ART_CENTRE = { x: 248.5, y: 251.5 };
 const page = (size, detail) => `<!doctype html><meta charset="utf-8">
 <body style="margin:0"><svg width="${size}" height="${size}" viewBox="0 0 512 512" style="display:block;background:#FFFCF8">
 <g transform="translate(256 256) scale(${FRAME}) translate(${-ART_CENTRE.x} ${-ART_CENTRE.y})">
-${pig({ ink: '#12100E', coin: '#E3A21C', coinInk: '#12100E', d: detail })}
+${pig({ ink: '#12100E', coin: '#E3A21C', coinInk: '#12100E', d: detail, ground: false })}
 </g>
 </svg></body>`;
 
