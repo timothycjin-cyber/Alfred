@@ -694,12 +694,7 @@
     font-variation-settings: 'wght' 850, 'wdth' 80;
     letter-spacing: -1px; line-height: 1.1; margin: 6px 0 2px;
   }
-  .hero-sub { font-size: 11px; font-weight: 500; color: var(--on-surface-variant); margin-bottom: 14px; }
-  .hero-chart-wrap { position: relative; width: 100%; height: 58px; margin: 0 -4px; }
-  /* The running month's bar is a partial figure drawn on the same axis as five
-     completed months. It's washed out rather than solid, and this note says
-     how far in it is — otherwise nine days are read against thirty-one. */
-  .hero-chart-note { font-size: 10.5px; color: var(--on-surface-variant); margin-top: 8px; letter-spacing: 0.2px; }
+  .hero-sub { font-size: 11px; font-weight: 500; color: var(--on-surface-variant); }
 
   .tile-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 1.5rem; width: 100%; }
   /* Trends tile row sits directly above the spend-pace card, same
@@ -2363,7 +2358,6 @@ let drillState = null;
 
 let donutChart = null;
 let lineChart = null;
-let heroChart = null;
 
 // Category palette (validated with the dataviz six-checks script, both
 // themes). Food gets its own burnt-sienna hue — the semantic expense red
@@ -4073,30 +4067,6 @@ function triggerDownload(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-// Faint zero line behind the hero trend bars so negative months read as
-// "below the line" instead of vanishing (paired with minBarLength on the
-// dataset, which guarantees every month at least a visible sliver).
-const heroBaselinePlugin = {
-  id: 'heroBaseline',
-  beforeDatasetsDraw: (chart) => {
-    if (chart.canvas.id !== 'hero-trend') return;
-    const yScale = chart.scales.y;
-    if (!yScale) return;
-    const y = yScale.getPixelForValue(0);
-    const { ctx, chartArea } = chart;
-    if (y < chartArea.top || y > chartArea.bottom) return;
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    ctx.save();
-    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(chartArea.left, y + 0.5);
-    ctx.lineTo(chartArea.right, y + 0.5);
-    ctx.stroke();
-    ctx.restore();
-  }
-};
-Chart.register(heroBaselinePlugin);
 if (REDUCED_MOTION) Chart.defaults.animation = false;
 
 function animateCounters() {
@@ -4577,9 +4547,6 @@ function calculateAndRender() {
   expenseRows.forEach(r => { catTotals[r.Category] = (catTotals[r.Category] || 0) + r.Amount; });
   const catData = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
 
-  const activeExpenseColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-expense').trim() || "#E53E3E";
-  const activeIncomeColor = getComputedStyle(document.documentElement).getPropertyValue('--semantic-income').trim() || "#00A36C";
-
   if (currentView === 'today') {
     // Today carries a masthead too now, so it needs the call the Logs and
     // Trends branches already had — the visibility gate is "once there is
@@ -4591,18 +4558,6 @@ function calculateAndRender() {
     const incChangePct = lastMonth.inc > 0 ? ((totalIncome - lastMonth.inc) / lastMonth.inc * 100) : (totalIncome > 0 ? 100 : 0);
     const expChangePct = lastMonth.exp > 0 ? ((totalExpense - lastMonth.exp) / lastMonth.exp * 100) : (totalExpense > 0 ? 100 : 0);
 
-    const trendMonths = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(activeYear, activeMonth - i, 1);
-      trendMonths.push({ label: MONTHS[d.getMonth()], year: d.getFullYear(), month: d.getMonth() });
-    }
-    const trendData = trendMonths.map(m => monthTotals(m.year, m.month).net);
-    // The last bar is a month still in progress, drawn on the same axis as five
-    // finished ones. Draw it as provisional — washed out, with a note saying how
-    // far in it is — rather than letting nine days read against thirty-one.
-    const _now = new Date();
-    const heroLiveMonth = activeMonth === _now.getMonth() && activeYear === _now.getFullYear();
-
     document.getElementById('today-hero').innerHTML = `
       <div class="hero-card">
         <div class="hero-top">
@@ -4610,8 +4565,6 @@ function calculateAndRender() {
         </div>
         <div class="hero-amount counter-val" id="hero-amount" style="color: ${netBalance >= 0 ? 'var(--semantic-income)' : 'var(--semantic-expense)'};" data-val="${netBalance}" data-key="home-net" data-prefix="RM ">RM 0.00</div>
         <div class="hero-sub">${netBalance >= 0 ? 'In the green' : 'Watching the leak'}</div>
-        <div class="hero-chart-wrap"><canvas id="hero-trend"></canvas></div>
-        ${heroLiveMonth ? `<div class="hero-chart-note">${MONTHS_FULL[activeMonth]} is ${_now.getDate()} days in</div>` : ''}
       </div>
     `;
 
@@ -4644,35 +4597,6 @@ function calculateAndRender() {
       document.getElementById('today-pace').innerHTML = '';
       paceBarMemory = null;
     }
-
-    const heroTickColor = getComputedStyle(document.documentElement).getPropertyValue('--on-surface-variant').trim();
-
-    if (heroChart) heroChart.destroy();
-    heroChart = new Chart(document.getElementById('hero-trend'), {
-      type: 'bar',
-      data: {
-        labels: trendMonths.map(m => m.label),
-        datasets: [{
-          data: trendData,
-          backgroundColor: trendData.map((v, i) => i === trendData.length - 1
-            ? (heroLiveMonth ? hexToRgba('#C2542D', 0.38) : '#C2542D')
-            : hexToRgba(v >= 0 ? activeIncomeColor : activeExpenseColor, 0.35)),
-          borderRadius: 4,
-          maxBarThickness: 16,
-          minBarLength: 4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: REDUCED_MOTION ? false : { duration: 750, easing: 'easeOutBack' },
-        plugins: { legend: { display: false }, tooltip: { enabled: false } },
-        scales: {
-          x: { grid: { display: false }, border: { display: false }, ticks: { color: heroTickColor, font: { size: 9, weight: 700 } } },
-          y: { display: false, grid: { display: false } }
-        }
-      }
-    });
 
   }
 

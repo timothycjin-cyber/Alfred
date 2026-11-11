@@ -280,6 +280,13 @@ For code comments that reference roadmap phases: **v2** = the restructure roadma
 roadmap (Phases A–F). All shipped phases below are DONE & verified; what each built is
 woven into §3.
 
+- **2026-10-31 — Today hero chart deleted (§3.5, §6 item 1).** Owner felt the six-month net bars
+  did little. They had no labels, no axis and little range, and the running month needed a
+  "N days in" note just to be read fairly. Two options were on file: a within-month burn-down or
+  deletion. Burn-down was rejected because the budget-pace card directly below already plots
+  spend against time — it would have been the same chart twice on one screen. Month-to-month
+  history stays on Trends. One smoke check pins the absence, proved red against the old file.
+
 - **2026-09-05 — Empty-state marks (§3.15, §6).** Seven more subjects from the nib, for the app's
   blank moments. Also closed roadmap item 10 (the first-run card told a person who had opened
   their `?user=` link to open their `?user=` link) and half of item 11 (the failed load became a

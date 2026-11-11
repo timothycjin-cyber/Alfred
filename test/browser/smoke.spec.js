@@ -42,6 +42,18 @@ test.describe('layout', () => {
   }
 });
 
+test.describe('Today hero', () => {
+  // The 6-month net bar chart was deleted 2026-10-31 (CLAUDE.md §3.5): six
+  // unlabelled bars said nothing the pace card and Trends do not already say.
+  // The hero is the label, the figure and the sub-line.
+  test('carries no chart and no live-month note', async ({ page }) => {
+    await openApp(page, { view: 'today' });
+    await expect(page.locator('#hero-amount')).toBeVisible();
+    await expect(page.locator('#today-hero canvas')).toHaveCount(0);
+    await expect(page.locator('.hero-chart-note')).toHaveCount(0);
+  });
+});
+
 test.describe('masthead corner', () => {
   // Regression test for the 2026-08-19 bug (CLAUDE.md §3.4, §8): a scroll-
   // driven animation's keyframes do not apply at all on a document too short
